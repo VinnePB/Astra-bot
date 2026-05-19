@@ -1,4 +1,5 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const express = require('express'); // Adicionado para a Render não derrubar o bot
 require('dotenv').config();
 
 const setupCommands = require('./commands/setup');
@@ -9,8 +10,24 @@ const verifyButton = require('./interactions/verifyButton');
 process.on('unhandledRejection', (reason, promise) => console.error('❌ Erro: Rejection não tratada:', reason));
 process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exceção não capturada:', error));
 
+// ==========================================
+// SERVIDOR WEB PARA MANTER O BOT ALIVE
+// ==========================================
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('🚀 Astra Bot está online e operando em nuvem perfeitamente!');
+});
+
+app.listen(PORT, () => {
+    console.log(`🌐 [Web Server] Porta ${PORT} aberta para pings do UptimeRobot.`);
+});
+
+// ==========================================
+// CONFIGURAÇÃO DO CLIENT DO DISCORD
+// ==========================================
 const client = new Client({
-    // Liberando a leitura completa de mensagens e membros sem cargo
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
@@ -20,7 +37,8 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.User]
 });
 
-client.once('clientReady', () => {
+// CORRIGIDO: De 'clientReady' para 'ready'
+client.once('ready', () => {
     console.log(`🚀 Astra online com sistema de Dupla Verificação ativo!`);
 });
 
@@ -28,13 +46,9 @@ client.once('clientReady', () => {
 // MONITOR DE COMANDOS POR TEXTO
 // ==========================================
 client.on('messageCreate', async (message) => {
-    // Ignora se for mensagem do próprio bot ou fora de servidores
     if (message.author.bot || !message.guild) return;
 
-    // Executa os comandos !setup e !setupverify
     await setupCommands.execute(message);
-
-    // Executa a verificação por texto (!verify)
     await verifyButton.handleTextVerify(message);
 });
 
