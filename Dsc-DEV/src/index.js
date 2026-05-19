@@ -32,9 +32,6 @@ client.on('messageCreate', async (message) => {
 
     // Executa os comandos !setup e !setupverify
     await setupCommands.execute(message);
-
-    // Executa o comando !verify por texto
-    await verifyButton.handleTextVerify(message);
 });
 
 // ==========================================
