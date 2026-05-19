@@ -38,11 +38,15 @@ module.exports = {
 
                 const embedRegras = new EmbedBuilder()
                     .setTitle('📜 Server Rules & Terms of Service')
-                    .setDescription('Welcome to **v14rtz**! To get access to the rest of the server channels, please read our rules and guidelines.\n\n' +
-                                    '• Be polite and respectful to everyone.\n' +
-                                    '• No NSFW content outside designated areas (if any).\n' +
-                                    '• Respect the artist turnaround time and policies.\n\n' +
-                                    'By clicking the button below or typing `!verify`, you agree to our Terms of Service and community guidelines.')
+                    .setDescription(
+                        'Welcome to **v14rtz**! Please read our community guidelines carefully before verifying:\n\n' +
+                        // 📋 COLE SUAS REGRAS ABAIXO (Pode adicionar ou alterar as linhas como quiser):
+                        '1️⃣ **Be respectful:** Treat all members and the artist with kindness. No hate speech, harassment, or toxicity.\n' +
+                        '2️⃣ **No NSFW content:** Keep all discussions and media safe for work (SFW) throughout the server channels.\n' +
+                        '3️⃣ **No Spam or Self-Promotion:** Do not flood channels or advertise without explicit authorization.\n' +
+                        '4️⃣ **Commission Policy:** Respect turnaround times and guidelines detailed inside the tickets.\n\n' +
+                        'By clicking the button below, you confirm that you have read and agree to all our terms and community rules.'
+                    )
                     .setColor('#2ECC71');
 
                 await message.channel.send({ embeds: [embedRegras], components: [botaoVerificar] });
