@@ -1,13 +1,12 @@
-<% layout('layout') %>
+<%- include('partials/header') %>
 
-<main class="max-w-5xl mx-auto p-6 mt-6">
+<div class="max-w-5xl mx-auto">
     <div class="mb-8">
         <h1 class="text-3xl font-bold text-white tracking-tight">Configuration</h1>
         <p class="text-slate-400 mt-1">Manage your server's security settings and verify members.</p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-        
         <div class="md:col-span-2 bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl">
             <form action="/api/update-verification" method="POST" class="space-y-8">
                 <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
@@ -68,14 +67,13 @@
                     <span class="text-white font-medium">System Active</span>
                 </div>
             </div>
-
             <div class="pt-6 border-t border-slate-800">
                 <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Verified</h3>
                 <p class="text-4xl font-black text-white">1,240</p>
             </div>
         </div>
     </div>
-</main>
+</div>
 
 <script>
     const urlParams = new URLSearchParams(window.location.search);
@@ -84,7 +82,6 @@
         toast.className = 'fixed top-5 right-5 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-fade-in-up';
         toast.innerHTML = `<span>✓</span> Settings saved successfully!`;
         document.body.appendChild(toast);
-        
         setTimeout(() => {
             toast.style.opacity = '0';
             setTimeout(() => toast.remove(), 300);
@@ -92,3 +89,5 @@
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 </script>
+
+<%- include('partials/footer') %>

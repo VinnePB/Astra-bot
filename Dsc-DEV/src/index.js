@@ -18,7 +18,7 @@ process.on('uncaughtException', (error, origin) => console.error('❌ Error: Unc
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Set up native EJS
+// Setup Native EJS (No ejs-mate dependency)
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
