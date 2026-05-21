@@ -3,17 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <title>Astra | Select Server</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: #1e1e1e; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 100%; max-width: 400px; text-align: center; }
+        select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 5px; border: none; font-size: 1rem; }
+        button { background: #5865F2; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background: #4752c4; }
+    </style>
 </head>
 <body>
-    <main>
+    <div class="container">
         <h1>Select your Server</h1>
-        <p>To begin managing your bot, please enter the ID of the Discord server you wish to configure below.</p>
+        <p>Choose the server to configure:</p>
         
         <form action="/select-server" method="POST">
-            <label for="guild_id">Server ID:</label>
-            <input type="text" id="guild_id" name="guild_id" placeholder="Paste your Server ID here" required>
+            <select name="guild_id" required>
+                <% guilds.forEach(guild => { %>
+                    <option value="<%= guild.id %>"><%= guild.name %></option>
+                <% }) %>
+            </select>
             <button type="submit">Continue</button>
         </form>
-    </main>
+    </div>
 </body>
 </html>

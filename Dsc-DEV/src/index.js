@@ -6,7 +6,6 @@ const session = require('express-session');
 require('dotenv').config();
 
 const db = require('./database');
-
 const setupCommands = require('./commands/setup');
 const ticketButtons = require('./interactions/ticketButtons');
 const infoMenu = require('./interactions/infoMenu');
@@ -16,15 +15,12 @@ const configCommand = require('./slashCommands/config');
 process.on('unhandledRejection', (reason, promise) => console.error('❌ Erro: Rejection não tratada:', reason));
 process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exceção não capturada:', error));
 
-// ==========================================
-// SERVIDOR WEB E DASHBOARD
-// ==========================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use(express.urlencoded({ extended: true })); 
+app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'uma_chave_secreta_aqui',
@@ -32,15 +28,13 @@ app.use(session({
     saveUninitialized: false
 }));
 
-const siteData = { 
-    title: 'Astra Security', 
-    subtitle: 'Control & Configuration Panel', 
-    welcome_message: 'Welcome to the management center. Log in with your Discord account to configure your server\'s verification and log systems.', 
-    login_button: 'Login with Discord' 
-};
-
 app.get('/', (req, res) => {
-    res.render('index', siteData);
+    res.render('index', { 
+        title: 'Astra Security', 
+        subtitle: 'Control & Configuration Panel', 
+        welcome_message: 'Log in with your Discord account to configure your server.', 
+        login_button: 'Login with Discord' 
+    });
 });
 
 app.get('/login', (req, res) => {
@@ -62,23 +56,34 @@ app.get('/callback', async (req, res) => {
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         const { access_token } = tokenResponse.data;
+        req.session.token = access_token;
 
         const userResponse = await axios.get('https://discord.com/api/users/@me', {
             headers: { Authorization: `Bearer ${access_token}` }
         });
 
         req.session.user = userResponse.data;
-        res.redirect('/dashboard');
+        res.redirect('/select-server');
     } catch (error) {
         console.error('❌ Auth Error:', error.response ? error.response.data : error.message);
-        res.send('Authentication error: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
+        res.send('Authentication error.');
     }
 });
 
-// Rotas de Seleção de Servidor
-app.get('/select-server', (req, res) => {
-    if (!req.session.user) return res.redirect('/');
-    res.render('select_server', { user: req.session.user });
+app.get('/select-server', async (req, res) => {
+    if (!req.session.user || !req.session.token) return res.redirect('/');
+    
+    try {
+        const guildsResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
+            headers: { Authorization: `Bearer ${req.session.token}` }
+        });
+
+        const adminGuilds = guildsResponse.data.filter(g => (BigInt(g.permissions) & 8n) === 8n);
+        res.render('select_server', { user: req.session.user, guilds: adminGuilds });
+    } catch (err) {
+        console.error("API Guilds Error:", err);
+        res.status(500).send("Erro ao buscar seus servidores.");
+    }
 });
 
 app.post('/select-server', (req, res) => {
@@ -87,7 +92,6 @@ app.post('/select-server', (req, res) => {
     res.redirect('/dashboard');
 });
 
-// Dashboard Route com lógica de Onboarding
 app.get('/dashboard', async (req, res) => {
     if (!req.session.user) return res.redirect('/');
     
@@ -107,7 +111,6 @@ app.get('/dashboard', async (req, res) => {
     }
 });
 
-// Rota de POST para atualizar configurações
 app.post('/api/update-verification', async (req, res) => {
     if (!req.session.user) return res.status(401).send('Unauthorized');
     
@@ -135,9 +138,6 @@ app.listen(PORT, () => {
     console.log(`🌐 [Web Server] Port ${PORT} open for Dashboard.`);
 });
 
-// ==========================================
-// CONFIGURAÇÃO DO CLIENT DO DISCORD
-// ==========================================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
