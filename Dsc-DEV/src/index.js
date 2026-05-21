@@ -1,13 +1,15 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const express = require('express');
 const path = require('path');
+const axios = require('axios');
+const session = require('express-session'); // Adicionado
 require('dotenv').config();
 
 const setupCommands = require('./commands/setup');
 const ticketButtons = require('./interactions/ticketButtons');
 const infoMenu = require('./interactions/infoMenu');
 const verifyButton = require('./interactions/verifyButton');
-const configCommand = require('./slashCommands/config'); 
+const configCommand = require('./slashCommands/config');
 
 process.on('unhandledRejection', (reason, promise) => console.error('❌ Erro: Rejection não tratada:', reason));
 process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exceção não capturada:', error));
@@ -21,7 +23,13 @@ const PORT = process.env.PORT || 3000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Dicionário simples de traduções
+// Configuração de Sessão
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'uma_chave_secreta_aqui',
+    resave: false,
+    saveUninitialized: false
+}));
+
 const translations = {
     'pt': { title: 'Astra Security', subtitle: 'Painel de Controle e Configuração', welcome_message: 'Bem-vindo à central de gerenciamento. Conecte-se com sua conta do Discord para configurar os sistemas de verificação e logs do seu servidor.', login_button: 'Entrar com o Discord', lang: 'pt-BR' },
     'en': { title: 'Astra Security', subtitle: 'Control & Configuration Panel', welcome_message: 'Welcome to the management center. Log in with your Discord account to configure your server\'s verification and log systems.', login_button: 'Login with Discord', lang: 'en' }
@@ -38,9 +46,6 @@ app.get('/login', (req, res) => {
     res.redirect(authUrl);
 });
 
-
-const axios = require('axios');
-
 app.get('/callback', async (req, res) => {
     const { code } = req.query;
     if (!code) return res.send('Erro: Nenhum código fornecido.');
@@ -48,19 +53,31 @@ app.get('/callback', async (req, res) => {
     try {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
             client_id: process.env.DISCORD_CLIENT_ID,
-            client_secret: process.env.DISCORD_CLIENT_SECRET, // Verifique se isso está no Render!
+            client_secret: process.env.DISCORD_CLIENT_SECRET,
             grant_type: 'authorization_code',
             code: code,
             redirect_uri: process.env.REDIRECT_URI,
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         const { access_token } = tokenResponse.data;
-        res.send('Autenticado com sucesso! Token recebido: ' + access_token);
+
+        const userResponse = await axios.get('https://discord.com/api/users/@me', {
+            headers: { Authorization: `Bearer ${access_token}` }
+        });
+
+        // Salva o usuário na sessão e redireciona
+        req.session.user = userResponse.data;
+        res.redirect('/dashboard');
     } catch (error) {
-        // MUDANÇA AQUI:
         console.error('❌ Erro no Callback:', error.response ? error.response.data : error.message);
         res.send('Erro ao autenticar: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
     }
+});
+
+// Nova rota da Dashboard
+app.get('/dashboard', (req, res) => {
+    if (!req.session.user) return res.redirect('/');
+    res.render('dashboard', { user: req.session.user });
 });
 
 app.listen(PORT, () => {
