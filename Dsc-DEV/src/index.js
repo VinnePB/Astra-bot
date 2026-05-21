@@ -21,7 +21,7 @@ const PORT = process.env.PORT || 3000;
 
 app.engine('ejs', ejsMate);
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+app.set('views', path.join(process.cwd(), 'views'));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
@@ -102,15 +102,16 @@ app.get('/dashboard', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
     if (!guildId) return res.redirect('/select-server'); 
 
-    // Capture success status from query parameter
-    const successMsg = req.query.status === 'success' ? 'Settings updated successfully!' : null;
-
     try {
+        console.log(`[DEBUG] Attempting to fetch data for guild: ${guildId}`); // Track the ID
+        
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
 
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
         
+        // Let's add logging for the API calls
+        console.log(`[DEBUG] Fetching Discord API data...`);
         const [channelsRes, rolesRes] = await Promise.all([
             axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
             axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })
@@ -123,11 +124,12 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             settings: settings,
             channels: textChannels,
             roles: rolesRes.data,
-            success: successMsg // Pass the message here!
+            success: req.query.status === 'success' ? 'Settings updated successfully!' : null
         });
     } catch (err) {
-        console.error("Dashboard Fetch Error:", err.response ? err.response.data : err.message);
-        res.status(500).send("Error loading dashboard.");
+        // This will print the actual technical error to your Render logs
+        console.error("❌ DASHBOARD ERROR DETAILS:", err.response ? err.response.data : err.message);
+        res.status(500).send("Dashboard Error: " + (err.message || "Unknown error"));
     }
 });
 
