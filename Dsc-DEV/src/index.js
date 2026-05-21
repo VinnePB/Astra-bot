@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const axios = require('axios');
 const session = require('express-session');
+const ejsMate = require('ejs-mate'); // Necessário para o layout
 require('dotenv').config();
 
 const db = require('./database');
@@ -18,16 +19,27 @@ process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exce
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configuração do View Engine com EJS-Mate
+app.engine('ejs', ejsMate);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use(express.urlencoded({ extended: true }));
 
+app.use(express.urlencoded({ extended: true }));
 app.use(session({
     secret: process.env.SESSION_SECRET || 'uma_chave_secreta_aqui',
     resave: false,
     saveUninitialized: false
 }));
 
+// Middleware de Autenticação
+const checkAuth = (req, res, next) => {
+    if (!req.session.user || !req.session.token) {
+        return res.redirect('/');
+    }
+    next();
+};
+
+// Rotas
 app.get('/', (req, res) => {
     res.render('index', { 
         title: 'Astra Security', 
@@ -70,9 +82,7 @@ app.get('/callback', async (req, res) => {
     }
 });
 
-app.get('/select-server', async (req, res) => {
-    if (!req.session.user || !req.session.token) return res.redirect('/');
-    
+app.get('/select-server', checkAuth, async (req, res) => {
     try {
         const guildsResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
             headers: { Authorization: `Bearer ${req.session.token}` }
@@ -86,58 +96,79 @@ app.get('/select-server', async (req, res) => {
     }
 });
 
-app.post('/select-server', (req, res) => {
-    if (!req.session.user) return res.status(401).send('Unauthorized');
+app.post('/select-server', checkAuth, (req, res) => {
     req.session.selectedGuildId = req.body.guild_id;
     res.redirect('/dashboard');
 });
 
-app.get('/dashboard', async (req, res) => {
-    if (!req.session.user) return res.redirect('/');
-    
+app.get('/dashboard', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
     if (!guildId) return res.redirect('/select-server'); 
 
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
-        if (rows.length === 0) {
-            res.render('onboarding', { user: req.session.user });
-        } else {
-            res.render('dashboard', { user: req.session.user, settings: rows[0] });
-        }
+        const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
+
+        const headers = { Authorization: `Bearer ${req.session.token}` };
+        
+        const [channelsRes, rolesRes] = await Promise.all([
+            axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
+            axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })
+        ]);
+
+        const textChannels = channelsRes.data.filter(c => c.type === 0);
+
+        res.render('dashboard', { 
+            user: req.session.user, 
+            settings: settings,
+            channels: textChannels,
+            roles: rolesRes.data 
+        });
     } catch (err) {
-        console.error("Dashboard DB Error:", err);
-        res.status(500).send("Server error");
+        console.error("Dashboard Fetch Error:", err);
+        res.status(500).send("Erro ao carregar painel. O bot tem as permissões necessárias?");
     }
 });
 
-app.post('/api/update-verification', async (req, res) => {
-    if (!req.session.user) return res.status(401).send('Unauthorized');
+app.post('/api/update-verification', checkAuth, async (req, res) => {
+    const { guild_id, two_step, member_role_id, log_channel_id } = req.body;
     
-    const { guild_id, two_step, member_role_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) {
+        return res.status(403).send('Ação não permitida para este servidor.');
+    }
+
     const twoStepBool = two_step === 'on';
 
     try {
         await db.query(`
-            INSERT INTO guild_settings (guild_id, two_step_enabled, member_role_id) 
-            VALUES ($1, $2, $3) 
+            INSERT INTO guild_settings (guild_id, two_step_enabled, member_role_id, log_channel_id) 
+            VALUES ($1, $2, $3, $4) 
             ON CONFLICT (guild_id) 
             DO UPDATE SET 
                 two_step_enabled = EXCLUDED.two_step_enabled, 
-                member_role_id = EXCLUDED.member_role_id
-        `, [guild_id, twoStepBool, member_role_id]);
+                member_role_id = EXCLUDED.member_role_id,
+                log_channel_id = EXCLUDED.log_channel_id
+        `, [guild_id, twoStepBool, member_role_id, log_channel_id]);
         
-        res.redirect('/dashboard');
+        res.redirect('/dashboard?status=success');
     } catch (err) {
         console.error("Database Update Error:", err);
-        res.status(500).send("Error saving settings.");
+        res.status(500).send("Erro ao salvar as configurações.");
     }
+});
+
+app.get('/logout', (req, res) => {
+    req.session.destroy((err) => {
+        if (err) console.error("Logout Error:", err);
+        res.redirect('/');
+    });
 });
 
 app.listen(PORT, () => {
     console.log(`🌐 [Web Server] Port ${PORT} open for Dashboard.`);
 });
 
+// Configuração Discord Client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -150,12 +181,20 @@ const client = new Client({
 
 client.once('ready', async () => {
     try {
-        await db.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS two_step_enabled BOOLEAN DEFAULT FALSE;');
-        console.log("✅ Database synced (two_step_enabled column verified).");
+        const queries = [
+            'ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS two_step_enabled BOOLEAN DEFAULT FALSE;',
+            'ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS member_role_id VARCHAR(30);',
+            'ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS log_channel_id VARCHAR(30);'
+        ];
+        
+        for (const query of queries) {
+            await db.query(query);
+        }
+        console.log("✅ Database schema synchronized.");
     } catch (err) {
         console.error("❌ Database sync error:", err);
     }
-    console.log(`🚀 Astra online with 2-Step Verification support!`);
+    console.log(`🚀 Astra online.`);
 });
 
 client.on('messageCreate', async (message) => {
