@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const express = require('express');
+const path = require('path');
 require('dotenv').config();
 
 const setupCommands = require('./commands/setup');
@@ -12,17 +13,20 @@ process.on('unhandledRejection', (reason, promise) => console.error('❌ Erro: R
 process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exceção não capturada:', error));
 
 // ==========================================
-// SERVIDOR WEB PARA MANTER O BOT ALIVE
+// SERVIDOR WEB E DASHBOARD
 // ==========================================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 app.get('/', (req, res) => {
-    res.send('🚀 Astra Bot está online e operando em nuvem perfeitamente!');
+    res.render('index');
 });
 
 app.listen(PORT, () => {
-    console.log(`🌐 [Web Server] Porta ${PORT} aberta para pings do UptimeRobot.`);
+    console.log(`🌐 [Web Server] Porta ${PORT} aberta para a Dashboard e pings.`);
 });
 
 // ==========================================
