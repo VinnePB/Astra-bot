@@ -16,6 +16,9 @@ async function checarDuplaVerificacao(member, guild) {
 
         const dados = membroRows[0];
 
+        // SEGURANÇA: Se já estiver verificado, não faz nada para evitar flicker de cargos
+        if (dados.verificado_final === 1) return;
+
         if (dados.digitou_verify === 1 && dados.clicou_botao === 1) {
             
             // 2. Fetch configured role for this server from DB
