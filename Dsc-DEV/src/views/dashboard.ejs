@@ -1,79 +1,94 @@
 <% layout('layout') %>
 
-<main class="max-w-4xl mx-auto p-6 mt-6">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<main class="max-w-5xl mx-auto p-6 mt-6">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-white tracking-tight">Configuration</h1>
+        <p class="text-slate-400 mt-1">Manage your server's security settings and verify members.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         
-        <div class="md:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
-            <h2 class="text-lg font-semibold mb-4 border-b border-slate-800 pb-2">Verification Settings</h2>
-            
-            <form action="/api/update-verification" method="POST" class="space-y-6">
+        <div class="md:col-span-2 bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl">
+            <form action="/api/update-verification" method="POST" class="space-y-8">
                 <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
-                
-                <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-                    <label class="text-slate-300">Enable 2-Step Verification</label>
+
+                <div class="flex items-center justify-between p-5 bg-slate-950/50 rounded-xl border border-slate-800">
+                    <div>
+                        <label class="block font-medium text-white">2-Step Verification</label>
+                        <span class="text-sm text-slate-500">Require members to verify identity.</span>
+                    </div>
                     <input type="checkbox" name="two_step" <%= settings.two_step_enabled ? 'checked' : '' %> 
-                        class="w-5 h-5 accent-indigo-500 rounded cursor-pointer">
+                        class="w-6 h-6 accent-indigo-500 cursor-pointer focus:ring-offset-slate-900 focus:ring-2 focus:ring-indigo-500 rounded">
                 </div>
 
-                <div>
-                    <label class="block text-sm text-slate-400 mb-2">Member Role</label>
-                    <select name="member_role_id" 
-                        class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 outline-none focus:border-indigo-500 transition-all text-white">
-                        <option value="" disabled <%= !settings.member_role_id ? 'selected' : '' %>>Selecione um cargo...</option>
-                        <% roles.forEach(role => { %>
-                            <% if (role.id !== settings.guild_id) { %>
-                                <option value="<%= role.id %>" <%= settings.member_role_id === role.id ? 'selected' : '' %>>
-                                    @<%= role.name %>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Member Role</label>
+                        <select name="member_role_id" 
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-white outline-none">
+                            <option value="" disabled <%= !settings.member_role_id ? 'selected' : '' %>>Select a role...</option>
+                            <% roles.forEach(role => { %>
+                                <% if (role.id !== settings.guild_id) { %>
+                                    <option value="<%= role.id %>" <%= settings.member_role_id === role.id ? 'selected' : '' %>>
+                                        @<%= role.name %>
+                                    </option>
+                                <% } %>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Log Channel</label>
+                        <select name="log_channel_id" 
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-white outline-none">
+                            <option value="" <%= !settings.log_channel_id ? 'selected' : '' %>>None selected</option>
+                            <% channels.forEach(channel => { %>
+                                <option value="<%= channel.id %>" <%= settings.log_channel_id === channel.id ? 'selected' : '' %>>
+                                    #<%= channel.name %>
                                 </option>
-                            <% } %>
-                        <% }) %>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm text-slate-400 mb-2">Log Channel</label>
-                    <select name="log_channel_id" 
-                        class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 outline-none focus:border-indigo-500 transition-all text-white">
-                        <option value="" <%= !settings.log_channel_id ? 'selected' : '' %>>Nenhum canal selecionado</option>
-                        <% channels.forEach(channel => { %>
-                            <option value="<%= channel.id %>" <%= settings.log_channel_id === channel.id ? 'selected' : '' %>>
-                                #<%= channel.name %>
-                            </option>
-                        <% }) %>
-                    </select>
+                            <% }) %>
+                        </select>
+                    </div>
                 </div>
 
                 <button type="submit" 
-                    class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg transition-all shadow-lg shadow-indigo-900/20">
-                    Save Changes
+                    class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]">
+                    Save Configuration
                 </button>
             </form>
         </div>
 
-        <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl self-start">
-            <h3 class="text-sm font-medium text-slate-400 mb-2">Server Status</h3>
-            <div class="flex items-center gap-2 mb-6">
-                <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                <span class="text-green-500 font-bold">Active</span>
+        <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl self-start space-y-6">
+            <div>
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Server Status</h3>
+                <div class="flex items-center gap-2">
+                    <div class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </div>
+                    <span class="text-white font-medium">System Active</span>
+                </div>
             </div>
-            
-            <h3 class="text-sm font-medium text-slate-400 mb-2">Total Verifications</h3>
-            <p class="text-3xl font-bold text-white">1,240</p>
-        </div>
 
+            <div class="pt-6 border-t border-slate-800">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Verified</h3>
+                <p class="text-4xl font-black text-white">1,240</p>
+            </div>
+        </div>
     </div>
 </main>
 
 <script>
-    // Toast Notification para feedback de sucesso
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('status') && urlParams.get('status') === 'success') {
         const toast = document.createElement('div');
-        toast.className = 'fixed top-5 right-5 bg-green-600 text-white px-6 py-3 rounded-lg shadow-xl animate-bounce z-50';
-        toast.textContent = 'Configurações salvas com sucesso!';
+        toast.className = 'fixed top-5 right-5 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-fade-in-up';
+        toast.innerHTML = `<span>✓</span> Settings saved successfully!`;
         document.body.appendChild(toast);
         
-        setTimeout(() => toast.remove(), 3000);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 </script>

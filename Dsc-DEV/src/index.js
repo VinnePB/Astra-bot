@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const axios = require('axios');
 const session = require('express-session');
-const ejsMate = require('ejs-mate'); // Necessário para o layout
+const ejsMate = require('ejs-mate');
 require('dotenv').config();
 
 const db = require('./database');
@@ -13,25 +13,23 @@ const infoMenu = require('./interactions/infoMenu');
 const verifyButton = require('./interactions/verifyButton');
 const configCommand = require('./slashCommands/config');
 
-process.on('unhandledRejection', (reason, promise) => console.error('❌ Erro: Rejection não tratada:', reason));
-process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exceção não capturada:', error));
+process.on('unhandledRejection', (reason, promise) => console.error('❌ Error: Unhandled Rejection:', reason));
+process.on('uncaughtException', (error, origin) => console.error('❌ Error: Uncaught Exception:', error));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuração do View Engine com EJS-Mate
 app.engine('ejs', ejsMate);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-
 app.use(express.urlencoded({ extended: true }));
+
 app.use(session({
     secret: process.env.SESSION_SECRET || 'uma_chave_secreta_aqui',
     resave: false,
     saveUninitialized: false
 }));
 
-// Middleware de Autenticação
 const checkAuth = (req, res, next) => {
     if (!req.session.user || !req.session.token) {
         return res.redirect('/');
@@ -39,7 +37,6 @@ const checkAuth = (req, res, next) => {
     next();
 };
 
-// Rotas
 app.get('/', (req, res) => {
     res.render('index', { 
         title: 'Astra Security', 
@@ -92,7 +89,7 @@ app.get('/select-server', checkAuth, async (req, res) => {
         res.render('select_server', { user: req.session.user, guilds: adminGuilds });
     } catch (err) {
         console.error("API Guilds Error:", err);
-        res.status(500).send("Erro ao buscar seus servidores.");
+        res.status(500).send("Error fetching your servers.");
     }
 });
 
@@ -105,11 +102,14 @@ app.get('/dashboard', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
     if (!guildId) return res.redirect('/select-server'); 
 
+    // Capture success status from query parameter
+    const successMsg = req.query.status === 'success' ? 'Settings updated successfully!' : null;
+
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
 
-        const headers = { Authorization: `Bearer ${req.session.token}` };
+        const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
         
         const [channelsRes, rolesRes] = await Promise.all([
             axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
@@ -122,11 +122,12 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             user: req.session.user, 
             settings: settings,
             channels: textChannels,
-            roles: rolesRes.data 
+            roles: rolesRes.data,
+            success: successMsg // Pass the message here!
         });
     } catch (err) {
-        console.error("Dashboard Fetch Error:", err);
-        res.status(500).send("Erro ao carregar painel. O bot tem as permissões necessárias?");
+        console.error("Dashboard Fetch Error:", err.response ? err.response.data : err.message);
+        res.status(500).send("Error loading dashboard.");
     }
 });
 
@@ -134,7 +135,7 @@ app.post('/api/update-verification', checkAuth, async (req, res) => {
     const { guild_id, two_step, member_role_id, log_channel_id } = req.body;
     
     if (guild_id !== req.session.selectedGuildId) {
-        return res.status(403).send('Ação não permitida para este servidor.');
+        return res.status(403).send('Action not allowed for this server.');
     }
 
     const twoStepBool = two_step === 'on';
@@ -153,13 +154,17 @@ app.post('/api/update-verification', checkAuth, async (req, res) => {
         res.redirect('/dashboard?status=success');
     } catch (err) {
         console.error("Database Update Error:", err);
-        res.status(500).send("Erro ao salvar as configurações.");
+        res.status(500).send("Error saving settings.");
     }
 });
 
 app.get('/logout', (req, res) => {
     req.session.destroy((err) => {
-        if (err) console.error("Logout Error:", err);
+        if (err) {
+            console.error("Logout Error:", err);
+            return res.status(500).send("Could not log out.");
+        }
+        res.clearCookie('connect.sid');
         res.redirect('/');
     });
 });
@@ -168,7 +173,6 @@ app.listen(PORT, () => {
     console.log(`🌐 [Web Server] Port ${PORT} open for Dashboard.`);
 });
 
-// Configuração Discord Client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,

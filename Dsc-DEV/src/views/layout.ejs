@@ -1,16 +1,60 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Astra Security | Dashboard</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            800: '#202225',
+                            900: '#2f3136',
+                            950: '#0f1117',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex">
+
+<body class="bg-dark-950 text-slate-200 min-h-screen flex">
 
     <%- include('partials/sidebar') %>
 
-    <main class="flex-1 p-8">
-        <%- body %>
+    <main class="flex-1 overflow-y-auto p-6 md:p-10">
+        <div class="max-w-6xl mx-auto">
+            
+            <% if (typeof success !== 'undefined' || typeof error !== 'undefined') { %>
+                <div class="mb-6 space-y-4">
+                    <% if (typeof success !== 'undefined' && success) { %>
+                        <div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-6 py-4 rounded-xl text-sm font-medium">
+                            <%= success %>
+                        </div>
+                    <% } %>
+                    <% if (typeof error !== 'undefined' && error) { %>
+                        <div class="bg-red-500/10 border border-red-500/20 text-red-400 px-6 py-4 rounded-xl text-sm font-medium">
+                            <%= error %>
+                        </div>
+                    <% } %>
+                </div>
+            <% } %>
+
+            <%- body %>
+        </div>
     </main>
 
 </body>
