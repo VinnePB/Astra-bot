@@ -1,7 +1,7 @@
 const db = require('../database');
 
-// Fallbacks antigos por nome (caso o servidor não tenha sido configurado via /config ainda)
-const CARGO_TEXTO_FALLBACK = "🔖";       
+// Fallbacks by name (in case the server hasn't been configured via /config yet)
+const CARGO_TEXTO_FALLBACK = "🔖";        
 const CARGO_BOTAO_FALLBACK = "📜✅";     
 const CARGO_DEFINITIVO_FALLBACK = "🕳️"; 
 
@@ -10,7 +10,7 @@ async function checarDuplaVerificacao(member, guild) {
     const guildId = guild.id;
 
     try {
-        // 1. Busca os dados da dupla verificação do usuário
+        // 1. Fetch verification data for the user
         const { rows: membroRows } = await db.query('SELECT * FROM membros_verificacao WHERE user_id = $1', [userId]);
         if (membroRows.length === 0) return;
 
@@ -18,33 +18,36 @@ async function checarDuplaVerificacao(member, guild) {
 
         if (dados.digitou_verify === 1 && dados.clicou_botao === 1) {
             
-            // 2. Busca o cargo configurado para este servidor no banco
+            // 2. Fetch configured role for this server from DB
             const { rows: configRows } = await db.query('SELECT member_role_id FROM guild_settings WHERE guild_id = $1', [guildId]);
             
             let cargoD;
 
             if (configRows.length > 0 && configRows[0].member_role_id) {
-                // Se achou no banco, busca pelo ID direto (muito mais seguro)
+                // If found in DB, fetch by ID
                 cargoD = guild.roles.cache.get(configRows[0].member_role_id);
             } else {
-                // Se não configurou via slash command, usa o fallback por nome antigo
+                // If not configured via slash command, use fallback by name
                 cargoD = guild.roles.cache.find(r => r.name === CARGO_DEFINITIVO_FALLBACK);
             }
 
-            // Busca os cargos temporários por nome para remoção
+            // Fetch temporary roles by name for removal
             const cargoT = guild.roles.cache.find(r => r.name === CARGO_TEXTO_FALLBACK);
             const cargoB = guild.roles.cache.find(r => r.name === CARGO_BOTAO_FALLBACK);
 
             if (!cargoD) {
-                console.error(`❌ [Postgres/Discord] Erro: Cargo definitivo não encontrado no servidor ${guildId}.`);
+                console.error(`❌ [Postgres/Discord] Error: Final role not found in server ${guildId}.`);
                 return;
             }
 
-            // Atualiza o status do usuário no banco
+            // Update user status in database
             await db.query('UPDATE membros_verificacao SET verificado_final = 1 WHERE user_id = $1', [userId]);
 
-            // Aplica o cargo definitivo e remove os provisórios
-            await member.roles.add(cargoD);
+            // Apply final role and remove temporary ones
+            // Ensure we don't re-add if they already have it
+            if (!member.roles.cache.has(cargoD.id)) {
+                await member.roles.add(cargoD);
+            }
             
             const cargosRemover = [];
             if (cargoT && member.roles.cache.has(cargoT.id)) cargosRemover.push(cargoT.id);
@@ -54,10 +57,10 @@ async function checarDuplaVerificacao(member, guild) {
                 await member.roles.remove(cargosRemover);
             }
             
-            console.log(`🎉 [Banco de Dados] ${member.user.tag} verificado definitivo no servidor ${guild.name}!`);
+            console.log(`🎉 [Database] ${member.user.tag} fully verified in server ${guild.name}!`);
         }
     } catch (error) {
-        console.error(`❌ Erro na checagem do banco para ${userId}:`, error);
+        console.error(`❌ Error checking database for ${userId}:`, error);
     }
 }
 
@@ -69,7 +72,7 @@ module.exports = {
             const guild = message.guild;
             const userId = message.author.id;
             
-            // Verifica se o servidor já tem cargo personalizado no banco
+            // Check if server has custom role in DB
             const { rows } = await db.query('SELECT member_role_id FROM guild_settings WHERE guild_id = $1', [guild.id]);
             let cargoD;
 
@@ -81,22 +84,23 @@ module.exports = {
 
             const cargoT = guild.roles.cache.find(r => r.name === CARGO_TEXTO_FALLBACK);
 
+            // Check if already fully verified
             if (cargoD && message.member.roles.cache.has(cargoD.id)) {
                 const msgJaVerificado = await message.channel.send(`ℹ️ ${message.author}, you are already fully verified!`);
                 setTimeout(() => { try { message.delete(); msgJaVerificado.delete(); } catch(e){} }, 3000);
                 return;
             }
 
-            // Registra o passo 1 no banco
+            // Register step 1 in DB
             await db.query(
                 `INSERT INTO membros_verificacao (user_id, digitou_verify) 
-                 VALUES ($1, 1) 
-                 ON CONFLICT (user_id) 
-                 DO UPDATE SET digitou_verify = 1`,
+                  VALUES ($1, 1) 
+                  ON CONFLICT (user_id) 
+                  DO UPDATE SET digitou_verify = 1`,
                 [userId]
             );
 
-            if (cargoT) {
+            if (cargoT && !message.member.roles.cache.has(cargoT.id)) {
                 await message.member.roles.add(cargoT);
             }
             
@@ -107,13 +111,12 @@ module.exports = {
             setTimeout(() => { try { message.delete(); msgSucesso.delete(); } catch (e) {} }, 5000);
 
         } catch (error) {
-            console.error('❌ Erro no !verify:', error);
+            console.error('❌ Error on !verify:', error);
             message.channel.send('❌ Failed to process text verification data.');
         }
     },
 
     async handleButton(interaction) {
-        // CORRIGIDO: Voltando para o ID original do seu botão do painel de regras
         if (interaction.customId !== 'botao_verificar_membro') return;
 
         try {
@@ -121,7 +124,7 @@ module.exports = {
             const member = interaction.member;
             const userId = member.id;
 
-            // Verifica se o servidor já tem cargo personalizado no banco
+            // Check if server has custom role in DB
             const { rows } = await db.query('SELECT member_role_id FROM guild_settings WHERE guild_id = $1', [guild.id]);
             let cargoD;
 
@@ -133,20 +136,21 @@ module.exports = {
 
             const cargoB = guild.roles.cache.find(r => r.name === CARGO_BOTAO_FALLBACK);
 
+            // Check if already fully verified
             if (cargoD && member.roles.cache.has(cargoD.id)) {
                 return await interaction.reply({ content: 'You are already fully verified!', ephemeral: true });
             }
 
-            // Registra o passo 2 no banco
+            // Register step 2 in DB
             await db.query(
                 `INSERT INTO membros_verificacao (user_id, clicou_botao) 
-                 VALUES ($1, 1) 
-                 ON CONFLICT (user_id) 
-                 DO UPDATE SET clicou_botao = 1`,
+                  VALUES ($1, 1) 
+                  ON CONFLICT (user_id) 
+                  DO UPDATE SET clicou_botao = 1`,
                 [userId]
             );
 
-            if (cargoB) {
+            if (cargoB && !member.roles.cache.has(cargoB.id)) {
                 await member.roles.add(cargoB);
             }
             
@@ -155,7 +159,7 @@ module.exports = {
             await checarDuplaVerificacao(member, guild);
 
         } catch (error) {
-            console.error('❌ Erro no botão:', error);
+            console.error('❌ Error on button:', error);
             await interaction.reply({ content: 'Failed to process rules verification data.', ephemeral: true });
         }
     }
