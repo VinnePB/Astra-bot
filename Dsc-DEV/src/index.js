@@ -128,7 +128,22 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
+    // 1. Existing table
     await db.query('CREATE TABLE IF NOT EXISTS guild_settings (guild_id VARCHAR(30) PRIMARY KEY, two_step_enabled BOOLEAN, member_role_id VARCHAR(30), log_channel_id VARCHAR(30))');
+    
+    // 2. Add this block to create the session table for connect-pg-simple
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS "session" (
+          "sid" varchar NOT NULL COLLATE "default",
+          "sess" json NOT NULL,
+          "expire" timestamp(6) NOT NULL
+        )
+        WITH (OIDS=FALSE);
+    `).catch(console.error);
+    
+    // Attempt to add primary key if it doesn't exist (prevents errors on restarts)
+    await db.query(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE`).catch(() => {});
+    
     console.log(`🚀 Astra online.`);
 });
 
