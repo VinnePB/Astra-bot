@@ -2,8 +2,11 @@ const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const express = require('express');
 const path = require('path');
 const axios = require('axios');
-const session = require('express-session'); // Adicionado
+const session = require('express-session');
 require('dotenv').config();
+
+// Adicionado para permitir a query de atualização do banco
+const db = require('./database');
 
 const setupCommands = require('./commands/setup');
 const ticketButtons = require('./interactions/ticketButtons');
@@ -97,7 +100,14 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.User]
 });
 
-client.once('ready', () => {
+client.once('ready', async () => {
+    // Garante a existência da coluna no banco antes de rodar qualquer coisa
+    try {
+        await db.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS two_step_enabled BOOLEAN DEFAULT FALSE;');
+        console.log("✅ Banco de dados verificado (two_step_enabled pronta).");
+    } catch (err) {
+        console.error("❌ Falha ao verificar banco de dados no ready:", err);
+    }
     console.log(`🚀 Astra online com sistema de Dupla Verificação ativo!`);
 });
 

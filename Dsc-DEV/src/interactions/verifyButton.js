@@ -5,13 +5,15 @@ const CARGO_TEXTO_FALLBACK = "🔖";
 const CARGO_BOTAO_FALLBACK = "📜✅";     
 const CARGO_DEFINITIVO_FALLBACK = "🕳️"; 
 
-async function checarDuplaVerificacao(member, guild) {
+async function checarVerificacao(member, guild) {
     const userId = member.id;
     const guildId = guild.id;
 
     try {
-        // 1. Fetch verification data for the user
+        // 1. Fetch verification data for the user from the database
         const { rows: membroRows } = await db.query('SELECT * FROM membros_verificacao WHERE user_id = $1', [userId]);
+        
+        // Se o usuário não existe no banco, não há nada para verificar
         if (membroRows.length === 0) return;
 
         const dados = membroRows[0];
@@ -19,21 +21,35 @@ async function checarDuplaVerificacao(member, guild) {
         // SEGURANÇA: Se já estiver verificado, não faz nada para evitar flicker de cargos
         if (dados.verificado_final === 1) return;
 
-        if (dados.digitou_verify === 1 && dados.clicou_botao === 1) {
-            
-            // 2. Fetch configured role for this server from DB
-            const { rows: configRows } = await db.query('SELECT member_role_id FROM guild_settings WHERE guild_id = $1', [guildId]);
-            
-            let cargoD;
+        // 2. Fetch configured settings for this server from DB
+        const { rows: configRows } = await db.query('SELECT member_role_id, two_step_enabled FROM guild_settings WHERE guild_id = $1', [guildId]);
+        
+        // Define as configurações padrão caso não haja registro no banco
+        const config = configRows.length > 0 ? configRows[0] : { member_role_id: null, two_step_enabled: false };
 
-            if (configRows.length > 0 && configRows[0].member_role_id) {
-                // If found in DB, fetch by ID
-                cargoD = guild.roles.cache.get(configRows[0].member_role_id);
-            } else {
-                // If not configured via slash command, use fallback by name
-                cargoD = guild.roles.cache.find(r => r.name === CARGO_DEFINITIVO_FALLBACK);
+        // Define cargo final (id preferencial ou fallback)
+        let cargoD;
+        if (config.member_role_id) {
+            cargoD = guild.roles.cache.get(config.member_role_id);
+        } else {
+            cargoD = guild.roles.cache.find(r => r.name === CARGO_DEFINITIVO_FALLBACK);
+        }
+
+        // Verifica se o servidor exige 2 passos (2-step) ou apenas 1 passo
+        // Se two_step_enabled for true, precisa de (digitou_verify == 1 E clicou_botao == 1)
+        // Se for false, precisa apenas de (digitou_verify == 1)
+        let podeVerificar = false;
+        if (config.two_step_enabled === true || config.two_step_enabled === 1) {
+            if (dados.digitou_verify === 1 && dados.clicou_botao === 1) {
+                podeVerificar = true;
             }
+        } else {
+            if (dados.digitou_verify === 1) {
+                podeVerificar = true;
+            }
+        }
 
+        if (podeVerificar) {
             // Fetch temporary roles by name for removal
             const cargoT = guild.roles.cache.find(r => r.name === CARGO_TEXTO_FALLBACK);
             const cargoB = guild.roles.cache.find(r => r.name === CARGO_BOTAO_FALLBACK);
@@ -75,25 +91,6 @@ module.exports = {
             const guild = message.guild;
             const userId = message.author.id;
             
-            // Check if server has custom role in DB
-            const { rows } = await db.query('SELECT member_role_id FROM guild_settings WHERE guild_id = $1', [guild.id]);
-            let cargoD;
-
-            if (rows.length > 0 && rows[0].member_role_id) {
-                cargoD = guild.roles.cache.get(rows[0].member_role_id);
-            } else {
-                cargoD = guild.roles.cache.find(r => r.name === CARGO_DEFINITIVO_FALLBACK);
-            }
-
-            const cargoT = guild.roles.cache.find(r => r.name === CARGO_TEXTO_FALLBACK);
-
-            // Check if already fully verified
-            if (cargoD && message.member.roles.cache.has(cargoD.id)) {
-                const msgJaVerificado = await message.channel.send(`ℹ️ ${message.author}, you are already fully verified!`);
-                setTimeout(() => { try { message.delete(); msgJaVerificado.delete(); } catch(e){} }, 3000);
-                return;
-            }
-
             // Register step 1 in DB
             await db.query(
                 `INSERT INTO membros_verificacao (user_id, digitou_verify) 
@@ -103,14 +100,17 @@ module.exports = {
                 [userId]
             );
 
+            // Adiciona cargo de texto (se existir)
+            const cargoT = guild.roles.cache.find(r => r.name === CARGO_TEXTO_FALLBACK);
             if (cargoT && !message.member.roles.cache.has(cargoT.id)) {
                 await message.member.roles.add(cargoT);
             }
             
-            const msgSucesso = await message.channel.send(`✅ ${message.author} verified! [1/2] Now, make sure to read the rules and click the green button.`);
-            
-            await checarDuplaVerificacao(message.member, guild);
+            // Chama a função de checagem para ver se já libera o cargo definitivo
+            await checarVerificacao(message.member, guild);
 
+            const msgSucesso = await message.channel.send(`✅ ${message.author} verified! Now, make sure to read the rules and click the green button.`);
+            
             setTimeout(() => { try { message.delete(); msgSucesso.delete(); } catch (e) {} }, 5000);
 
         } catch (error) {
@@ -127,23 +127,6 @@ module.exports = {
             const member = interaction.member;
             const userId = member.id;
 
-            // Check if server has custom role in DB
-            const { rows } = await db.query('SELECT member_role_id FROM guild_settings WHERE guild_id = $1', [guild.id]);
-            let cargoD;
-
-            if (rows.length > 0 && rows[0].member_role_id) {
-                cargoD = guild.roles.cache.get(rows[0].member_role_id);
-            } else {
-                cargoD = guild.roles.cache.find(r => r.name === CARGO_DEFINITIVO_FALLBACK);
-            }
-
-            const cargoB = guild.roles.cache.find(r => r.name === CARGO_BOTAO_FALLBACK);
-
-            // Check if already fully verified
-            if (cargoD && member.roles.cache.has(cargoD.id)) {
-                return await interaction.reply({ content: 'You are already fully verified!', ephemeral: true });
-            }
-
             // Register step 2 in DB
             await db.query(
                 `INSERT INTO membros_verificacao (user_id, clicou_botao) 
@@ -153,13 +136,16 @@ module.exports = {
                 [userId]
             );
 
+            // Adiciona cargo de botão (se existir)
+            const cargoB = guild.roles.cache.find(r => r.name === CARGO_BOTAO_FALLBACK);
             if (cargoB && !member.roles.cache.has(cargoB.id)) {
                 await member.roles.add(cargoB);
             }
             
-            await interaction.reply({ content: `🎉 Rules accepted! [2/2] If you have already typed \`!verify\`, the server will unlock!`, ephemeral: true });
+            await interaction.reply({ content: `🎉 Rules accepted! The server will unlock!`, ephemeral: true });
 
-            await checarDuplaVerificacao(member, guild);
+            // Chama a função de checagem para finalizar a verificação
+            await checarVerificacao(member, guild);
 
         } catch (error) {
             console.error('❌ Error on button:', error);
