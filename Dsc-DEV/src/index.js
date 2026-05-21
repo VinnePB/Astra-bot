@@ -12,84 +12,60 @@ const infoMenu = require('./interactions/infoMenu');
 const verifyButton = require('./interactions/verifyButton');
 const configCommand = require('./slashCommands/config');
 
-process.on('unhandledRejection', (reason, promise) => console.error('❌ Error: Unhandled Rejection:', reason));
-process.on('uncaughtException', (error, origin) => console.error('❌ Error: Uncaught Exception:', error));
+// Process error handling
+process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
+process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Setup Native EJS (No ejs-mate dependency)
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'uma_chave_secreta_aqui',
+    secret: process.env.SESSION_SECRET || 'fallback_secret',
     resave: false,
     saveUninitialized: false
 }));
 
 const checkAuth = (req, res, next) => {
-    if (!req.session.user || !req.session.token) {
-        return res.redirect('/');
-    }
+    if (!req.session.user || !req.session.token) return res.redirect('/');
     next();
 };
 
-app.get('/', (req, res) => {
-    res.render('index', { 
-        title: 'Astra Security', 
-        subtitle: 'Control & Configuration Panel', 
-        welcome_message: 'Log in with your Discord account to configure your server.', 
-        login_button: 'Login with Discord' 
-    });
-});
+// --- ROUTES ---
+
+app.get('/', (req, res) => res.render('index', { title: 'Astra', subtitle: 'Panel', welcome_message: 'Login to start', login_button: 'Login' }));
 
 app.get('/login', (req, res) => {
-    const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
-    res.redirect(authUrl);
+    res.redirect(`https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`);
 });
 
 app.get('/callback', async (req, res) => {
     const { code } = req.query;
-    if (!code) return res.send('Error: No code provided.');
-
+    if (!code) return res.send('Error.');
     try {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
             client_id: process.env.DISCORD_CLIENT_ID,
             client_secret: process.env.DISCORD_CLIENT_SECRET,
             grant_type: 'authorization_code',
-            code: code,
+            code,
             redirect_uri: process.env.REDIRECT_URI,
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
-        const { access_token } = tokenResponse.data;
-        req.session.token = access_token;
-
-        const userResponse = await axios.get('https://discord.com/api/users/@me', {
-            headers: { Authorization: `Bearer ${access_token}` }
-        });
-
+        req.session.token = tokenResponse.data.access_token;
+        const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${req.session.token}` } });
         req.session.user = userResponse.data;
         res.redirect('/select-server');
-    } catch (error) {
-        console.error('❌ Auth Error:', error.response ? error.response.data : error.message);
-        res.send('Authentication error.');
-    }
+    } catch (error) { res.send('Auth failed.'); }
 });
 
 app.get('/select-server', checkAuth, async (req, res) => {
     try {
-        const guildsResponse = await axios.get('https://discord.com/api/users/@me/guilds', {
-            headers: { Authorization: `Bearer ${req.session.token}` }
-        });
-
-        const adminGuilds = guildsResponse.data.filter(g => (BigInt(g.permissions) & 8n) === 8n);
-        res.render('select_server', { user: req.session.user, guilds: adminGuilds });
-    } catch (err) {
-        console.error("API Guilds Error:", err);
-        res.status(500).send("Error fetching your servers.");
-    }
+        const guilds = await axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } });
+        res.render('select_server', { user: req.session.user, guilds: guilds.data.filter(g => (BigInt(g.permissions) & 8n) === 8n) });
+    } catch (err) { res.status(500).send("Error fetching servers."); }
 });
 
 app.post('/select-server', checkAuth, (req, res) => {
@@ -97,103 +73,56 @@ app.post('/select-server', checkAuth, (req, res) => {
     res.redirect('/dashboard');
 });
 
+// FIXED DASHBOARD ROUTE: Added error handling to prevent 500 crashes
 app.get('/dashboard', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
-    if (!guildId) return res.redirect('/select-server'); 
+    if (!guildId) return res.redirect('/select-server');
 
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
-
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
         
-        const [channelsRes, rolesRes] = await Promise.all([
-            axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
-            axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })
-        ]);
+        // Wrap API calls in try-catch to prevent dashboard crash if Discord API is weird
+        let channels = [], roles = [];
+        try {
+            const [c, r] = await Promise.all([
+                axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
+                axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })
+            ]);
+            channels = c.data.filter(ch => ch.type === 0);
+            roles = r.data;
+        } catch (e) {
+            console.error("Discord API fetch failed for dashboard");
+        }
 
-        const textChannels = channelsRes.data.filter(c => c.type === 0);
-
-        res.render('dashboard', { 
-            user: req.session.user, 
-            settings: settings,
-            channels: textChannels,
-            roles: rolesRes.data,
-            success: req.query.status === 'success' ? 'Settings updated successfully!' : null
-        });
+        res.render('dashboard', { user: req.session.user, settings, channels, roles, success: req.query.status === 'success' });
     } catch (err) {
-        console.error("❌ DASHBOARD ERROR DETAILS:", err.response ? err.response.data : err.message);
-        res.status(500).send("Dashboard Error: " + (err.message || "Unknown error"));
+        res.status(500).send("Dashboard Error: Database unreachable.");
     }
 });
 
 app.post('/api/update-verification', checkAuth, async (req, res) => {
     const { guild_id, two_step, member_role_id, log_channel_id } = req.body;
-    
-    if (guild_id !== req.session.selectedGuildId) {
-        return res.status(403).send('Action not allowed for this server.');
-    }
-
-    const twoStepBool = two_step === 'on';
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
     try {
-        await db.query(`
-            INSERT INTO guild_settings (guild_id, two_step_enabled, member_role_id, log_channel_id) 
-            VALUES ($1, $2, $3, $4) 
-            ON CONFLICT (guild_id) 
-            DO UPDATE SET 
-                two_step_enabled = EXCLUDED.two_step_enabled, 
-                member_role_id = EXCLUDED.member_role_id,
-                log_channel_id = EXCLUDED.log_channel_id
-        `, [guild_id, twoStepBool, member_role_id, log_channel_id]);
-        
+        await db.query(`INSERT INTO guild_settings (guild_id, two_step_enabled, member_role_id, log_channel_id) VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id) DO UPDATE SET two_step_enabled = $2, member_role_id = $3, log_channel_id = $4`, [guild_id, two_step === 'on', member_role_id, log_channel_id]);
         res.redirect('/dashboard?status=success');
-    } catch (err) {
-        console.error("Database Update Error:", err);
-        res.status(500).send("Error saving settings.");
-    }
+    } catch (err) { res.status(500).send("DB Error."); }
 });
 
-app.get('/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            console.error("Logout Error:", err);
-            return res.status(500).send("Could not log out.");
-        }
-        res.clearCookie('connect.sid');
-        res.redirect('/');
-    });
-});
+app.listen(PORT, () => console.log(`🌐 Dashboard on ${PORT}`));
 
-app.listen(PORT, () => {
-    console.log(`🌐 [Web Server] Port ${PORT} open for Dashboard.`);
-});
+// --- BOT ---
 
 const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent, 
-        GatewayIntentBits.GuildMembers
-    ],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
     partials: [Partials.Message, Partials.Channel, Partials.User]
 });
 
 client.once('ready', async () => {
-    try {
-        const queries = [
-            'ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS two_step_enabled BOOLEAN DEFAULT FALSE;',
-            'ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS member_role_id VARCHAR(30);',
-            'ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS log_channel_id VARCHAR(30);'
-        ];
-        
-        for (const query of queries) {
-            await db.query(query);
-        }
-        console.log("✅ Database schema synchronized.");
-    } catch (err) {
-        console.error("❌ Database sync error:", err);
-    }
+    await db.query('CREATE TABLE IF NOT EXISTS guild_settings (guild_id VARCHAR(30) PRIMARY KEY, two_step_enabled BOOLEAN, member_role_id VARCHAR(30), log_channel_id VARCHAR(30))');
     console.log(`🚀 Astra online.`);
 });
 
@@ -207,23 +136,12 @@ client.on('interactionCreate', async (interaction) => {
     if (!interaction.guild) return;
 
     if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'config') {
-            try {
-                await configCommand.execute(interaction);
-            } catch (error) {
-                console.error(error);
-                await interaction.reply({ content: '❌ An error occurred.', ephemeral: true });
-            }
-        }
-        return;
-    }
-
-    if (interaction.isButton()) {
+        if (interaction.commandName === 'config') await configCommand.execute(interaction);
+    } else if (interaction.isButton()) {
+        // Handlers now return early if customId doesn't match
         await ticketButtons.handleButton(interaction);
         await verifyButton.handleButton(interaction);
-    }
-
-    if (interaction.isStringSelectMenu()) {
+    } else if (interaction.isStringSelectMenu()) {
         await infoMenu.handleMenu(interaction);
     }
 });
