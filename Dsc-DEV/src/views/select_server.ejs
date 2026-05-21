@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Astra | Select Server</title>
+</head>
+<body>
+    <main>
+        <h1>Select your Server</h1>
+        <p>To begin managing your bot, please enter the ID of the Discord server you wish to configure below.</p>
+        
+        <form action="/select-server" method="POST">
+            <label for="guild_id">Server ID:</label>
+            <input type="text" id="guild_id" name="guild_id" placeholder="Paste your Server ID here" required>
+            <button type="submit">Continue</button>
+        </form>
+    </main>
+</body>
+</html>

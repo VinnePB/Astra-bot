@@ -1,21 +1,39 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Astra Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background-color: #0f111a; color: #ffffff; }
-        .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-    </style>
+    <title>Astra | Admin Dashboard</title>
 </head>
-<body class="flex flex-col min-h-screen items-center justify-center p-6">
-    <div class="glass-panel p-8 rounded-2xl max-w-2xl w-full">
-        <h1 class="text-2xl font-bold">Olá, <%= user.username %>!</h1>
-        <p class="text-gray-400 mt-2">Você logou com sucesso. Aqui você poderá gerenciar seus servidores.</p>
-        <div class="mt-6 p-4 bg-black/30 rounded-lg border border-white/5">
-            <p>Conexão ativa.</p>
-        </div>
-    </div>
+<body>
+    <nav>
+        <h2>Astra Dashboard</h2>
+        <a href="/logout">Logout</a>
+    </nav>
+
+    <main>
+        <section class="settings-panel">
+            <h2>Verification Settings</h2>
+            <form action="/api/update-verification" method="POST">
+                
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+
+                <label>
+                    <input type="checkbox" name="two_step" <%= settings.two_step_enabled ? 'checked' : '' %>>
+                    Enable 2-Step Verification
+                </label>
+                <br>
+                <label>Member Role ID:
+                    <input type="text" name="member_role_id" value="<%= settings.member_role_id || '' %>">
+                </label>
+                <button type="submit">Save Changes</button>
+            </form>
+        </section>
+
+        <section class="stats">
+            <h2>Server Overview</h2>
+            <p>Status: <strong>Active</strong></p>
+            <p>Total Verifications: 1,240</p>
+        </section>
+    </main>
 </body>
 </html>

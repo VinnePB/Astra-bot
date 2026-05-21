@@ -5,7 +5,6 @@ const axios = require('axios');
 const session = require('express-session');
 require('dotenv').config();
 
-// Adicionado para permitir a query de atualização do banco
 const db = require('./database');
 
 const setupCommands = require('./commands/setup');
@@ -25,23 +24,23 @@ const PORT = process.env.PORT || 3000;
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.use(express.urlencoded({ extended: true })); 
 
-// Configuração de Sessão
 app.use(session({
     secret: process.env.SESSION_SECRET || 'uma_chave_secreta_aqui',
     resave: false,
     saveUninitialized: false
 }));
 
-const translations = {
-    'pt': { title: 'Astra Security', subtitle: 'Painel de Controle e Configuração', welcome_message: 'Bem-vindo à central de gerenciamento. Conecte-se com sua conta do Discord para configurar os sistemas de verificação e logs do seu servidor.', login_button: 'Entrar com o Discord', lang: 'pt-BR' },
-    'en': { title: 'Astra Security', subtitle: 'Control & Configuration Panel', welcome_message: 'Welcome to the management center. Log in with your Discord account to configure your server\'s verification and log systems.', login_button: 'Login with Discord', lang: 'en' }
+const siteData = { 
+    title: 'Astra Security', 
+    subtitle: 'Control & Configuration Panel', 
+    welcome_message: 'Welcome to the management center. Log in with your Discord account to configure your server\'s verification and log systems.', 
+    login_button: 'Login with Discord' 
 };
 
 app.get('/', (req, res) => {
-    const langHeader = req.acceptsLanguages('pt', 'en') || 'pt';
-    const data = translations[langHeader];
-    res.render('index', data);
+    res.render('index', siteData);
 });
 
 app.get('/login', (req, res) => {
@@ -51,7 +50,7 @@ app.get('/login', (req, res) => {
 
 app.get('/callback', async (req, res) => {
     const { code } = req.query;
-    if (!code) return res.send('Erro: Nenhum código fornecido.');
+    if (!code) return res.send('Error: No code provided.');
 
     try {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
@@ -68,23 +67,72 @@ app.get('/callback', async (req, res) => {
             headers: { Authorization: `Bearer ${access_token}` }
         });
 
-        // Salva o usuário na sessão e redireciona
         req.session.user = userResponse.data;
         res.redirect('/dashboard');
     } catch (error) {
-        console.error('❌ Erro no Callback:', error.response ? error.response.data : error.message);
-        res.send('Erro ao autenticar: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
+        console.error('❌ Auth Error:', error.response ? error.response.data : error.message);
+        res.send('Authentication error: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
     }
 });
 
-// Nova rota da Dashboard
-app.get('/dashboard', (req, res) => {
+// Rotas de Seleção de Servidor
+app.get('/select-server', (req, res) => {
     if (!req.session.user) return res.redirect('/');
-    res.render('dashboard', { user: req.session.user });
+    res.render('select_server', { user: req.session.user });
+});
+
+app.post('/select-server', (req, res) => {
+    if (!req.session.user) return res.status(401).send('Unauthorized');
+    req.session.selectedGuildId = req.body.guild_id;
+    res.redirect('/dashboard');
+});
+
+// Dashboard Route com lógica de Onboarding
+app.get('/dashboard', async (req, res) => {
+    if (!req.session.user) return res.redirect('/');
+    
+    const guildId = req.session.selectedGuildId;
+    if (!guildId) return res.redirect('/select-server'); 
+
+    try {
+        const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+        if (rows.length === 0) {
+            res.render('onboarding', { user: req.session.user });
+        } else {
+            res.render('dashboard', { user: req.session.user, settings: rows[0] });
+        }
+    } catch (err) {
+        console.error("Dashboard DB Error:", err);
+        res.status(500).send("Server error");
+    }
+});
+
+// Rota de POST para atualizar configurações
+app.post('/api/update-verification', async (req, res) => {
+    if (!req.session.user) return res.status(401).send('Unauthorized');
+    
+    const { guild_id, two_step, member_role_id } = req.body;
+    const twoStepBool = two_step === 'on';
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, two_step_enabled, member_role_id) 
+            VALUES ($1, $2, $3) 
+            ON CONFLICT (guild_id) 
+            DO UPDATE SET 
+                two_step_enabled = EXCLUDED.two_step_enabled, 
+                member_role_id = EXCLUDED.member_role_id
+        `, [guild_id, twoStepBool, member_role_id]);
+        
+        res.redirect('/dashboard');
+    } catch (err) {
+        console.error("Database Update Error:", err);
+        res.status(500).send("Error saving settings.");
+    }
 });
 
 app.listen(PORT, () => {
-    console.log(`🌐 [Web Server] Porta ${PORT} aberta para a Dashboard e pings.`);
+    console.log(`🌐 [Web Server] Port ${PORT} open for Dashboard.`);
 });
 
 // ==========================================
@@ -101,29 +149,21 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
-    // Garante a existência da coluna no banco antes de rodar qualquer coisa
     try {
         await db.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS two_step_enabled BOOLEAN DEFAULT FALSE;');
-        console.log("✅ Banco de dados verificado (two_step_enabled pronta).");
+        console.log("✅ Database synced (two_step_enabled column verified).");
     } catch (err) {
-        console.error("❌ Falha ao verificar banco de dados no ready:", err);
+        console.error("❌ Database sync error:", err);
     }
-    console.log(`🚀 Astra online com sistema de Dupla Verificação ativo!`);
+    console.log(`🚀 Astra online with 2-Step Verification support!`);
 });
 
-// ==========================================
-// MONITOR DE COMANDOS POR TEXTO
-// ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
-
     await setupCommands.execute(message);
     await verifyButton.handleTextVerify(message);
 });
 
-// ==========================================
-// MONITOR DE INTERAÇÕES (Botões, Menus e Slash)
-// ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.guild) return;
 
@@ -133,10 +173,7 @@ client.on('interactionCreate', async (interaction) => {
                 await configCommand.execute(interaction);
             } catch (error) {
                 console.error(error);
-                await interaction.reply({ 
-                    content: '❌ Ocorreu um erro ao tentar executar este comando.', 
-                    ephemeral: true 
-                });
+                await interaction.reply({ content: '❌ An error occurred.', ephemeral: true });
             }
         }
         return;
