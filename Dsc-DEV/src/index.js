@@ -6,7 +6,7 @@ const setupCommands = require('./commands/setup');
 const ticketButtons = require('./interactions/ticketButtons');
 const infoMenu = require('./interactions/infoMenu');
 const verifyButton = require('./interactions/verifyButton');
-const configCommand = require('./slashCommands/config'); // Importando o novo Slash Command
+const configCommand = require('./slashCommands/config'); 
 
 process.on('unhandledRejection', (reason, promise) => console.error('❌ Erro: Rejection não tratada:', reason));
 process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exceção não capturada:', error));
