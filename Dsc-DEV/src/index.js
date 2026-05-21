@@ -3,16 +3,16 @@ const express = require('express');
 const path = require('path');
 const axios = require('axios');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 require('dotenv').config();
 
-const db = require('./database');
-const setupCommands = require('./commands/setup');
-const ticketButtons = require('./interactions/ticketButtons');
-const infoMenu = require('./interactions/infoMenu');
-const verifyButton = require('./interactions/verifyButton');
-const configCommand = require('./slashCommands/config');
+const db = require('./src/database');
+const setupCommands = require('./src/commands/setup');
+const ticketButtons = require('./src/interactions/ticketButtons');
+const infoMenu = require('./src/interactions/infoMenu');
+const verifyButton = require('./src/interactions/verifyButton');
+const configCommand = require('./src/slashCommands/config');
 
-// Process error handling
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
 
@@ -20,13 +20,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+app.set('views', path.join(__dirname, 'src/views'));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
+    store: new pgSession({
+        pool: db.pool,
+        tableName: 'session'
+    }),
     secret: process.env.SESSION_SECRET || 'fallback_secret',
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
 }));
 
 const checkAuth = (req, res, next) => {
@@ -37,6 +42,13 @@ const checkAuth = (req, res, next) => {
 // --- ROUTES ---
 
 app.get('/', (req, res) => res.render('index', { title: 'Astra', subtitle: 'Panel', welcome_message: 'Login to start', login_button: 'Login' }));
+
+app.get('/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.clearCookie('connect.sid');
+        res.redirect('/');
+    });
+});
 
 app.get('/login', (req, res) => {
     res.redirect(`https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`);
@@ -73,7 +85,6 @@ app.post('/select-server', checkAuth, (req, res) => {
     res.redirect('/dashboard');
 });
 
-// FIXED DASHBOARD ROUTE: Added error handling to prevent 500 crashes
 app.get('/dashboard', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
     if (!guildId) return res.redirect('/select-server');
@@ -83,7 +94,6 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
         
-        // Wrap API calls in try-catch to prevent dashboard crash if Discord API is weird
         let channels = [], roles = [];
         try {
             const [c, r] = await Promise.all([
@@ -92,14 +102,10 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             ]);
             channels = c.data.filter(ch => ch.type === 0);
             roles = r.data;
-        } catch (e) {
-            console.error("Discord API fetch failed for dashboard");
-        }
+        } catch (e) { console.error("Discord API fetch failed"); }
 
         res.render('dashboard', { user: req.session.user, settings, channels, roles, success: req.query.status === 'success' });
-    } catch (err) {
-        res.status(500).send("Dashboard Error: Database unreachable.");
-    }
+    } catch (err) { res.status(500).send("DB Error."); }
 });
 
 app.post('/api/update-verification', checkAuth, async (req, res) => {
@@ -138,7 +144,6 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'config') await configCommand.execute(interaction);
     } else if (interaction.isButton()) {
-        // Handlers now return early if customId doesn't match
         await ticketButtons.handleButton(interaction);
         await verifyButton.handleButton(interaction);
     } else if (interaction.isStringSelectMenu()) {
