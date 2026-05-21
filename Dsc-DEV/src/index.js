@@ -3,7 +3,6 @@ const express = require('express');
 const path = require('path');
 const axios = require('axios');
 const session = require('express-session');
-const ejsMate = require('ejs-mate');
 require('dotenv').config();
 
 const db = require('./database');
@@ -19,9 +18,8 @@ process.on('uncaughtException', (error, origin) => console.error('❌ Error: Unc
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.engine('ejs', ejsMate);
+// Set up native EJS
 app.set('view engine', 'ejs');
-// FIX: Using __dirname ensures it looks inside the /src/views directory where your files are located
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 
@@ -107,7 +105,6 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
 
-        // FIX: Discord Bot API requests require "Bot " prefix in the Authorization header
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
         
         const [channelsRes, rolesRes] = await Promise.all([
