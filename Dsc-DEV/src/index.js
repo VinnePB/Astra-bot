@@ -1,11 +1,12 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const express = require('express'); // Adicionado para a Render não derrubar o bot
+const express = require('express');
 require('dotenv').config();
 
 const setupCommands = require('./commands/setup');
 const ticketButtons = require('./interactions/ticketButtons');
 const infoMenu = require('./interactions/infoMenu');
 const verifyButton = require('./interactions/verifyButton');
+const configCommand = require('./slashCommands/config'); // Importando o novo Slash Command
 
 process.on('unhandledRejection', (reason, promise) => console.error('❌ Erro: Rejection não tratada:', reason));
 process.on('uncaughtException', (error, origin) => console.error('❌ Erro: Exceção não capturada:', error));
@@ -37,7 +38,6 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.User]
 });
 
-// CORRIGIDO: De 'clientReady' para 'ready'
 client.once('ready', () => {
     console.log(`🚀 Astra online com sistema de Dupla Verificação ativo!`);
 });
@@ -53,16 +53,34 @@ client.on('messageCreate', async (message) => {
 });
 
 // ==========================================
-// MONITOR DE INTERAÇÕES (Botões e Menus)
+// MONITOR DE INTERAÇÕES (Botões, Menus e Slash)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.guild) return;
 
+    // Tratamento para Slash Commands (/)
+    if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === 'config') {
+            try {
+                await configCommand.execute(interaction);
+            } catch (error) {
+                console.error(error);
+                await interaction.reply({ 
+                    content: '❌ Ocorreu um erro ao tentar executar este comando.', 
+                    ephemeral: true 
+                });
+            }
+        }
+        return;
+    }
+
+    // Tratamento para Botões
     if (interaction.isButton()) {
         await ticketButtons.handleButton(interaction);
         await verifyButton.handleButton(interaction);
     }
 
+    // Tratamento para Menus de Seleção
     if (interaction.isStringSelectMenu()) {
         await infoMenu.handleMenu(interaction);
     }
