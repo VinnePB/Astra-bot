@@ -34,8 +34,33 @@ app.get('/', (req, res) => {
 });
 
 app.get('/login', (req, res) => {
-    // Aqui entraremos com a lógica do OAuth2 do Discord no próximo passo
-    res.send('Redirecionando para o Discord...');
+    const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`;
+    res.redirect(authUrl);
+});
+
+
+const axios = require('axios');
+
+app.get('/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.send('Erro: Nenhum código fornecido.');
+
+    try {
+        const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+            client_id: process.env.DISCORD_CLIENT_ID,
+            client_secret: process.env.DISCORD_CLIENT_SECRET,
+            grant_type: 'authorization_code',
+            code: code,
+            redirect_uri: process.env.REDIRECT_URI,
+        }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+        const { access_token } = tokenResponse.data;
+        // Aqui você já tem o access_token para buscar os dados do usuário
+        res.send('Autenticado com sucesso! Token recebido.');
+    } catch (error) {
+        console.error(error);
+        res.send('Erro ao autenticar.');
+    }
 });
 
 app.listen(PORT, () => {
