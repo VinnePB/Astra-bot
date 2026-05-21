@@ -113,8 +113,8 @@ module.exports = {
     },
 
     async handleButton(interaction) {
-        // ID sincronizado com o que definimos no Slash Command /config
-        if (interaction.customId !== 'btn_verificar_membro') return;
+        // CORRIGIDO: Voltando para o ID original do seu botão do painel de regras
+        if (interaction.customId !== 'botao_verificar_membro') return;
 
         try {
             const guild = interaction.guild;
