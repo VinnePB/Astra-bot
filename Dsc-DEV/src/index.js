@@ -48,18 +48,18 @@ app.get('/callback', async (req, res) => {
     try {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
             client_id: process.env.DISCORD_CLIENT_ID,
-            client_secret: process.env.DISCORD_CLIENT_SECRET,
+            client_secret: process.env.DISCORD_CLIENT_SECRET, // Verifique se isso está no Render!
             grant_type: 'authorization_code',
             code: code,
             redirect_uri: process.env.REDIRECT_URI,
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         const { access_token } = tokenResponse.data;
-        // Aqui você já tem o access_token para buscar os dados do usuário
-        res.send('Autenticado com sucesso! Token recebido.');
+        res.send('Autenticado com sucesso! Token recebido: ' + access_token);
     } catch (error) {
-        console.error(error);
-        res.send('Erro ao autenticar.');
+        // MUDANÇA AQUI:
+        console.error('❌ Erro no Callback:', error.response ? error.response.data : error.message);
+        res.send('Erro ao autenticar: ' + (error.response ? JSON.stringify(error.response.data) : error.message));
     }
 });
 
