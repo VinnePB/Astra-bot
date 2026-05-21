@@ -1,39 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR" class="dark">
 <head>
     <meta charset="UTF-8">
-    <title>Astra | Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra | Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' };
+    </script>
 </head>
-<body>
-    <nav>
-        <h2>Astra Dashboard</h2>
-        <a href="/logout">Logout</a>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+    <nav class="border-b border-slate-800 p-4 flex justify-between items-center bg-slate-900">
+        <h1 class="font-bold text-xl tracking-tight text-indigo-400">ASTRA <span class="text-white">SECURITY</span></h1>
+        <div class="flex items-center gap-4">
+            <span class="text-sm text-slate-400">Olá, <%= user.username %></span>
+            <a href="/logout" class="text-sm text-red-400 hover:text-red-300">Sair</a>
+        </div>
     </nav>
 
-    <main>
-        <section class="settings-panel">
-            <h2>Verification Settings</h2>
-            <form action="/api/update-verification" method="POST">
+    <main class="max-w-4xl mx-auto p-6 mt-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div class="md:col-span-2 bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
+                <h2 class="text-lg font-semibold mb-4 border-b border-slate-800 pb-2">Verification Settings</h2>
                 
-                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <form action="/api/update-verification" method="POST" class="space-y-4">
+                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                    
+                    <div class="flex items-center justify-between">
+                        <label class="text-slate-300">Enable 2-Step Verification</label>
+                        <input type="checkbox" name="two_step" <%= settings.two_step_enabled ? 'checked' : '' %> 
+                            class="w-5 h-5 accent-indigo-500 rounded cursor-pointer">
+                    </div>
 
-                <label>
-                    <input type="checkbox" name="two_step" <%= settings.two_step_enabled ? 'checked' : '' %>>
-                    Enable 2-Step Verification
-                </label>
-                <br>
-                <label>Member Role ID:
-                    <input type="text" name="member_role_id" value="<%= settings.member_role_id || '' %>">
-                </label>
-                <button type="submit">Save Changes</button>
-            </form>
-        </section>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Member Role ID</label>
+                        <input type="text" name="member_role_id" value="<%= settings.member_role_id || '' %>" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 outline-none focus:border-indigo-500 transition-all"
+                            placeholder="Ex: 123456789012345678">
+                    </div>
 
-        <section class="stats">
-            <h2>Server Overview</h2>
-            <p>Status: <strong>Active</strong></p>
-            <p>Total Verifications: 1,240</p>
-        </section>
+                    <button type="submit" 
+                        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg transition-colors">
+                        Save Changes
+                    </button>
+                </form>
+            </div>
+
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl self-start">
+                <h3 class="text-sm font-medium text-slate-400 mb-2">Server Status</h3>
+                <div class="flex items-center gap-2 mb-6">
+                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                    <span class="text-green-500 font-bold">Active</span>
+                </div>
+                
+                <h3 class="text-sm font-medium text-slate-400 mb-2">Total Verifications</h3>
+                <p class="text-3xl font-bold text-white">1,240</p>
+            </div>
+
+        </div>
     </main>
+
 </body>
 </html>

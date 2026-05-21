@@ -1,29 +1,44 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Astra | Select Server</title>
-    <style>
-        body { font-family: sans-serif; background: #121212; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { background: #1e1e1e; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); width: 100%; max-width: 400px; text-align: center; }
-        select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 5px; border: none; font-size: 1rem; }
-        button { background: #5865F2; color: white; cursor: pointer; font-weight: bold; }
-        button:hover { background: #4752c4; }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="container">
-        <h1>Select your Server</h1>
-        <p>Choose the server to configure:</p>
-        
-        <form action="/select-server" method="POST">
-            <select name="guild_id" required>
-                <% guilds.forEach(guild => { %>
-                    <option value="<%= guild.id %>"><%= guild.name %></option>
-                <% }) %>
-            </select>
-            <button type="submit">Continue</button>
-        </form>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center p-8">
+
+    <div class="max-w-3xl w-full">
+        <header class="mb-10 text-center">
+            <h1 class="text-3xl font-bold text-white mb-2">Select a Server</h1>
+            <p class="text-slate-400">Choose which server you want to manage with Astra.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <% guilds.forEach(guild => { %>
+                <form action="/select-server" method="POST" class="group">
+                    <input type="hidden" name="guild_id" value="<%= guild.id %>">
+                    <button type="submit" class="w-full flex items-center gap-4 p-4 bg-slate-900 border border-slate-800 rounded-xl hover:border-indigo-500 hover:bg-slate-800 transition-all shadow-lg hover:shadow-indigo-500/10">
+                        
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-800 flex-shrink-0 border border-slate-700">
+                            <% if (guild.icon) { %>
+                                <img src="https://cdn.discordapp.com/icons/<%= guild.id %>/<%= guild.icon %>.png" alt="Icon" class="w-full h-full object-cover">
+                            <% } else { %>
+                                <div class="w-full h-full flex items-center justify-center text-slate-500 font-bold bg-slate-800">
+                                    <%= guild.name.charAt(0) %>
+                                </div>
+                            <% } %>
+                        </div>
+
+                        <div class="text-left overflow-hidden">
+                            <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
+                            <span class="text-xs text-indigo-400 font-medium tracking-wider uppercase">Admin</span>
+                        </div>
+                    </button>
+                </form>
+            <% }) %>
+        </div>
     </div>
+
 </body>
 </html>
