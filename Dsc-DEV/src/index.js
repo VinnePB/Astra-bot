@@ -6,12 +6,12 @@ const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 require('dotenv').config();
 
-const db = require('./src/database');
-const setupCommands = require('./src/commands/setup');
-const ticketButtons = require('./src/interactions/ticketButtons');
-const infoMenu = require('./src/interactions/infoMenu');
-const verifyButton = require('./src/interactions/verifyButton');
-const configCommand = require('./src/slashCommands/config');
+const db = require('./database');
+const setupCommands = require('./commands/setup');
+const ticketButtons = require('./interactions/ticketButtons');
+const infoMenu = require('./interactions/infoMenu');
+const verifyButton = require('./interactions/verifyButton');
+const configCommand = require('./slashCommands/config');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -20,7 +20,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'src/views'));
+app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
