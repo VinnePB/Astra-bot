@@ -21,7 +21,8 @@ const PORT = process.env.PORT || 3000;
 
 app.engine('ejs', ejsMate);
 app.set('view engine', 'ejs');
-app.set('views', path.join(process.cwd(), 'views'));
+// FIX: Using __dirname ensures it looks inside the /src/views directory where your files are located
+app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
@@ -103,15 +104,12 @@ app.get('/dashboard', checkAuth, async (req, res) => {
     if (!guildId) return res.redirect('/select-server'); 
 
     try {
-        console.log(`[DEBUG] Attempting to fetch data for guild: ${guildId}`); // Track the ID
-        
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
 
+        // FIX: Discord Bot API requests require "Bot " prefix in the Authorization header
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
         
-        // Let's add logging for the API calls
-        console.log(`[DEBUG] Fetching Discord API data...`);
         const [channelsRes, rolesRes] = await Promise.all([
             axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
             axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })
@@ -127,7 +125,6 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             success: req.query.status === 'success' ? 'Settings updated successfully!' : null
         });
     } catch (err) {
-        // This will print the actual technical error to your Render logs
         console.error("❌ DASHBOARD ERROR DETAILS:", err.response ? err.response.data : err.message);
         res.status(500).send("Dashboard Error: " + (err.message || "Unknown error"));
     }
