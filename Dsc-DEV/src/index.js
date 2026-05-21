@@ -21,8 +21,21 @@ const PORT = process.env.PORT || 3000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
+// Dicionário simples de traduções
+const translations = {
+    'pt': { title: 'Astra Security', subtitle: 'Painel de Controle e Configuração', welcome_message: 'Bem-vindo à central de gerenciamento. Conecte-se com sua conta do Discord para configurar os sistemas de verificação e logs do seu servidor.', login_button: 'Entrar com o Discord', lang: 'pt-BR' },
+    'en': { title: 'Astra Security', subtitle: 'Control & Configuration Panel', welcome_message: 'Welcome to the management center. Log in with your Discord account to configure your server\'s verification and log systems.', login_button: 'Login with Discord', lang: 'en' }
+};
+
 app.get('/', (req, res) => {
-    res.render('index');
+    const langHeader = req.acceptsLanguages('pt', 'en') || 'pt';
+    const data = translations[langHeader];
+    res.render('index', data);
+});
+
+app.get('/login', (req, res) => {
+    // Aqui entraremos com a lógica do OAuth2 do Discord no próximo passo
+    res.send('Redirecionando para o Discord...');
 });
 
 app.listen(PORT, () => {
@@ -62,7 +75,6 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.guild) return;
 
-    // Tratamento para Slash Commands (/)
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'config') {
             try {
@@ -78,13 +90,11 @@ client.on('interactionCreate', async (interaction) => {
         return;
     }
 
-    // Tratamento para Botões
     if (interaction.isButton()) {
         await ticketButtons.handleButton(interaction);
         await verifyButton.handleButton(interaction);
     }
 
-    // Tratamento para Menus de Seleção
     if (interaction.isStringSelectMenu()) {
         await infoMenu.handleMenu(interaction);
     }
