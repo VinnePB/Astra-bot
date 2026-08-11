@@ -8,12 +8,8 @@ require('dotenv').config();
 
 const db = require('./database');
 
-// --- NEW UNIFIED ARCHITECTURE IMPORTS ---
-// You will need to create these files in your src/commands/ folder
-const verifyFeature = require('./commands/verify');
-const ticketFeature = require('./commands/ticket');
-const infoFeature = require('./commands/info');
-const configFeature = require('./commands/config');
+// --- UNIFIED ARCHITECTURE ---
+const coreFeature = require('./commands/core');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -130,10 +126,8 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
-    // 1. Existing table
     await db.query('CREATE TABLE IF NOT EXISTS guild_settings (guild_id VARCHAR(30) PRIMARY KEY, two_step_enabled BOOLEAN, member_role_id VARCHAR(30), log_channel_id VARCHAR(30))');
     
-    // 2. Add this block to create the session table for connect-pg-simple
     await db.query(`
         CREATE TABLE IF NOT EXISTS "session" (
           "sid" varchar NOT NULL COLLATE "default",
@@ -143,7 +137,6 @@ client.once('ready', async () => {
         WITH (OIDS=FALSE);
     `).catch(console.error);
     
-    // Attempt to add primary key if it doesn't exist (prevents errors on restarts)
     await db.query(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE`).catch(() => {});
     
     console.log(`🚀 Astra online.`);
@@ -152,28 +145,21 @@ client.once('ready', async () => {
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
     
-    // Route legacy text commands to their unified files
-    if (message.content === '!setup') {
-        // Assuming your setup command spawns the verify button
-        if (verifyFeature.execute) await verifyFeature.execute(message);
-    }
+    // Processa os comandos de texto (!setup, !setupverify)
+    await coreFeature.executeMessage(message);
 });
 
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.guild) return;
 
     if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'config' && configFeature.execute) {
-            await configFeature.execute(interaction);
+        if (interaction.commandName === 'config') {
+            await coreFeature.executeSlash(interaction);
         }
     } else if (interaction.isButton()) {
-        // Pass the button interaction to the features that use buttons.
-        // They will check the customId and ignore it if it doesn't belong to them.
-        if (verifyFeature.handleButton) await verifyFeature.handleButton(interaction);
-        if (ticketFeature.handleButton) await ticketFeature.handleButton(interaction);
-        
+        await coreFeature.handleButton(interaction);
     } else if (interaction.isStringSelectMenu()) {
-        if (infoFeature.handleMenu) await infoFeature.handleMenu(interaction);
+        await coreFeature.handleMenu(interaction);
     }
 });
 
