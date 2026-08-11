@@ -1,35 +1,38 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const db = require('../database'); 
 
+// Armazena temporariamente quem clicou no botão (Step 1)
+const pendingVerifications = new Set();
+
 module.exports = {
     // --- 1. SLASH COMMAND DATA (/config) ---
     data: new SlashCommandBuilder()
         .setName('config')
-        .setDescription('Configura os canais e cargos da Astra para este servidor.')
+        .setDescription('Configure Astra channels and roles for this server.')
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
         .addSubcommand(subcommand =>
             subcommand
-                .setName('verificacao')
-                .setDescription('Configura o sistema de verificação')
+                .setName('verification')
+                .setDescription('Configure the verification system')
                 .addChannelOption(option => 
-                    option.setName('canal_verificacao')
-                        .setDescription('Onde o botão de verificar vai ficar')
+                    option.setName('verify_channel')
+                        .setDescription('Channel where the verification button will be placed')
                         .setRequired(true))
                 .addRoleOption(option => 
-                    option.setName('cargo_membro')
-                        .setDescription('Cargo que o usuário ganha ao se verificar')
+                    option.setName('member_role')
+                        .setDescription('Role granted upon verification')
                         .setRequired(true))
                 .addChannelOption(option => 
-                    option.setName('canal_logs')
-                        .setDescription('Canal para registrar as verificações')
+                    option.setName('log_channel')
+                        .setDescription('Channel to log verifications')
                         .setRequired(false))
                 .addStringOption(option => 
-                    option.setName('titulo')
-                        .setDescription('Título do painel (Opcional)')
+                    option.setName('title')
+                        .setDescription('Embed title (Optional)')
                         .setRequired(false))
                 .addStringOption(option => 
-                    option.setName('descricao')
-                        .setDescription('Texto das regras (Use \\n para pular linha. Opcional)')
+                    option.setName('description')
+                        .setDescription('Rules text (Use \\n for a new line. Optional)')
                         .setRequired(false))
         ),
 
@@ -38,13 +41,13 @@ module.exports = {
         await interaction.deferReply({ ephemeral: true });
 
         const guildId = interaction.guild.id;
-        const verifyChannel = interaction.options.getChannel('canal_verificacao');
-        const memberRole = interaction.options.getRole('cargo_membro');
-        const logChannel = interaction.options.getChannel('canal_logs');
+        const verifyChannel = interaction.options.getChannel('verify_channel');
+        const memberRole = interaction.options.getRole('member_role');
+        const logChannel = interaction.options.getChannel('log_channel');
         const logChannelId = logChannel ? logChannel.id : null;
         
-        const titulo = interaction.options.getString('titulo') || '🔒 Sistema de Verificação — Astra';
-        const descricaoRaw = interaction.options.getString('descricao') || 'Para garantir a segurança do servidor e liberar o acesso aos demais canais, clique no botão **Verificar** abaixo.';
+        const titulo = interaction.options.getString('title') || '🔒 Verification System — Astra';
+        const descricaoRaw = interaction.options.getString('description') || 'To ensure server security and unlock all channels, click the **Read the Rules** button below.';
         const descricao = descricaoRaw.replace(/\\n/g, '\n');
 
         try {
@@ -69,27 +72,55 @@ module.exports = {
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('botao_verificar_membro')
-                    .setLabel('Verificar')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅')
+                    .setLabel('Read the Rules')
+                    .setStyle(ButtonStyle.Secondary)
             );
 
             await verifyChannel.send({ embeds: [embed], components: [row] });
 
             await interaction.editReply({
-                content: `✅ **Astra configurada com sucesso!**\n📍 Painel enviado em: ${verifyChannel}\n🛡️ Cargo definido: ${memberRole}`,
+                content: `✅ **Astra successfully configured!**\n📍 Panel sent to: ${verifyChannel}\n🛡️ Role defined: ${memberRole}`,
             });
 
         } catch (error) {
-            console.error('❌ Erro ao salvar configurações no banco:', error);
-            await interaction.editReply({ content: '❌ Ocorreu um erro ao salvar as configurações no banco de dados.' });
+            console.error('❌ Database save error:', error);
+            await interaction.editReply({ content: '❌ An error occurred while saving configurations to the database.' });
         }
     },
 
-    // --- 3. TEXT COMMAND HANDLER (!setup, !setupverify) ---
+    // --- 3. TEXT COMMAND HANDLER (!setup, !setupverify, !verify) ---
     async executeMessage(message) {
         const eDono = message.author.id === message.guild.ownerId;
         const eAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
+
+        // AÇÃO: COMANDO DE VERIFICAÇÃO 2-STEP (!verify)
+        if (message.content.toLowerCase() === '!verify') {
+            try {
+                const { rows } = await db.query('SELECT member_role_id, two_step_enabled FROM guild_settings WHERE guild_id = $1', [message.guild.id]);
+                if (rows.length === 0 || !rows[0].member_role_id) return;
+
+                if (rows[0].two_step_enabled) {
+                    if (pendingVerifications.has(message.author.id)) {
+                        const role = await message.guild.roles.fetch(rows[0].member_role_id);
+                        if (role && !message.member.roles.cache.has(role.id)) {
+                            await message.member.roles.add(role);
+                        }
+                        
+                        pendingVerifications.delete(message.author.id);
+                        
+                        const reply = await message.reply('Verified');
+                        setTimeout(() => reply.delete().catch(() => {}), 5000);
+                        message.delete().catch(() => {});
+                    } else {
+                        const reply = await message.reply('You must read and agree to the rules by clicking the button first.');
+                        setTimeout(() => reply.delete().catch(() => {}), 5000);
+                        message.delete().catch(() => {});
+                    }
+                }
+            } catch (error) { console.error(error); }
+            return;
+        }
+
         if (!eDono && !eAdmin) return;
 
         if (message.content === '!setup') {
@@ -108,7 +139,7 @@ module.exports = {
 
                 await message.channel.send({ embeds: [embedPainel], components: [botaoTicket] });
                 try { await message.delete(); } catch (e) {}
-            } catch (error) { console.error('❌ Erro no !setup:', error); }
+            } catch (error) { console.error('❌ Error in !setup:', error); }
         }
 
         if (message.content === '!setupverify') {
@@ -116,8 +147,8 @@ module.exports = {
                 const botaoVerificar = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId('botao_verificar_membro')
-                        .setLabel('✅ Agree & Verify')
-                        .setStyle(ButtonStyle.Success)
+                        .setLabel('Read the Rules')
+                        .setStyle(ButtonStyle.Secondary)
                 );
 
                 const embedRegras = new EmbedBuilder()
@@ -127,7 +158,7 @@ module.exports = {
 
                 await message.channel.send({ embeds: [embedRegras], components: [botaoVerificar] });
                 try { await message.delete(); } catch (e) {}
-            } catch (error) { console.error('❌ Erro no !setupverify:', error); }
+            } catch (error) { console.error('❌ Error in !setupverify:', error); }
         }
     },
 
@@ -136,26 +167,31 @@ module.exports = {
         const guild = interaction.guild;
         const user = interaction.user;
 
-        // AÇÃO: VERIFICAÇÃO DE MEMBRO
+        // AÇÃO: CLIQUE NO BOTÃO DE VERIFICAÇÃO
         if (interaction.customId === 'botao_verificar_membro') {
             try {
-                const { rows } = await db.query('SELECT member_role_id FROM guild_settings WHERE guild_id = $1', [guild.id]);
+                const { rows } = await db.query('SELECT member_role_id, two_step_enabled FROM guild_settings WHERE guild_id = $1', [guild.id]);
                 
                 if (rows.length === 0 || !rows[0].member_role_id) {
-                    return interaction.reply({ content: "❌ Server not configured.", ephemeral: true });
+                    return interaction.reply({ content: "Server not configured.", ephemeral: true });
                 }
 
-                const role = await guild.roles.fetch(rows[0].member_role_id);
-                if (!role) return interaction.reply({ content: "❌ Role not found.", ephemeral: true });
+                if (rows[0].two_step_enabled) {
+                    pendingVerifications.add(user.id);
+                    return interaction.reply({ content: "Step 1 complete. Now type `!verify` in the chat to receive your role.", ephemeral: true });
+                } else {
+                    const role = await guild.roles.fetch(rows[0].member_role_id);
+                    if (!role) return interaction.reply({ content: "Role not found.", ephemeral: true });
 
-                if (!interaction.member.roles.cache.has(role.id)) {
-                    await interaction.member.roles.add(role);
+                    if (!interaction.member.roles.cache.has(role.id)) {
+                        await interaction.member.roles.add(role);
+                    }
+                    
+                    await interaction.reply({ content: "Verified", ephemeral: true });
                 }
-                
-                await interaction.reply({ content: "✅ Verified!", ephemeral: true });
             } catch (error) {
                 console.error(error);
-                if (!interaction.replied) await interaction.reply({ content: "❌ Error during verification.", ephemeral: true });
+                if (!interaction.replied) await interaction.reply({ content: "Error during verification.", ephemeral: true });
             }
             return;
         }
@@ -208,7 +244,7 @@ module.exports = {
                 try {
                     await ticketChannel.send({ content: `${user}`, embeds: [embedBoasVindas], components: [menuInfo, botaoFechar] });
                 } catch (errorEnvioMsg) {
-                    return await interaction.editReply({ content: `Seu ticket foi criado em ${ticketChannel}, mas falhei ao colocar o painel lá dentro.` });
+                    return await interaction.editReply({ content: `Your ticket was created at ${ticketChannel}, but the panel failed to load.` });
                 }
 
                 await interaction.editReply({ content: `Your ticket has been created! Go to ${ticketChannel} to start.` });
