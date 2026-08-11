@@ -168,7 +168,7 @@ module.exports = {
         const user = interaction.user;
 
         // AÇÃO: CLIQUE NO BOTÃO DE VERIFICAÇÃO
-        if (interaction.customId === 'botao_verificar_membro') {
+        if (interaction.customId === 'member_verify_button') {
             try {
                 const { rows } = await db.query('SELECT member_role_id, two_step_enabled FROM guild_settings WHERE guild_id = $1', [guild.id]);
                 
