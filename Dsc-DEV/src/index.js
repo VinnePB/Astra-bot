@@ -7,11 +7,13 @@ const pgSession = require('connect-pg-simple')(session);
 require('dotenv').config();
 
 const db = require('./database');
-const setupCommands = require('./commands/setup');
-const ticketButtons = require('./interactions/ticketButtons');
-const infoMenu = require('./interactions/infoMenu');
-const verifyButton = require('./interactions/verifyButton');
-const configCommand = require('./slashCommands/config');
+
+// --- NEW UNIFIED ARCHITECTURE IMPORTS ---
+// You will need to create these files in your src/commands/ folder
+const verifyFeature = require('./commands/verify');
+const ticketFeature = require('./commands/ticket');
+const infoFeature = require('./commands/info');
+const configFeature = require('./commands/config');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -149,20 +151,29 @@ client.once('ready', async () => {
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
-    await setupCommands.execute(message);
-    await verifyButton.handleTextVerify(message);
+    
+    // Route legacy text commands to their unified files
+    if (message.content === '!setup') {
+        // Assuming your setup command spawns the verify button
+        if (verifyFeature.execute) await verifyFeature.execute(message);
+    }
 });
 
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.guild) return;
 
     if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'config') await configCommand.execute(interaction);
+        if (interaction.commandName === 'config' && configFeature.execute) {
+            await configFeature.execute(interaction);
+        }
     } else if (interaction.isButton()) {
-        await ticketButtons.handleButton(interaction);
-        await verifyButton.handleButton(interaction);
+        // Pass the button interaction to the features that use buttons.
+        // They will check the customId and ignore it if it doesn't belong to them.
+        if (verifyFeature.handleButton) await verifyFeature.handleButton(interaction);
+        if (ticketFeature.handleButton) await ticketFeature.handleButton(interaction);
+        
     } else if (interaction.isStringSelectMenu()) {
-        await infoMenu.handleMenu(interaction);
+        if (infoFeature.handleMenu) await infoFeature.handleMenu(interaction);
     }
 });
 
