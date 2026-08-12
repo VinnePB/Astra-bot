@@ -7,7 +7,8 @@ const pgSession = require('connect-pg-simple')(session);
 require('dotenv').config();
 
 const db = require('./database');
-const coreFeature = require('./commands/core');
+const configCommand = require('./commands/config');
+const helpCommand = require('./commands/help');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -21,11 +22,6 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
     store: new pgSession({
-        // FIX: database.js used to do `module.exports = pool;`, which means
-        // `db` WAS the pool. `db.pool` was therefore undefined, and connect-pg-simple
-        // was silently given no real Pool to use, which could break session
-        // persistence (login state not surviving as expected). database.js now
-        // exports `{ pool, query }`, so `db.pool` is a real Pool instance again.
         pool: db.pool,
         tableName: 'session'
     }),
@@ -129,39 +125,25 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
-    // FIX: removed the redundant `CREATE TABLE IF NOT EXISTS guild_settings (...)`
-    // and the redundant `session` table setup that used to live here.
-    // Both were racing against (and losing to) database.js's schema setup, which
-    // runs earlier and faster. That race is exactly why two_step_enabled never
-    // actually got created — this file's CREATE TABLE defined the column, but
-    // by the time it ran the table already existed from database.js, so
-    // "IF NOT EXISTS" made this a silent no-op. All schema setup now lives
-    // solely in database.js.
-
-    // Força a sincronização agressiva dos comandos na API do Discord
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-        // 1. Zera qualquer comando global preso em cache
-        await rest.put(
-            Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
-            { body: [] }
-        );
+        await rest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
         console.log('🧹 Global commands cleared.');
 
-        // 2. Injeta o novo comando em inglês diretamente no registro do seu servidor
-        const commands = [coreFeature.data.toJSON()];
+        // NEW: now registering three commands — /config, /setup, /help.
+        const commands = [
+            configCommand.data.toJSON(),
+            configCommand.setupData.toJSON(),
+            helpCommand.data.toJSON()
+        ];
+
         for (const [guildId, guild] of client.guilds.cache) {
             try {
                 const result = await rest.put(
                     Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, guildId),
                     { body: commands }
                 );
-                // FIX: log per-guild success with the actual command names Discord
-                // confirms it registered. Previously any failure (e.g. missing
-                // applications.commands scope -> 403) was caught by a single generic
-                // catch below and easily missed, which is a common cause of "the old
-                // slash command just won't go away" — the sync silently failed.
                 console.log(`✅ Synced to guild ${guild.name} (${guildId}):`, result.map(c => c.name));
             } catch (guildErr) {
                 console.error(`❌ Failed to sync commands to guild ${guildId}:`, guildErr.message);
@@ -177,7 +159,16 @@ client.once('ready', async () => {
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
-    await coreFeature.executeMessage(message);
+
+    const content = message.content.toLowerCase().trim();
+
+    // NEW: "!setup 2fa" text alias for the /setup panel.
+    if (content === '!setup 2fa' || content === '!setup') {
+        return configCommand.executeSetupText(message);
+    }
+
+    // "!verify" — step 2 of 2FA verification.
+    await configCommand.executeMessage(message);
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -185,12 +176,16 @@ client.on('interactionCreate', async (interaction) => {
 
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'config') {
-            await coreFeature.executeSlash(interaction);
+            await configCommand.executeSlash(interaction);
+        } else if (interaction.commandName === 'setup') {
+            await configCommand.executeSetupSlash(interaction);
+        } else if (interaction.commandName === 'help') {
+            await helpCommand.executeSlash(interaction);
         }
     } else if (interaction.isButton()) {
-        await coreFeature.handleButton(interaction);
+        await configCommand.handleButton(interaction);
     } else if (interaction.isStringSelectMenu()) {
-        await coreFeature.handleMenu(interaction);
+        await configCommand.handleMenu(interaction);
     }
 });
 

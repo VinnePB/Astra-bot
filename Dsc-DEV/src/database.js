@@ -12,14 +12,6 @@ pool.connect()
         console.log('✅ [PostgreSQL] Conexão com o banco de dados estabelecida com sucesso!');
 
         try {
-            // Garante que a tabela de configurações exista
-            // FIX: this is the ONLY place guild_settings should ever be created.
-            // index.js used to run a second, conflicting CREATE TABLE for this same
-            // table inside client.once('ready', ...), which fired AFTER this one
-            // (pool.connect() resolves way faster than the Discord gateway handshake).
-            // Because both used "IF NOT EXISTS", whichever ran first silently won,
-            // and the columns from the second definition (like two_step_enabled)
-            // were never actually added. All schema changes now live here.
             await client.query(`
                 CREATE TABLE IF NOT EXISTS guild_settings (
                     guild_id VARCHAR(30) PRIMARY KEY,
@@ -29,13 +21,6 @@ pool.connect()
                 );
             `);
 
-            // Adiciona as novas colunas caso elas ainda não existam (Migração de Schema)
-            // FIX: added two_step_enabled here — this column was previously only
-            // defined in index.js's redundant CREATE TABLE, which never ran because
-            // the table already existed by the time it got there. Every query that
-            // referenced two_step_enabled was silently throwing a Postgres
-            // "column does not exist" error, caught and swallowed by a console.error,
-            // which is why the final role was never granted with no visible failure.
             await client.query(`
                 ALTER TABLE guild_settings 
                 ADD COLUMN IF NOT EXISTS embed_title TEXT DEFAULT 'Sistema de Verificação',
@@ -43,12 +28,6 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS two_step_enabled BOOLEAN DEFAULT FALSE;
             `);
 
-            // FIX: new table to persist "step 1 clicked" state across restarts.
-            // The old code used an in-memory `Set` (pendingVerifications) inside
-            // core.js. Any process restart (crash, redeploy, host sleep on Render)
-            // wiped that Set, so a user who clicked the button but hadn't yet typed
-            // !verify would get stuck being told "click the button first" forever,
-            // even though they already had.
             await client.query(`
                 CREATE TABLE IF NOT EXISTS pending_verifications (
                     guild_id VARCHAR(30) NOT NULL,
@@ -58,8 +37,24 @@ pool.connect()
                 );
             `);
 
-            // Session table used by connect-pg-simple, moved here so all schema
-            // setup happens in one place, before the bot/dashboard start using it.
+            // NEW: per-guild table of roles that are allowed to configure Astra
+            // (verification setup, 2FA toggle) WITHOUT needing real Discord
+            // Administrator permission. Only true Administrators/the guild owner
+            // can add or remove rows here — see permissions.js and
+            // commands/config.js "admins add/remove". This is what lets a server
+            // owner say "my Moderator role can manage Astra" without handing out
+            // full Administrator, and it's structured so a role granted access
+            // this way can never grant itself (or anyone else) more access.
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS guild_admin_roles (
+                    guild_id VARCHAR(30) NOT NULL,
+                    role_id VARCHAR(30) NOT NULL,
+                    added_by VARCHAR(30),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, role_id)
+                );
+            `);
+
             await client.query(`
                 CREATE TABLE IF NOT EXISTS "session" (
                   "sid" varchar NOT NULL COLLATE "default",
@@ -71,11 +66,11 @@ pool.connect()
 
             await client.query(`
                 ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
-            `).catch(() => {}); // ok if constraint already exists
+            `).catch(() => {});
 
-            console.log('🗄️ [PostgreSQL] Tabela guild_settings pronta e atualizada.');
+            console.log('🗄️ [PostgreSQL] Tabelas prontas e atualizadas.');
         } catch (tableErr) {
-            console.error('❌ [PostgreSQL] Erro ao configurar a tabela guild_settings:', tableErr);
+            console.error('❌ [PostgreSQL] Erro ao configurar as tabelas:', tableErr);
         } finally {
             client.release();
         }
@@ -84,7 +79,6 @@ pool.connect()
         console.error('❌ [PostgreSQL] Erro crítico ao conectar no banco de dados:', err);
     });
 
-// Wrapper so callers can do db.query(...) as before.
 async function query(text, params) {
     return pool.query(text, params);
 }
