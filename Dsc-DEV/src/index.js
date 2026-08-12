@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes } = require('discord.js');
 const express = require('express');
 const path = require('path');
 const axios = require('axios');
@@ -7,8 +7,6 @@ const pgSession = require('connect-pg-simple')(session);
 require('dotenv').config();
 
 const db = require('./database');
-
-// --- UNIFIED ARCHITECTURE ---
 const coreFeature = require('./commands/core');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
@@ -126,7 +124,6 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
-    // 1. Inicializa as tabelas do banco de dados
     await db.query('CREATE TABLE IF NOT EXISTS guild_settings (guild_id VARCHAR(30) PRIMARY KEY, two_step_enabled BOOLEAN, member_role_id VARCHAR(30), log_channel_id VARCHAR(30))');
     
     await db.query(`
@@ -140,18 +137,27 @@ client.once('ready', async () => {
     
     await db.query(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE`).catch(() => {});
     
-    // 2. Força a sincronização automática dos comandos com o Discord
+    // Força a sincronização agressiva dos comandos na API do Discord
     try {
-        const { REST, Routes } = require('discord.js');
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         
+        // 1. Zera qualquer comando global preso em cache
         await rest.put(
             Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
-            { body: [coreFeature.data.toJSON()] }
+            { body: [] }
         );
-        console.log('🔄 Comandos sincronizados com sucesso na API do Discord.');
+
+        // 2. Injeta o novo comando em inglês diretamente no registro do seu servidor
+        const commands = [coreFeature.data.toJSON()];
+        for (const [guildId] of client.guilds.cache) {
+            await rest.put(
+                Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, guildId),
+                { body: commands }
+            );
+        }
+        console.log('🔄 Commands forcefully synced to all guilds in English.');
     } catch (error) {
-        console.error('❌ Erro ao sincronizar comandos:', error);
+        console.error('❌ Error synchronizing commands:', error);
     }
 
     console.log(`🚀 Astra online.`);
@@ -159,8 +165,6 @@ client.once('ready', async () => {
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
-    
-    // Processa os comandos de texto (!setup, !setupverify)
     await coreFeature.executeMessage(message);
 });
 
