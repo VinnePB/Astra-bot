@@ -22,6 +22,7 @@ module.exports = {
         if (admin) {
             const adminCommands = [
                 '`/config verification` — Set up the rules/verify channels, buttons, and required roles.',
+                '`/config antiscam` — Flag or auto-kick likely scam/spam accounts on join.',
             ];
             embed.addFields({ name: 'Astra Admins', value: adminCommands.join('\n') });
         }

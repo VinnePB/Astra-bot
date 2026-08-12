@@ -101,6 +101,33 @@ module.exports = {
                 .addSubcommand(sub =>
                     sub.setName('list')
                         .setDescription('List roles currently authorized to configure Astra'))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('antiscam')
+                .setDescription('Flag or kick likely scam/spam accounts on join (new account + no avatar)')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Turn this check on or off')
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option.setName('action')
+                        .setDescription('What to do when an account looks suspicious (default: log only)')
+                        .addChoices(
+                            { name: 'Log only — post an alert for staff to review', value: 'log' },
+                            { name: 'Kick automatically', value: 'kick' }
+                        )
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('min_age_hours')
+                        .setDescription('Flag accounts younger than this many hours old (default: 24)')
+                        .setMinValue(1)
+                        .setMaxValue(720)
+                        .setRequired(false))
+                .addBooleanOption(option =>
+                    option.setName('require_no_avatar')
+                        .setDescription('Only flag new accounts that ALSO have no custom avatar (default: true, fewer false positives)')
+                        .setRequired(false))
         ),
 
     // --- SLASH COMMAND HANDLER ---
@@ -114,6 +141,52 @@ module.exports = {
 
         if (sub === 'verification') {
             return this.handleVerificationSubcommand(interaction);
+        }
+
+        if (sub === 'antiscam') {
+            return this.handleAntiscamSubcommand(interaction);
+        }
+    },
+
+    async handleAntiscamSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({
+                content: '❌ You need Administrator permission or an Astra-authorized role to do this.',
+                ephemeral: true
+            });
+        }
+
+        const guildId = interaction.guild.id;
+        const enabled = interaction.options.getBoolean('enabled');
+        const action = interaction.options.getString('action') ?? 'log';
+        const minAgeHours = interaction.options.getInteger('min_age_hours') ?? 24;
+        const requireNoAvatar = interaction.options.getBoolean('require_no_avatar') ?? true;
+
+        try {
+            await db.query(`
+                INSERT INTO guild_settings (guild_id, antiscam_enabled, antiscam_action, antiscam_min_age_hours, antiscam_require_no_avatar)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (guild_id)
+                DO UPDATE SET
+                    antiscam_enabled = EXCLUDED.antiscam_enabled,
+                    antiscam_action = EXCLUDED.antiscam_action,
+                    antiscam_min_age_hours = EXCLUDED.antiscam_min_age_hours,
+                    antiscam_require_no_avatar = EXCLUDED.antiscam_require_no_avatar;
+            `, [guildId, enabled, action, minAgeHours, requireNoAvatar]);
+
+            if (!enabled) {
+                return interaction.reply({ content: '✅ Anti-scam checks turned off.', ephemeral: true });
+            }
+
+            const avatarNote = requireNoAvatar ? ', with no custom avatar,' : '';
+            const actionNote = action === 'kick' ? 'kicked automatically' : 'flagged in your log channel for review';
+            return interaction.reply({
+                content: `✅ Anti-scam checks enabled. Accounts younger than ${minAgeHours}h${avatarNote} will be ${actionNote}.`,
+                ephemeral: true
+            });
+        } catch (error) {
+            console.error('❌ Error saving antiscam settings:', error);
+            return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
         }
     },
 
@@ -464,6 +537,54 @@ module.exports = {
             } catch (guildErr) {
                 console.error(`❌ Auto-kick sweep failed for guild ${guild.id}:`, guildErr.message);
             }
+        }
+    },
+
+    // --- ANTI-SCAM CHECK ---
+    // Called from index.js on guildMemberAdd, before the welcome ping.
+    // Flags the classic scam-bot signature: an account created very recently
+    // that also has no custom avatar. Deliberately conservative by default
+    // (requires BOTH signals, not just account age alone) since a brand-new
+    // Discord account with a default avatar is also just... a new user.
+    // Returns true if the member was kicked, so index.js can skip the
+    // welcome ping for them.
+    async checkScamSignals(member) {
+        try {
+            const settings = await getSettings(member.guild.id);
+            if (!settings || !settings.antiscam_enabled) return false;
+
+            const accountAgeMs = Date.now() - member.user.createdTimestamp;
+            const minAgeMs = (settings.antiscam_min_age_hours || 24) * 60 * 60 * 1000;
+            const tooNew = accountAgeMs < minAgeMs;
+            const hasDefaultAvatar = member.user.avatar === null;
+
+            const suspicious = settings.antiscam_require_no_avatar
+                ? (tooNew && hasDefaultAvatar)
+                : tooNew;
+
+            if (!suspicious) return false;
+
+            const logChannel = settings.log_channel_id
+                ? await member.guild.channels.fetch(settings.log_channel_id).catch(() => null)
+                : null;
+
+            const ageHours = Math.round(accountAgeMs / (60 * 60 * 1000));
+
+            if (settings.antiscam_action === 'kick') {
+                await member.kick('Astra: flagged as a likely scam/spam account (new account, no avatar).');
+                if (logChannel) {
+                    await logChannel.send(`🚫 Kicked ${member.user.tag} (${member.id}) on join — account is ${ageHours}h old${hasDefaultAvatar ? ' with no avatar' : ''}.`).catch(() => {});
+                }
+                return true;
+            }
+
+            if (logChannel) {
+                await logChannel.send(`⚠️ ${member.user.tag} (${member.id}) just joined and looks suspicious — account is ${ageHours}h old${hasDefaultAvatar ? ', default avatar' : ''}. Review manually.`).catch(() => {});
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ Error checking scam signals:', error);
+            return false;
         }
     },
 

@@ -52,6 +52,15 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS auto_kick_days INTEGER DEFAULT 2;
             `);
 
+            // NEW: join-time anti-scam check — see commands/config.js checkScamSignals.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS antiscam_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS antiscam_action VARCHAR(10) DEFAULT 'log',
+                ADD COLUMN IF NOT EXISTS antiscam_min_age_hours INTEGER DEFAULT 24,
+                ADD COLUMN IF NOT EXISTS antiscam_require_no_avatar BOOLEAN DEFAULT TRUE;
+            `);
+
             await client.query(`
                 CREATE TABLE IF NOT EXISTS pending_verifications (
                     guild_id VARCHAR(30) NOT NULL,

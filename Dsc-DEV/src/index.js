@@ -161,7 +161,8 @@ client.once('ready', async () => {
 // message pointing them at it (posted in that channel, so it also shows up
 // as unread for them) is the practical equivalent.
 client.on('guildMemberAdd', async (member) => {
-    await configCommand.handleNewMember(member);
+    const kicked = await configCommand.checkScamSignals(member);
+    if (!kicked) await configCommand.handleNewMember(member);
 });
 
 // NEW: Chat B moderation — deletes anything that isn't "!verify" in the
