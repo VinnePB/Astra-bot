@@ -1,7 +1,6 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// O Pool conecta automaticamente usando a variável DATABASE_URL fornecida pela Render
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
@@ -28,6 +27,31 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS two_step_enabled BOOLEAN DEFAULT FALSE;
             `);
 
+            // NEW: dual-role verification gate.
+            // rules_channel_id / rules_role_id — the #rules "I Agree" button and
+            // the role it grants (Role A).
+            // verify_role_id — the role the existing verify-channel button now
+            // grants (Role B), instead of granting member_role_id directly.
+            // member_role_id (already existed) is only granted once a member
+            // holds BOTH rules_role_id and verify_role_id.
+            // If rules_channel_id / rules_role_id / verify_role_id are left
+            // unset, the verify button falls back to legacy single-click
+            // behaviour (grants member_role_id directly) for servers that
+            // haven't configured the dual-role flow yet.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS rules_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS rules_role_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS verify_role_id VARCHAR(30);
+            `);
+
+            // NEW: auto-kick sweep settings — see commands/config.js runAutoKickSweep.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS auto_kick_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS auto_kick_days INTEGER DEFAULT 2;
+            `);
+
             await client.query(`
                 CREATE TABLE IF NOT EXISTS pending_verifications (
                     guild_id VARCHAR(30) NOT NULL,
@@ -37,14 +61,6 @@ pool.connect()
                 );
             `);
 
-            // NEW: per-guild table of roles that are allowed to configure Astra
-            // (verification setup, 2FA toggle) WITHOUT needing real Discord
-            // Administrator permission. Only true Administrators/the guild owner
-            // can add or remove rows here — see permissions.js and
-            // commands/config.js "admins add/remove". This is what lets a server
-            // owner say "my Moderator role can manage Astra" without handing out
-            // full Administrator, and it's structured so a role granted access
-            // this way can never grant itself (or anyone else) more access.
             await client.query(`
                 CREATE TABLE IF NOT EXISTS guild_admin_roles (
                     guild_id VARCHAR(30) NOT NULL,

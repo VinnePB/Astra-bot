@@ -12,18 +12,16 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setTitle('🤖 Astra — Commands')
-            .setColor('#2b2d31');
-
-        const everyone = [
-            '`!verify` — Complete step 2 of verification after clicking the button (only needed if 2FA is enabled).',
-        ];
-        embed.addFields({ name: 'Everyone', value: everyone.join('\n') });
+            .setColor('#2b2d31')
+            .setDescription(
+                'Click **I Agree** in the rules channel, then type `!verify` in the verify channel ' +
+                '(or vice versa) to unlock the rest of the server. Anything else typed in the verify ' +
+                'channel gets removed with a reminder.'
+            );
 
         if (admin) {
             const adminCommands = [
-                '`/setup` — Open the 2FA setup panel.',
-                '`!setup 2fa` — Same panel, as a text command.',
-                '`/config verification` — Configure the verification channel, role, and message.',
+                '`/config verification` — Set up the rules/verify channels, buttons, and required roles.',
             ];
             embed.addFields({ name: 'Astra Admins', value: adminCommands.join('\n') });
         }

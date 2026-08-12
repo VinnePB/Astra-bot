@@ -24,14 +24,22 @@ async function isAstraAdmin(member) {
     if (!member || !member.guild) return false;
     if (await isServerAdministrator(member)) return true;
 
-    const { rows } = await db.query(
-        'SELECT role_id FROM guild_admin_roles WHERE guild_id = $1',
-        [member.guild.id]
-    );
-    if (rows.length === 0) return false;
+    try {
+        const { rows } = await db.query(
+            'SELECT role_id FROM guild_admin_roles WHERE guild_id = $1',
+            [member.guild.id]
+        );
+        if (rows.length === 0) return false;
 
-    const trustedRoleIds = new Set(rows.map(r => r.role_id));
-    return member.roles.cache.some(role => trustedRoleIds.has(role.id));
+        const trustedRoleIds = new Set(rows.map(r => r.role_id));
+        return member.roles.cache.some(role => trustedRoleIds.has(role.id));
+    } catch (error) {
+        // Fail closed: if the DB is unreachable, don't let a role-only admin
+        // through, but also don't let the error bubble up and silently kill
+        // the interaction ("This interaction failed" with no explanation).
+        console.error('❌ isAstraAdmin DB check failed:', error.message);
+        return false;
+    }
 }
 
 module.exports = { isServerAdministrator, isAstraAdmin };

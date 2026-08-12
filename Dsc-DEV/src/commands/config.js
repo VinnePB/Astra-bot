@@ -1,59 +1,35 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const db = require('../database');
 const { isServerAdministrator, isAstraAdmin } = require('../permissions');
 
-// Builds the small interactive 2FA setup panel (embed + buttons).
-// Used by both /setup (ephemeral) and "!setup 2fa" (a normal message that
-// only the invoker can operate).
-function buildSetupPanel(twoStepEnabled) {
-    const embed = new EmbedBuilder()
-        .setTitle('⚙️ Astra — Verification Setup')
-        .setDescription(
-            'Two-step verification requires users to click the button **and** type `!verify`, ' +
-            'which helps filter out simple auto-clicker bots.\n\n' +
-            `**Current status:** ${twoStepEnabled ? '🟢 Enabled' : '🔴 Disabled'}`
-        )
-        .setColor(twoStepEnabled ? '#2ECC71' : '#E74C3C')
-        .setFooter({ text: 'Only server admins or Astra-authorized roles can use this panel.' });
-
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('astra_2fa_enable')
-            .setLabel('Enable 2FA')
-            .setStyle(ButtonStyle.Success)
-            .setDisabled(twoStepEnabled),
-        new ButtonBuilder()
-            .setCustomId('astra_2fa_disable')
-            .setLabel('Disable 2FA')
-            .setStyle(ButtonStyle.Danger)
-            .setDisabled(!twoStepEnabled)
-    );
-
-    return { embeds: [embed], components: [row] };
+async function getSettings(guildId) {
+    const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+    return rows[0] || null;
 }
 
-async function getTwoStepStatus(guildId) {
-    const { rows } = await db.query('SELECT two_step_enabled FROM guild_settings WHERE guild_id = $1', [guildId]);
-    return rows[0]?.two_step_enabled || false;
+// Grants member_role_id if (and only if) the member holds both configured
+// prerequisite roles. Returns true if the final role is now granted
+// (either just now, or already held).
+async function checkAndGrantFinalRole(member, settings) {
+    if (!settings.member_role_id) return false;
+
+    const hasRulesRole = !settings.rules_role_id || member.roles.cache.has(settings.rules_role_id);
+    const hasVerifyRole = !settings.verify_role_id || member.roles.cache.has(settings.verify_role_id);
+
+    if (!hasRulesRole || !hasVerifyRole) return false;
+
+    if (!member.roles.cache.has(settings.member_role_id)) {
+        await member.roles.add(settings.member_role_id);
+    }
+    return true;
 }
 
 module.exports = {
-    buildSetupPanel,
-    getTwoStepStatus,
-
-    // --- SLASH COMMAND DATA (/setup) ---
-    // Deliberately no setDefaultMemberPermissions here — Astra-authorized
-    // roles (tracked in guild_admin_roles) may not hold real Administrator
-    // permission, and Discord hides commands restricted that way from anyone
-    // lacking the permission, regardless of what our own isAstraAdmin() check
-    // says. So the command stays visible to everyone; access is enforced
-    // inside executeSetupSlash instead.
-    setupData: new SlashCommandBuilder()
-        .setName('setup')
-        .setDescription('Open Astra\'s interactive setup panel (2FA toggle, etc.)'),
-
     // --- SLASH COMMAND DATA (/config) ---
-    // Same reasoning as above: no setDefaultMemberPermissions restriction.
+    // No setDefaultMemberPermissions — Astra-authorized roles may lack real
+    // Administrator permission, and Discord hides restricted commands from
+    // them entirely regardless of our own isAstraAdmin() check. Access is
+    // enforced inside the handlers instead.
     data: new SlashCommandBuilder()
         .setName('config')
         .setDescription('Configure Astra channels, roles, and admin access for this server.')
@@ -63,23 +39,45 @@ module.exports = {
                 .setDescription('Configure the verification system')
                 .addChannelOption(option =>
                     option.setName('verify_channel')
-                        .setDescription('Channel where the verification button will be placed')
+                        .setDescription('"Chat B" — members type !verify here (anything else gets deleted + a warning)')
                         .setRequired(true))
                 .addRoleOption(option =>
                     option.setName('member_role')
-                        .setDescription('Role granted upon verification')
+                        .setDescription('Final role granted once verification is complete (e.g. "2STEP VERIFIED")')
                         .setRequired(true))
                 .addChannelOption(option =>
+                    option.setName('rules_channel')
+                        .setDescription('"Chat A" — where the "I Agree" button is posted (optional — enables the two-step gate)')
+                        .setRequired(false))
+                .addRoleOption(option =>
+                    option.setName('rules_role')
+                        .setDescription('Role granted by Chat A\'s button (required if rules_channel is set)')
+                        .setRequired(false))
+                .addRoleOption(option =>
+                    option.setName('verify_role')
+                        .setDescription('Role granted by typing !verify in Chat B (required if rules_channel is set)')
+                        .setRequired(false))
+                .addChannelOption(option =>
                     option.setName('log_channel')
-                        .setDescription('Channel to log verifications')
+                        .setDescription('Channel to log verifications and auto-kicks')
                         .setRequired(false))
                 .addStringOption(option =>
                     option.setName('title')
-                        .setDescription('Embed title (Optional)')
+                        .setDescription('Chat A embed title (Optional)')
                         .setRequired(false))
                 .addStringOption(option =>
                     option.setName('description')
-                        .setDescription('Rules text (Use \\n for a new line. Optional)')
+                        .setDescription('Chat A embed text (Use \\n for a new line. Optional)')
+                        .setRequired(false))
+                .addBooleanOption(option =>
+                    option.setName('auto_kick')
+                        .setDescription('Automatically kick members who never finish verification (default: off)')
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('auto_kick_days')
+                        .setDescription('Grace period in days before an unverified member is kicked (default: 2)')
+                        .setMinValue(1)
+                        .setMaxValue(30)
                         .setRequired(false))
         )
         .addSubcommandGroup(group =>
@@ -120,8 +118,6 @@ module.exports = {
     },
 
     async handleVerificationSubcommand(interaction) {
-        // Verification setup is available to true Administrators AND
-        // Astra-authorized roles — it's day-to-day config, not access control.
         if (!(await isAstraAdmin(interaction.member))) {
             return interaction.reply({
                 content: '❌ You need Administrator permission or an Astra-authorized role to do this. Ask a server admin to run `/config admins add`.',
@@ -134,44 +130,119 @@ module.exports = {
         const guildId = interaction.guild.id;
         const verifyChannel = interaction.options.getChannel('verify_channel');
         const memberRole = interaction.options.getRole('member_role');
+        const rulesChannel = interaction.options.getChannel('rules_channel');
+        const rulesRole = interaction.options.getRole('rules_role');
+        const verifyRole = interaction.options.getRole('verify_role');
         const logChannel = interaction.options.getChannel('log_channel');
         const logChannelId = logChannel ? logChannel.id : null;
+        const autoKick = interaction.options.getBoolean('auto_kick') ?? false;
+        const autoKickDays = interaction.options.getInteger('auto_kick_days') ?? 2;
+
+        // The two-step gate only makes sense if all three pieces are present.
+        // If someone provides rules_channel without both roles (or vice
+        // versa), that's a config mistake — reject it clearly instead of
+        // silently running in a half-configured state.
+        const dualRolePieces = [rulesChannel, rulesRole, verifyRole].filter(Boolean).length;
+        if (dualRolePieces > 0 && dualRolePieces < 3) {
+            return interaction.editReply({
+                content: '❌ To enable the two-step gate, you must set `rules_channel`, `rules_role`, AND `verify_role` together. Leave all three out to use single-step verification instead.'
+            });
+        }
 
         const title = interaction.options.getString('title') || '🔒 Verification System — Astra';
-        const descriptionRaw = interaction.options.getString('description') || 'To ensure server security and unlock all channels, click the **Read the Rules** button below.';
+        const descriptionRaw = interaction.options.getString('description') ||
+            (rulesChannel
+                ? 'You\'ve accepted the rules — click below to finish verifying.'
+                : 'To ensure server security and unlock all channels, click the **Verify** button below.');
         const description = descriptionRaw.replace(/\\n/g, '\n');
 
         try {
             await db.query(`
-                INSERT INTO guild_settings (guild_id, verify_channel_id, member_role_id, log_channel_id, embed_title, embed_description)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO guild_settings (
+                    guild_id, verify_channel_id, member_role_id, log_channel_id,
+                    embed_title, embed_description, rules_channel_id, rules_role_id, verify_role_id,
+                    auto_kick_enabled, auto_kick_days
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 ON CONFLICT (guild_id)
                 DO UPDATE SET 
                     verify_channel_id = EXCLUDED.verify_channel_id,
                     member_role_id = EXCLUDED.member_role_id,
                     log_channel_id = EXCLUDED.log_channel_id,
                     embed_title = EXCLUDED.embed_title,
-                    embed_description = EXCLUDED.embed_description;
-            `, [guildId, verifyChannel.id, memberRole.id, logChannelId, title, description]);
+                    embed_description = EXCLUDED.embed_description,
+                    rules_channel_id = EXCLUDED.rules_channel_id,
+                    rules_role_id = EXCLUDED.rules_role_id,
+                    verify_role_id = EXCLUDED.verify_role_id,
+                    auto_kick_enabled = EXCLUDED.auto_kick_enabled,
+                    auto_kick_days = EXCLUDED.auto_kick_days;
+            `, [
+                guildId, verifyChannel.id, memberRole.id, logChannelId,
+                title, description,
+                rulesChannel ? rulesChannel.id : null,
+                rulesRole ? rulesRole.id : null,
+                verifyRole ? verifyRole.id : null,
+                autoKick, autoKickDays
+            ]);
 
-            const embed = new EmbedBuilder()
-                .setTitle(title)
-                .setDescription(description)
-                .setColor('#2b2d31')
-                .setFooter({ text: 'Astra Security System' });
+            let replyContent;
 
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('member_verify_button')
-                    .setLabel('Read the Rules')
-                    .setStyle(ButtonStyle.Secondary)
-            );
+            if (rulesChannel) {
+                // DUAL-ROLE MODE — Chat A gets the button, Chat B is
+                // text-only: no button, just instructions. The actual
+                // moderation (deleting off-topic messages, warning users,
+                // and granting verify_role_id on "!verify") happens in
+                // executeMessage() below, not here.
+                const rulesEmbed = new EmbedBuilder()
+                    .setTitle('📜 Rules Acknowledgement')
+                    .setDescription('By clicking below, you confirm you\'ve read and agree to follow the rules above.')
+                    .setColor('#2b2d31')
+                    .setFooter({ text: 'Astra Security System — Step 1 of 2' });
 
-            await verifyChannel.send({ embeds: [embed], components: [row] });
+                const rulesRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('astra_rules_accept')
+                        .setLabel('I Agree')
+                        .setStyle(ButtonStyle.Secondary)
+                );
 
-            await interaction.editReply({
-                content: `✅ **Astra successfully configured!**\n📍 Panel sent to: ${verifyChannel}\n🛡️ Role defined: ${memberRole}`,
-            });
+                await rulesChannel.send({ embeds: [rulesEmbed], components: [rulesRow] });
+
+                const verifyInstructions = new EmbedBuilder()
+                    .setTitle(title)
+                    .setDescription(`${description}\n\nType \`!verify\` in this channel to complete step 2. Anything else you type here will be removed.`)
+                    .setColor('#2b2d31')
+                    .setFooter({ text: 'Astra Security System — Step 2 of 2' });
+
+                await verifyChannel.send({ embeds: [verifyInstructions] });
+
+                replyContent = `✅ **Astra successfully configured!**\n📜 Chat A (button) sent to: ${rulesChannel}\n💬 Chat B (types \`!verify\`) sent to: ${verifyChannel}\n🔗 Both ${rulesRole} and ${verifyRole} are required for ${memberRole}.`;
+            } else {
+                // LEGACY SINGLE-STEP MODE — verify_channel gets a button that
+                // grants member_role_id directly. Kept for servers that
+                // haven't configured the dual-role gate.
+                const verifyEmbed = new EmbedBuilder()
+                    .setTitle(title)
+                    .setDescription(description)
+                    .setColor('#2b2d31')
+                    .setFooter({ text: 'Astra Security System' });
+
+                const verifyRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('member_verify_button')
+                        .setLabel('Verify')
+                        .setStyle(ButtonStyle.Success)
+                );
+
+                await verifyChannel.send({ embeds: [verifyEmbed], components: [verifyRow] });
+                replyContent = `✅ **Astra successfully configured!**\n📍 Verify panel sent to: ${verifyChannel}\n🛡️ Final role: ${memberRole}`;
+            }
+
+            if (autoKick) {
+                replyContent += `\n⏱️ Auto-kick enabled — members without ${memberRole} after ${autoKickDays} day(s) will be removed (bots and admins are exempt).`;
+            }
+
+            await interaction.editReply({ content: replyContent });
 
         } catch (error) {
             console.error('❌ Database save error:', error);
@@ -180,12 +251,10 @@ module.exports = {
     },
 
     async handleAdminsSubcommand(interaction, sub) {
-        // FIX/DESIGN NOTE: this is intentionally gated by isServerAdministrator,
-        // NOT isAstraAdmin. Only real Administrators/the owner can decide who
-        // else gets to configure Astra. If this were gated by isAstraAdmin
-        // instead, any role you'd granted access to could add more roles
-        // (including itself at a "higher" tier) — that's the privilege
-        // escalation this whole feature exists to prevent.
+        // Deliberately gated by isServerAdministrator, not isAstraAdmin — see
+        // permissions.js. Only real Administrators/the owner can decide who
+        // else gets to configure Astra, so a role can never grant itself or
+        // others more access than it was given.
         if (!(await isServerAdministrator(interaction.member))) {
             return interaction.reply({
                 content: '❌ Only server Administrators (or the server owner) can manage who has access to configure Astra.',
@@ -203,7 +272,7 @@ module.exports = {
                      ON CONFLICT (guild_id, role_id) DO NOTHING`,
                     [guildId, role.id, interaction.user.id]
                 );
-                return interaction.reply({ content: `✅ ${role} can now configure Astra (\`/setup\`, \`/config verification\`).`, ephemeral: true });
+                return interaction.reply({ content: `✅ ${role} can now configure Astra (\`/config verification\`).`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error adding admin role:', error);
                 return interaction.reply({ content: '❌ Database error while adding the role.', ephemeral: true });
@@ -236,147 +305,74 @@ module.exports = {
         }
     },
 
-    // --- /setup SLASH COMMAND HANDLER (ephemeral 2FA panel) ---
-    async executeSetupSlash(interaction) {
-        if (!(await isAstraAdmin(interaction.member))) {
-            return interaction.reply({
-                content: '❌ You need Administrator permission or an Astra-authorized role to do this.',
-                ephemeral: true
-            });
-        }
-
-        const status = await getTwoStepStatus(interaction.guild.id);
-        return interaction.reply({ ...buildSetupPanel(status), ephemeral: true });
-    },
-
-    // --- "!verify" TEXT COMMAND HANDLER (2FA step 2) ---
-    async executeMessage(message) {
-        if (message.content.toLowerCase() !== '!verify') return;
-
-        try {
-            const { rows } = await db.query('SELECT member_role_id, two_step_enabled FROM guild_settings WHERE guild_id = $1', [message.guild.id]);
-            if (rows.length === 0 || !rows[0].member_role_id) return;
-            if (!rows[0].two_step_enabled) return;
-
-            const { rows: pendingRows } = await db.query(
-                'SELECT 1 FROM pending_verifications WHERE guild_id = $1 AND user_id = $2',
-                [message.guild.id, message.author.id]
-            );
-
-            if (pendingRows.length > 0) {
-                const role = await message.guild.roles.fetch(rows[0].member_role_id);
-                if (role && !message.member.roles.cache.has(role.id)) {
-                    await message.member.roles.add(role);
-                }
-
-                await db.query(
-                    'DELETE FROM pending_verifications WHERE guild_id = $1 AND user_id = $2',
-                    [message.guild.id, message.author.id]
-                );
-
-                const reply = await message.reply('Verified');
-                setTimeout(() => reply.delete().catch(() => {}), 5000);
-                message.delete().catch(() => {});
-            } else {
-                const reply = await message.reply('You must read and agree to the rules by clicking the button first.');
-                setTimeout(() => reply.delete().catch(() => {}), 5000);
-                message.delete().catch(() => {});
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    },
-
-    // --- "!setup 2fa" TEXT COMMAND HANDLER ---
-    async executeSetupText(message) {
-        if (!(await isAstraAdmin(message.member))) {
-            const reply = await message.reply('❌ You need Administrator permission or an Astra-authorized role to do this.');
-            setTimeout(() => reply.delete().catch(() => {}), 5000);
-            message.delete().catch(() => {});
-            return;
-        }
-
-        const status = await getTwoStepStatus(message.guild.id);
-        const panelMessage = await message.channel.send(buildSetupPanel(status));
-        message.delete().catch(() => {});
-
-        // Only the person who ran the command can operate this panel, and it
-        // self-destructs after 60s of inactivity so it doesn't linger in chat.
-        const collector = panelMessage.createMessageComponentCollector({ time: 60_000 });
-
-        collector.on('collect', async btnInteraction => {
-            if (btnInteraction.user.id !== message.author.id) {
-                return btnInteraction.reply({ content: "This panel isn't yours — run `!setup 2fa` yourself.", ephemeral: true });
-            }
-            await module.exports.handleButton(btnInteraction);
-        });
-
-        collector.on('end', () => {
-            panelMessage.delete().catch(() => {});
-        });
-    },
-
     // --- BUTTON INTERACTIONS HANDLER ---
     async handleButton(interaction) {
         const guild = interaction.guild;
-        const user = interaction.user;
 
-        // ACTION: VERIFICATION BUTTON CLICK (public button, anyone can click)
-        if (interaction.customId === 'member_verify_button') {
+        // ACTION: RULES "I Agree" BUTTON (Role A)
+        if (interaction.customId === 'astra_rules_accept') {
             try {
-                const { rows } = await db.query('SELECT member_role_id, two_step_enabled FROM guild_settings WHERE guild_id = $1', [guild.id]);
-
-                if (rows.length === 0 || !rows[0].member_role_id) {
+                const settings = await getSettings(guild.id);
+                if (!settings || !settings.rules_role_id) {
                     return interaction.reply({ content: "Server not configured.", ephemeral: true });
                 }
 
-                if (rows[0].two_step_enabled) {
-                    await db.query(
-                        `INSERT INTO pending_verifications (guild_id, user_id) VALUES ($1, $2)
-                         ON CONFLICT (guild_id, user_id) DO NOTHING`,
-                        [guild.id, user.id]
-                    );
-                    return interaction.reply({ content: "Step 1 complete. Now type `!verify` in the chat to receive your role.", ephemeral: true });
-                } else {
-                    const role = await guild.roles.fetch(rows[0].member_role_id);
-                    if (!role) return interaction.reply({ content: "Role not found.", ephemeral: true });
-
-                    if (!interaction.member.roles.cache.has(role.id)) {
-                        await interaction.member.roles.add(role);
-                    }
-
-                    await interaction.reply({ content: "Verified", ephemeral: true });
+                const member = interaction.member;
+                if (!member.roles.cache.has(settings.rules_role_id)) {
+                    await member.roles.add(settings.rules_role_id);
                 }
+
+                const fullyVerified = await checkAndGrantFinalRole(member, settings);
+
+                if (fullyVerified) {
+                    return interaction.reply({ content: "✅ You're verified! Enjoy the server.", ephemeral: true });
+                }
+
+                const verifyChannelMention = settings.verify_channel_id ? `<#${settings.verify_channel_id}>` : 'the verification channel';
+                return interaction.reply({ content: `✅ Rules accepted. Now head to ${verifyChannelMention} to finish verifying.`, ephemeral: true });
             } catch (error) {
                 console.error(error);
-                if (!interaction.replied) await interaction.reply({ content: "Error during verification.", ephemeral: true });
+                if (!interaction.replied) await interaction.reply({ content: "Error while processing your request.", ephemeral: true });
             }
             return;
         }
 
-        // ACTION: 2FA TOGGLE BUTTONS (setup panel — admin-gated)
-        if (interaction.customId === 'astra_2fa_enable' || interaction.customId === 'astra_2fa_disable') {
-            // Re-check permission at click time, not just when the panel opened —
-            // roles can change in between, especially on a long-lived panel.
-            if (!(await isAstraAdmin(interaction.member))) {
-                return interaction.reply({ content: '❌ You no longer have permission to do this.', ephemeral: true });
-            }
-
-            const enable = interaction.customId === 'astra_2fa_enable';
+        // ACTION: VERIFY BUTTON (Role B, or legacy direct grant)
+        if (interaction.customId === 'member_verify_button') {
             try {
-                await db.query(
-                    `INSERT INTO guild_settings (guild_id, two_step_enabled) VALUES ($1, $2)
-                     ON CONFLICT (guild_id) DO UPDATE SET two_step_enabled = $2`,
-                    [guild.id, enable]
-                );
+                const settings = await getSettings(guild.id);
 
-                const status = await getTwoStepStatus(guild.id);
-                // interaction.update() works whether the panel came from an
-                // ephemeral /setup reply or a normal "!setup 2fa" message.
-                await interaction.update(buildSetupPanel(status));
+                if (!settings || !settings.member_role_id) {
+                    return interaction.reply({ content: "Server not configured.", ephemeral: true });
+                }
+
+                const member = interaction.member;
+
+                // Legacy single-step mode: no dual-role gate configured, so
+                // the verify button grants the final role directly.
+                if (!settings.rules_role_id || !settings.verify_role_id) {
+                    if (!member.roles.cache.has(settings.member_role_id)) {
+                        await member.roles.add(settings.member_role_id);
+                    }
+                    return interaction.reply({ content: "Verified", ephemeral: true });
+                }
+
+                // Two-step mode
+                if (!member.roles.cache.has(settings.verify_role_id)) {
+                    await member.roles.add(settings.verify_role_id);
+                }
+
+                const fullyVerified = await checkAndGrantFinalRole(member, settings);
+
+                if (fullyVerified) {
+                    return interaction.reply({ content: "✅ You're verified! Enjoy the server.", ephemeral: true });
+                }
+
+                const rulesChannelMention = settings.rules_channel_id ? `<#${settings.rules_channel_id}>` : 'the rules channel';
+                return interaction.reply({ content: `✅ Step complete. Now head to ${rulesChannelMention} and click **I Agree** to finish verifying.`, ephemeral: true });
             } catch (error) {
-                console.error('❌ Error toggling 2FA:', error);
-                if (!interaction.replied) await interaction.reply({ content: '❌ Database error while updating 2FA.', ephemeral: true });
+                console.error(error);
+                if (!interaction.replied) await interaction.reply({ content: "Error during verification.", ephemeral: true });
             }
             return;
         }
@@ -385,6 +381,116 @@ module.exports = {
     async handleMenu(interaction) {
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ content: "This menu isn't wired up yet.", ephemeral: true }).catch(() => {});
+        }
+    },
+
+    // --- CHAT B MESSAGE MODERATION ("!verify" only) ---
+    // Called from index.js on messageCreate. Only acts inside the configured
+    // verify_channel, and only when rules_channel is also set (dual-role
+    // mode) — in legacy single-step mode, verify_channel still uses the
+    // button, so it's left alone here. Needs the bot to have Manage Messages
+    // in that channel to delete other members' messages.
+    async executeMessage(message) {
+        const settings = await getSettings(message.guild.id);
+        if (!settings || !settings.rules_channel_id || !settings.verify_role_id) return;
+        if (message.channel.id !== settings.verify_channel_id) return;
+
+        const isVerifyCommand = message.content.trim().toLowerCase() === '!verify';
+
+        if (!isVerifyCommand) {
+            await message.delete().catch(() => {});
+            const warning = await message.channel.send(`Hey ${message.author}, please type \`!verify\` here.`).catch(() => null);
+            if (warning) setTimeout(() => warning.delete().catch(() => {}), 5000);
+            return;
+        }
+
+        try {
+            const member = message.member;
+            if (!member.roles.cache.has(settings.verify_role_id)) {
+                await member.roles.add(settings.verify_role_id);
+            }
+
+            const fullyVerified = await checkAndGrantFinalRole(member, settings);
+            await message.delete().catch(() => {});
+
+            const confirmation = await message.channel.send(
+                fullyVerified
+                    ? `✅ ${member} is verified! Welcome to the server.`
+                    : `✅ ${member}, step 2 complete. Head to <#${settings.rules_channel_id}> and click **I Agree** to finish.`
+            ).catch(() => null);
+            if (confirmation) setTimeout(() => confirmation.delete().catch(() => {}), 8000);
+        } catch (error) {
+            console.error('❌ Error handling !verify:', error);
+        }
+    },
+
+    // --- AUTO-KICK SWEEP ---
+    // Called on an interval from index.js. Removes members who joined more
+    // than auto_kick_days ago and still don't hold the final member_role —
+    // i.e. never finished verification. Bots, the server owner, and anyone
+    // with Astra access (real Administrators or an authorized role) are
+    // always exempt, regardless of settings.
+    async runAutoKickSweep(client) {
+        for (const [, guild] of client.guilds.cache) {
+            try {
+                const settings = await getSettings(guild.id);
+                if (!settings || !settings.auto_kick_enabled || !settings.member_role_id) continue;
+
+                const days = settings.auto_kick_days || 2;
+                const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+
+                const members = await guild.members.fetch();
+                const logChannel = settings.log_channel_id
+                    ? await guild.channels.fetch(settings.log_channel_id).catch(() => null)
+                    : null;
+
+                for (const [, member] of members) {
+                    if (member.user.bot) continue;
+                    if (member.id === guild.ownerId) continue;
+                    if (member.roles.cache.has(settings.member_role_id)) continue;
+                    if (!member.joinedTimestamp || member.joinedTimestamp > cutoff) continue;
+                    if (await isServerAdministrator(member)) continue;
+                    if (await isAstraAdmin(member)) continue;
+
+                    try {
+                        await member.kick('Astra: never completed verification within the grace period.');
+                        if (logChannel) {
+                            await logChannel.send(`👢 Kicked ${member.user.tag} (${member.id}) — never completed verification (joined ${days}+ days ago).`).catch(() => {});
+                        }
+                    } catch (kickErr) {
+                        console.error(`❌ Failed to auto-kick ${member.id} in ${guild.id}:`, kickErr.message);
+                    }
+                }
+            } catch (guildErr) {
+                console.error(`❌ Auto-kick sweep failed for guild ${guild.id}:`, guildErr.message);
+            }
+        }
+    },
+
+    // --- NEW MEMBER WELCOME PING ---
+    // Called from index.js on guildMemberAdd. Points brand-new members at
+    // the rules channel (or verify channel, if rules isn't configured) right
+    // away, since a bot can't force-navigate a user's client to a channel.
+    async handleNewMember(member) {
+        try {
+            const settings = await getSettings(member.guild.id);
+            if (!settings) return;
+
+            const targetChannelId = settings.rules_channel_id || settings.verify_channel_id;
+            if (!targetChannelId) return;
+
+            const channel = await member.guild.channels.fetch(targetChannelId).catch(() => null);
+            if (!channel || !channel.isTextBased()) return;
+
+            const nextStep = settings.rules_channel_id
+                ? `read the rules and click **I Agree**`
+                : `click **Verify**`;
+
+            const welcome = await channel.send(`👋 Welcome ${member}! Please ${nextStep} above to get access to the rest of the server.`);
+            // Keep the channel tidy — this is a one-time nudge, not a permanent post.
+            setTimeout(() => welcome.delete().catch(() => {}), 30_000);
+        } catch (error) {
+            console.error('❌ Error sending welcome ping:', error);
         }
     }
 };

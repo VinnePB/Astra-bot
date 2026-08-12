@@ -88,7 +88,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
 
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
-        const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
+        const settings = rows[0] || { guild_id: guildId, member_role_id: '', log_channel_id: '' };
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
 
         let channels = [], roles = [];
@@ -106,11 +106,11 @@ app.get('/dashboard', checkAuth, async (req, res) => {
 });
 
 app.post('/api/update-verification', checkAuth, async (req, res) => {
-    const { guild_id, two_step, member_role_id, log_channel_id } = req.body;
+    const { guild_id, member_role_id, log_channel_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
     try {
-        await db.query(`INSERT INTO guild_settings (guild_id, two_step_enabled, member_role_id, log_channel_id) VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id) DO UPDATE SET two_step_enabled = $2, member_role_id = $3, log_channel_id = $4`, [guild_id, two_step === 'on', member_role_id, log_channel_id]);
+        await db.query(`INSERT INTO guild_settings (guild_id, member_role_id, log_channel_id) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET member_role_id = $2, log_channel_id = $3`, [guild_id, member_role_id, log_channel_id]);
         res.redirect('/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
@@ -131,10 +131,8 @@ client.once('ready', async () => {
         await rest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
         console.log('🧹 Global commands cleared.');
 
-        // NEW: now registering three commands — /config, /setup, /help.
         const commands = [
             configCommand.data.toJSON(),
-            configCommand.setupData.toJSON(),
             helpCommand.data.toJSON()
         ];
 
@@ -157,19 +155,30 @@ client.once('ready', async () => {
     console.log(`🚀 Astra online.`);
 });
 
+// NEW: nudges brand-new members toward the rules/verify channel right away.
+// This is the "instantly popped as a suggestion" behavior — since a bot
+// can't force-open a channel on someone's client, a short-lived welcome
+// message pointing them at it (posted in that channel, so it also shows up
+// as unread for them) is the practical equivalent.
+client.on('guildMemberAdd', async (member) => {
+    await configCommand.handleNewMember(member);
+});
+
+// NEW: Chat B moderation — deletes anything that isn't "!verify" in the
+// configured verify channel (dual-role mode only) and warns the sender.
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
-
-    const content = message.content.toLowerCase().trim();
-
-    // NEW: "!setup 2fa" text alias for the /setup panel.
-    if (content === '!setup 2fa' || content === '!setup') {
-        return configCommand.executeSetupText(message);
-    }
-
-    // "!verify" — step 2 of 2FA verification.
     await configCommand.executeMessage(message);
 });
+
+// NEW: auto-kick sweep for members who never finished verification.
+// Runs once shortly after startup, then every hour. Bot needs the
+// "Kick Members" permission, and the GuildMembers privileged intent must be
+// enabled for this application in the Discord Developer Portal (it already
+// is, since GatewayIntentBits.GuildMembers is set above) — just flagging it
+// in case this bot is ever moved to a fresh application.
+setTimeout(() => configCommand.runAutoKickSweep(client), 60_000);
+setInterval(() => configCommand.runAutoKickSweep(client), 60 * 60 * 1000);
 
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.guild) return;
@@ -177,8 +186,6 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'config') {
             await configCommand.executeSlash(interaction);
-        } else if (interaction.commandName === 'setup') {
-            await configCommand.executeSetupSlash(interaction);
         } else if (interaction.commandName === 'help') {
             await helpCommand.executeSlash(interaction);
         }
