@@ -391,6 +391,17 @@ module.exports = {
                 }
 
                 const member = interaction.member;
+
+                // Already fully verified — nothing to do. This is the actual
+                // fix for "the button should know I'm done": Discord buttons
+                // can't be disabled per-user (the message is shared by
+                // everyone who can see the channel), so instead of trying to
+                // grey it out, we just short-circuit here before touching
+                // any roles again.
+                if (settings.member_role_id && member.roles.cache.has(settings.member_role_id)) {
+                    return interaction.reply({ content: "✅ You're already verified — nothing more to do!", ephemeral: true });
+                }
+
                 if (!member.roles.cache.has(settings.rules_role_id)) {
                     await member.roles.add(settings.rules_role_id);
                 }
@@ -420,6 +431,12 @@ module.exports = {
                 }
 
                 const member = interaction.member;
+
+                // Already fully verified — same short-circuit as the rules
+                // button, for servers still on legacy single-step mode too.
+                if (member.roles.cache.has(settings.member_role_id)) {
+                    return interaction.reply({ content: "✅ You're already verified — nothing more to do!", ephemeral: true });
+                }
 
                 // Legacy single-step mode: no dual-role gate configured, so
                 // the verify button grants the final role directly.
@@ -479,6 +496,17 @@ module.exports = {
 
         try {
             const member = message.member;
+
+            // Same short-circuit as the buttons — if they somehow still have
+            // access to this channel after being fully verified, don't
+            // re-process anything.
+            if (settings.member_role_id && member.roles.cache.has(settings.member_role_id)) {
+                await message.delete().catch(() => {});
+                const already = await message.channel.send(`✅ ${member}, you're already verified!`).catch(() => null);
+                if (already) setTimeout(() => already.delete().catch(() => {}), 5000);
+                return;
+            }
+
             if (!member.roles.cache.has(settings.verify_role_id)) {
                 await member.roles.add(settings.verify_role_id);
             }
