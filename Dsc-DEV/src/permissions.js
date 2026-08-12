@@ -13,7 +13,7 @@
 //    tier that gates day-to-day config: /setup, /config verification.
 
 const { PermissionFlagsBits } = require('discord.js');
-const db = require('../database');
+const db = require('./database');
 
 async function isServerAdministrator(member) {
     if (!member || !member.guild) return false;
