@@ -126,6 +126,7 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
+    // 1. Inicializa as tabelas do banco de dados
     await db.query('CREATE TABLE IF NOT EXISTS guild_settings (guild_id VARCHAR(30) PRIMARY KEY, two_step_enabled BOOLEAN, member_role_id VARCHAR(30), log_channel_id VARCHAR(30))');
     
     await db.query(`
@@ -139,6 +140,20 @@ client.once('ready', async () => {
     
     await db.query(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE`).catch(() => {});
     
+    // 2. Força a sincronização automática dos comandos com o Discord
+    try {
+        const { REST, Routes } = require('discord.js');
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        
+        await rest.put(
+            Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
+            { body: [coreFeature.data.toJSON()] }
+        );
+        console.log('🔄 Comandos sincronizados com sucesso na API do Discord.');
+    } catch (error) {
+        console.error('❌ Erro ao sincronizar comandos:', error);
+    }
+
     console.log(`🚀 Astra online.`);
 });
 
