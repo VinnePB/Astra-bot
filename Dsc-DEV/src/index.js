@@ -21,6 +21,11 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
     store: new pgSession({
+        // FIX: database.js used to do `module.exports = pool;`, which means
+        // `db` WAS the pool. `db.pool` was therefore undefined, and connect-pg-simple
+        // was silently given no real Pool to use, which could break session
+        // persistence (login state not surviving as expected). database.js now
+        // exports `{ pool, query }`, so `db.pool` is a real Pool instance again.
         pool: db.pool,
         tableName: 'session'
     }),
@@ -89,7 +94,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId, two_step_enabled: false, member_role_id: '', log_channel_id: '' };
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
-        
+
         let channels = [], roles = [];
         try {
             const [c, r] = await Promise.all([
@@ -124,38 +129,45 @@ const client = new Client({
 });
 
 client.once('ready', async () => {
-    await db.query('CREATE TABLE IF NOT EXISTS guild_settings (guild_id VARCHAR(30) PRIMARY KEY, two_step_enabled BOOLEAN, member_role_id VARCHAR(30), log_channel_id VARCHAR(30))');
-    
-    await db.query(`
-        CREATE TABLE IF NOT EXISTS "session" (
-          "sid" varchar NOT NULL COLLATE "default",
-          "sess" json NOT NULL,
-          "expire" timestamp(6) NOT NULL
-        )
-        WITH (OIDS=FALSE);
-    `).catch(console.error);
-    
-    await db.query(`ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE`).catch(() => {});
-    
+    // FIX: removed the redundant `CREATE TABLE IF NOT EXISTS guild_settings (...)`
+    // and the redundant `session` table setup that used to live here.
+    // Both were racing against (and losing to) database.js's schema setup, which
+    // runs earlier and faster. That race is exactly why two_step_enabled never
+    // actually got created — this file's CREATE TABLE defined the column, but
+    // by the time it ran the table already existed from database.js, so
+    // "IF NOT EXISTS" made this a silent no-op. All schema setup now lives
+    // solely in database.js.
+
     // Força a sincronização agressiva dos comandos na API do Discord
     try {
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        
+
         // 1. Zera qualquer comando global preso em cache
         await rest.put(
             Routes.applicationCommands(process.env.DISCORD_CLIENT_ID),
             { body: [] }
         );
+        console.log('🧹 Global commands cleared.');
 
         // 2. Injeta o novo comando em inglês diretamente no registro do seu servidor
         const commands = [coreFeature.data.toJSON()];
-        for (const [guildId] of client.guilds.cache) {
-            await rest.put(
-                Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, guildId),
-                { body: commands }
-            );
+        for (const [guildId, guild] of client.guilds.cache) {
+            try {
+                const result = await rest.put(
+                    Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, guildId),
+                    { body: commands }
+                );
+                // FIX: log per-guild success with the actual command names Discord
+                // confirms it registered. Previously any failure (e.g. missing
+                // applications.commands scope -> 403) was caught by a single generic
+                // catch below and easily missed, which is a common cause of "the old
+                // slash command just won't go away" — the sync silently failed.
+                console.log(`✅ Synced to guild ${guild.name} (${guildId}):`, result.map(c => c.name));
+            } catch (guildErr) {
+                console.error(`❌ Failed to sync commands to guild ${guildId}:`, guildErr.message);
+            }
         }
-        console.log('🔄 Commands forcefully synced to all guilds in English.');
+        console.log('🔄 Command sync pass complete.');
     } catch (error) {
         console.error('❌ Error synchronizing commands:', error);
     }
