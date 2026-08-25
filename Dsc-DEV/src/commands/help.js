@@ -23,8 +23,20 @@ module.exports = {
             const adminCommands = [
                 '`/config verification` — Set up the rules/verify channels, buttons, and required roles.',
                 '`/config antiscam` — Flag or auto-kick likely scam/spam accounts on join.',
+                '`/config tickets` — Set up the commission ticket panel and category.',
+                '`/config artist-roles add/remove/list` — Roles that automatically count as artists.',
+                '`/artist add/remove/list` — Register individual artists.',
             ];
             embed.addFields({ name: 'Astra Admins', value: adminCommands.join('\n') });
+        }
+
+        if (admin) {
+            const artistCommands = [
+                '`/panel set-tos` / `set-wontdo` / `set-price` — Customize your commission panel.',
+                '`/panel reset` — Reset part of your panel back to Astra\'s default template.',
+                '`/panel preview` — See how your panel looks to ticket-openers.',
+            ];
+            embed.addFields({ name: 'Artists', value: artistCommands.join('\n') });
         }
 
         if (superAdmin) {

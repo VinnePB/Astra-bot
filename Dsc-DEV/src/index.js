@@ -9,6 +9,7 @@ require('dotenv').config();
 const db = require('./database');
 const configCommand = require('./commands/config');
 const helpCommand = require('./commands/help');
+const ticketsCommand = require('./commands/tickets');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -115,6 +116,127 @@ app.post('/api/update-verification', checkAuth, async (req, res) => {
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
+// NEW: /tickets — admin-only ticket system config + artist management,
+// mirroring /config tickets and /artist on Discord. Same checkAuth gate as
+// /dashboard; there's no separate "is this Discord user actually an admin
+// of this specific guild" check here beyond what select-server already
+// filtered on (guilds where they hold Administrator), matching the rest of
+// this dashboard's existing trust model.
+app.get('/tickets', checkAuth, async (req, res) => {
+    const guildId = req.session.selectedGuildId;
+    if (!guildId) return res.redirect('/select-server');
+
+    try {
+        const { rows: settingsRows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+        const settings = settingsRows[0] || { guild_id: guildId };
+
+        const { rows: artists } = await db.query('SELECT * FROM artists WHERE guild_id = $1', [guildId]);
+        const { rows: pricingRows } = await db.query('SELECT * FROM artist_pricing WHERE guild_id = $1', [guildId]);
+        const pricingByArtist = {};
+        for (const row of pricingRows) {
+            if (!pricingByArtist[row.user_id]) pricingByArtist[row.user_id] = [];
+            pricingByArtist[row.user_id].push(row);
+        }
+
+        const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
+        let channels = [], categories = [];
+        try {
+            const c = await axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers });
+            channels = c.data.filter(ch => ch.type === 0);
+            categories = c.data.filter(ch => ch.type === 4);
+        } catch (e) { console.error("Discord API fetch failed"); }
+
+        // Resolve display names/avatars for each artist individually — a
+        // full member-list fetch isn't needed for a handful of artists.
+        const artistDetails = await Promise.all(artists.map(async (artist) => {
+            try {
+                const u = await axios.get(`https://discord.com/api/v10/users/${artist.user_id}`, { headers });
+                return { ...artist, username: u.data.username, pricing: pricingByArtist[artist.user_id] || [] };
+            } catch (e) {
+                return { ...artist, username: `Unknown (${artist.user_id})`, pricing: pricingByArtist[artist.user_id] || [] };
+            }
+        }));
+
+        const editingId = req.query.edit || null;
+        const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
+
+        res.render('tickets', {
+            user: req.session.user, settings, channels, categories,
+            artists: artistDetails, editingArtist,
+            pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
+            success: req.query.status === 'success'
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("DB Error.");
+    }
+});
+
+app.post('/api/tickets/config', checkAuth, async (req, res) => {
+    const { guild_id, ticket_channel_id, ticket_category_id, log_channel_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                ticket_channel_id = $2, ticket_category_id = $3,
+                log_channel_id = COALESCE(NULLIF($4, ''), guild_settings.log_channel_id)
+        `, [guild_id, ticket_channel_id, ticket_category_id, log_channel_id]);
+        res.redirect('/tickets?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/artists/add', checkAuth, async (req, res) => {
+    const { guild_id, user_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    if (!/^\d{15,25}$/.test(user_id || '')) return res.status(400).send('Invalid Discord User ID.');
+
+    try {
+        await db.query(`INSERT INTO artists (guild_id, user_id) VALUES ($1, $2) ON CONFLICT (guild_id, user_id) DO NOTHING`, [guild_id, user_id]);
+        res.redirect('/tickets?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/artists/remove', checkAuth, async (req, res) => {
+    const { guild_id, user_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query('DELETE FROM artists WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
+        await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
+        res.redirect('/tickets?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/artists/panel', checkAuth, async (req, res) => {
+    const { guild_id, user_id, tos_text, wontdo_text } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const pricingCategories = ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'];
+
+    try {
+        await db.query(
+            `UPDATE artists SET tos_text = NULLIF($1, ''), wontdo_text = NULLIF($2, '') WHERE guild_id = $3 AND user_id = $4`,
+            [tos_text, wontdo_text, guild_id, user_id]
+        );
+
+        for (let i = 0; i < pricingCategories.length; i++) {
+            const category = pricingCategories[i];
+            const price = req.body[`price_${i}`];
+            if (!price) continue;
+            await db.query(
+                `INSERT INTO artist_pricing (guild_id, user_id, category, price, sort_order) VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (guild_id, user_id, category) DO UPDATE SET price = EXCLUDED.price`,
+                [guild_id, user_id, category, price, i]
+            );
+        }
+
+        res.redirect('/tickets?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
 app.listen(PORT, () => console.log(`🌐 Dashboard on ${PORT}`));
 
 // --- BOT ---
@@ -133,7 +255,9 @@ client.once('ready', async () => {
 
         const commands = [
             configCommand.data.toJSON(),
-            helpCommand.data.toJSON()
+            helpCommand.data.toJSON(),
+            ticketsCommand.artistData.toJSON(),
+            ticketsCommand.panelData.toJSON()
         ];
 
         for (const [guildId, guild] of client.guilds.cache) {
@@ -189,11 +313,23 @@ client.on('interactionCreate', async (interaction) => {
             await configCommand.executeSlash(interaction);
         } else if (interaction.commandName === 'help') {
             await helpCommand.executeSlash(interaction);
+        } else if (interaction.commandName === 'artist') {
+            await ticketsCommand.executeSlashArtist(interaction);
+        } else if (interaction.commandName === 'panel') {
+            await ticketsCommand.executeSlashPanel(interaction);
         }
     } else if (interaction.isButton()) {
-        await configCommand.handleButton(interaction);
+        if (interaction.customId.startsWith('astra_ticket_')) {
+            await ticketsCommand.handleButton(interaction);
+        } else {
+            await configCommand.handleButton(interaction);
+        }
     } else if (interaction.isStringSelectMenu()) {
-        await configCommand.handleMenu(interaction);
+        if (interaction.customId === 'astra_ticket_artist_select') {
+            await ticketsCommand.handleSelectMenu(interaction);
+        } else {
+            await configCommand.handleMenu(interaction);
+        }
     }
 });
 

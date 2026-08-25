@@ -61,6 +61,64 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS antiscam_require_no_avatar BOOLEAN DEFAULT TRUE;
             `);
 
+            // NEW: commission ticket system.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS ticket_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS ticket_category_id VARCHAR(30);
+            `);
+
+            // Roles that let someone self-manage their own artist panels
+            // (mirrors guild_admin_roles — same add/remove/list pattern).
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS guild_artist_roles (
+                    guild_id VARCHAR(30) NOT NULL,
+                    role_id VARCHAR(30) NOT NULL,
+                    added_by VARCHAR(30),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, role_id)
+                );
+            `);
+
+            // Per-artist ToS / won't-do overrides. NULL = use the built-in
+            // default template (see commands/tickets.js).
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS artists (
+                    guild_id VARCHAR(30) NOT NULL,
+                    user_id VARCHAR(30) NOT NULL,
+                    tos_text TEXT,
+                    wontdo_text TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (guild_id, user_id)
+                );
+            `);
+
+            // Per-artist pricing sheet: one row per category (Headshot, Bust,
+            // Full Body, etc.) with a free-text price value.
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS artist_pricing (
+                    guild_id VARCHAR(30) NOT NULL,
+                    user_id VARCHAR(30) NOT NULL,
+                    category VARCHAR(50) NOT NULL,
+                    price VARCHAR(30) NOT NULL,
+                    sort_order INTEGER DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id, category)
+                );
+            `);
+
+            // Tracks open ticket channels so /close can verify who's allowed
+            // to close it, and so the ticket-artist select menu knows which
+            // channel belongs to whom.
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS tickets (
+                    channel_id VARCHAR(30) PRIMARY KEY,
+                    guild_id VARCHAR(30) NOT NULL,
+                    user_id VARCHAR(30) NOT NULL,
+                    artist_id VARCHAR(30) NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            `);
+
             await client.query(`
                 CREATE TABLE IF NOT EXISTS pending_verifications (
                     guild_id VARCHAR(30) NOT NULL,

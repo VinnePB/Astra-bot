@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType } = require('discord.js');
 const db = require('../database');
 const { isServerAdministrator, isAstraAdmin } = require('../permissions');
 
@@ -128,6 +128,40 @@ module.exports = {
                     option.setName('require_no_avatar')
                         .setDescription('Only flag new accounts that ALSO have no custom avatar (default: true, fewer false positives)')
                         .setRequired(false))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('tickets')
+                .setDescription('Set up the commission ticket system')
+                .addChannelOption(option =>
+                    option.setName('ticket_channel')
+                        .setDescription('Channel where the "Open a Ticket" button is posted')
+                        .setRequired(true))
+                .addChannelOption(option =>
+                    option.setName('ticket_category')
+                        .setDescription('Category new ticket channels get created under')
+                        .addChannelTypes(ChannelType.GuildCategory)
+                        .setRequired(true))
+                .addChannelOption(option =>
+                    option.setName('log_channel')
+                        .setDescription('Channel to log ticket opens/closes (reuses the verification log channel if omitted)')
+                        .setRequired(false))
+        )
+        .addSubcommandGroup(group =>
+            group
+                .setName('artist-roles')
+                .setDescription('Manage which roles automatically count as artists')
+                .addSubcommand(sub =>
+                    sub.setName('add')
+                        .setDescription('Anyone holding this role can self-manage a commission panel')
+                        .addRoleOption(option => option.setName('role').setDescription('Role to authorize').setRequired(true)))
+                .addSubcommand(sub =>
+                    sub.setName('remove')
+                        .setDescription('Revoke a role\'s automatic artist status')
+                        .addRoleOption(option => option.setName('role').setDescription('Role to revoke').setRequired(true)))
+                .addSubcommand(sub =>
+                    sub.setName('list')
+                        .setDescription('List roles that automatically count as artists'))
         ),
 
     // --- SLASH COMMAND HANDLER ---
@@ -139,12 +173,111 @@ module.exports = {
             return this.handleAdminsSubcommand(interaction, sub);
         }
 
+        if (group === 'artist-roles') {
+            return this.handleArtistRolesSubcommand(interaction, sub);
+        }
+
         if (sub === 'verification') {
             return this.handleVerificationSubcommand(interaction);
         }
 
         if (sub === 'antiscam') {
             return this.handleAntiscamSubcommand(interaction);
+        }
+
+        if (sub === 'tickets') {
+            return this.handleTicketsSubcommand(interaction);
+        }
+    },
+
+    async handleTicketsSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        const guildId = interaction.guild.id;
+        const ticketChannel = interaction.options.getChannel('ticket_channel');
+        const ticketCategory = interaction.options.getChannel('ticket_category');
+        const logChannel = interaction.options.getChannel('log_channel');
+
+        try {
+            await db.query(`
+                INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    ticket_channel_id = EXCLUDED.ticket_channel_id,
+                    ticket_category_id = EXCLUDED.ticket_category_id,
+                    log_channel_id = COALESCE(EXCLUDED.log_channel_id, guild_settings.log_channel_id);
+            `, [guildId, ticketChannel.id, ticketCategory.id, logChannel ? logChannel.id : null]);
+
+            const embed = new EmbedBuilder()
+                .setTitle('🎫 Open a Commission Ticket')
+                .setDescription('Click below and pick an artist to open a private ticket with them.')
+                .setColor('#2b2d31')
+                .setFooter({ text: 'Astra Ticket System' });
+
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('astra_ticket_open').setLabel('Open a Ticket').setStyle(ButtonStyle.Success)
+            );
+
+            await ticketChannel.send({ embeds: [embed], components: [row] });
+
+            await interaction.editReply({
+                content: `✅ Tickets configured!\n🎫 Panel sent to: ${ticketChannel}\n📁 New tickets will be created under: ${ticketCategory}\n\nNow register artists with \`/artist add\` or \`/config artist-roles add\`, then have them run \`/panel\` to set up their ToS, won't-do list, and pricing.`
+            });
+        } catch (error) {
+            console.error('❌ Database save error:', error);
+            await interaction.editReply({ content: '❌ An error occurred while saving ticket configuration.' });
+        }
+    },
+
+    async handleArtistRolesSubcommand(interaction, sub) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const guildId = interaction.guild.id;
+
+        if (sub === 'add') {
+            const role = interaction.options.getRole('role');
+            try {
+                await db.query(
+                    `INSERT INTO guild_artist_roles (guild_id, role_id, added_by) VALUES ($1, $2, $3)
+                     ON CONFLICT (guild_id, role_id) DO NOTHING`,
+                    [guildId, role.id, interaction.user.id]
+                );
+                return interaction.reply({ content: `✅ Anyone with ${role} can now self-manage a commission panel via \`/panel\`.`, ephemeral: true });
+            } catch (error) {
+                console.error('❌ Error adding artist role:', error);
+                return interaction.reply({ content: '❌ Database error while adding the role.', ephemeral: true });
+            }
+        }
+
+        if (sub === 'remove') {
+            const role = interaction.options.getRole('role');
+            try {
+                await db.query('DELETE FROM guild_artist_roles WHERE guild_id = $1 AND role_id = $2', [guildId, role.id]);
+                return interaction.reply({ content: `✅ ${role} no longer grants automatic artist status.`, ephemeral: true });
+            } catch (error) {
+                console.error('❌ Error removing artist role:', error);
+                return interaction.reply({ content: '❌ Database error while removing the role.', ephemeral: true });
+            }
+        }
+
+        if (sub === 'list') {
+            try {
+                const { rows } = await db.query('SELECT role_id FROM guild_artist_roles WHERE guild_id = $1', [guildId]);
+                if (rows.length === 0) {
+                    return interaction.reply({ content: 'No artist roles configured — artists must be added individually via `/artist add`.', ephemeral: true });
+                }
+                const list = rows.map(r => `<@&${r.role_id}>`).join('\n');
+                return interaction.reply({ content: `**Roles that grant automatic artist status:**\n${list}`, ephemeral: true });
+            } catch (error) {
+                console.error('❌ Error listing artist roles:', error);
+                return interaction.reply({ content: '❌ Database error while listing roles.', ephemeral: true });
+            }
         }
     },
 

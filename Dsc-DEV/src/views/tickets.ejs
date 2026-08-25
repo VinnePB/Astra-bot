@@ -1,0 +1,140 @@
+<%- include('partials/header') %>
+
+<div class="max-w-5xl mx-auto space-y-8">
+    <div class="mb-2">
+        <h1 class="text-3xl font-bold text-white tracking-tight">Commission Tickets</h1>
+        <p class="text-slate-400 mt-1">Configure the ticket system and manage registered artists.</p>
+    </div>
+
+    <% if (typeof success !== 'undefined' && success) { %>
+        <div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-6 py-4 rounded-xl text-sm font-medium">
+            ✓ Saved successfully.
+        </div>
+    <% } %>
+
+    <!-- TICKET CHANNEL / CATEGORY CONFIG -->
+    <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl">
+        <h2 class="text-lg font-semibold text-white mb-6">Ticket System Setup</h2>
+        <form action="/api/tickets/config" method="POST" class="space-y-6">
+            <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Ticket Panel Channel</label>
+                    <select name="ticket_channel_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none">
+                        <option value="">Select a channel...</option>
+                        <% channels.forEach(channel => { %>
+                            <option value="<%= channel.id %>" <%= settings.ticket_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Ticket Category</label>
+                    <select name="ticket_category_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none">
+                        <option value="">Select a category...</option>
+                        <% categories.forEach(cat => { %>
+                            <option value="<%= cat.id %>" <%= settings.ticket_category_id === cat.id ? 'selected' : '' %>><%= cat.name %></option>
+                        <% }) %>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Log Channel (optional)</label>
+                    <select name="log_channel_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none">
+                        <option value="">Leave as-is</option>
+                        <% channels.forEach(channel => { %>
+                            <option value="<%= channel.id %>" <%= settings.log_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                        <% }) %>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-[0.98]">
+                Save Ticket Setup
+            </button>
+        </form>
+    </div>
+
+    <!-- ARTIST LIST -->
+    <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl">
+        <h2 class="text-lg font-semibold text-white mb-6">Registered Artists</h2>
+
+        <div class="space-y-3 mb-8">
+            <% if (artists.length === 0) { %>
+                <p class="text-slate-500 text-sm">No artists registered yet. Add one below, or grant an artist role on Discord via <code class="text-indigo-400">/config artist-roles add</code>.</p>
+            <% } %>
+            <% artists.forEach(artist => { %>
+                <div class="flex items-center justify-between p-4 bg-slate-950/50 rounded-xl border border-slate-800">
+                    <div>
+                        <p class="text-white font-medium">@<%= artist.username %></p>
+                        <p class="text-xs text-slate-500"><%= artist.user_id %></p>
+                    </div>
+                    <div class="flex gap-2">
+                        <a href="/tickets?edit=<%= artist.user_id %>" class="text-sm bg-slate-800 hover:bg-slate-700 text-white py-2 px-4 rounded-lg transition">Edit Panel</a>
+                        <form action="/api/artists/remove" method="POST">
+                            <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                            <input type="hidden" name="user_id" value="<%= artist.user_id %>">
+                            <button type="submit" class="text-sm bg-red-500/10 hover:bg-red-500/20 text-red-400 py-2 px-4 rounded-lg transition">Remove</button>
+                        </form>
+                    </div>
+                </div>
+            <% }) %>
+        </div>
+
+        <form action="/api/artists/add" method="POST" class="flex gap-3">
+            <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+            <input type="text" name="user_id" placeholder="Discord User ID (enable Developer Mode → right-click → Copy User ID)"
+                class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm" required pattern="\d{15,25}">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-6 rounded-xl transition-all whitespace-nowrap">
+                + Add Artist
+            </button>
+        </form>
+    </div>
+
+    <!-- EDIT PANEL (only shown when ?edit=<id> matches a known artist) -->
+    <% if (editingArtist) { %>
+        <div class="bg-slate-900 p-8 rounded-2xl border border-indigo-500/30 shadow-xl">
+            <h2 class="text-lg font-semibold text-white mb-1">Editing Panel — @<%= editingArtist.username %></h2>
+            <p class="text-slate-500 text-sm mb-6">Leave a field blank to fall back to Astra's default template for that section.</p>
+
+            <form action="/api/artists/panel" method="POST" class="space-y-6">
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <input type="hidden" name="user_id" value="<%= editingArtist.user_id %>">
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Terms of Service</label>
+                    <textarea name="tos_text" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm"
+                        placeholder="Default: By opening a ticket, you agree to pay as arranged..."><%= editingArtist.tos_text || '' %></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Won't Do</label>
+                    <textarea name="wontdo_text" rows="2" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm"
+                        placeholder="Default: NSFW/R18 content, hate symbols..."><%= editingArtist.wontdo_text || '' %></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-3">Pricing</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <% pricingCategories.forEach((category, i) => {
+                            const existing = editingArtist.pricing.find(p => p.category === category);
+                        %>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1"><%= category %></label>
+                                <input type="text" name="price_<%= i %>" value="<%= existing ? existing.price : '' %>"
+                                    placeholder="Message me for pricing"
+                                    class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg active:scale-[0.98]">
+                        Save Panel
+                    </button>
+                    <a href="/tickets" class="py-3 px-6 rounded-xl text-slate-400 hover:text-white transition">Cancel</a>
+                </div>
+            </form>
+        </div>
+    <% } %>
+</div>
+
+<%- include('partials/footer') %>
