@@ -1,4 +1,29 @@
 </main>
     </div>
+
+    <script>
+        (function () {
+            const toggle = document.getElementById('astra-menu-toggle');
+            const closeBtn = document.getElementById('astra-menu-close');
+            const sidebar = document.getElementById('astra-sidebar');
+            const overlay = document.getElementById('astra-overlay');
+            if (!sidebar || !overlay) return;
+
+            function openMenu() {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            }
+            function closeMenu() {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+
+            toggle && toggle.addEventListener('click', openMenu);
+            closeBtn && closeBtn.addEventListener('click', closeMenu);
+            overlay.addEventListener('click', closeMenu);
+        })();
+    </script>
 </body>
 </html>

@@ -1,25 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Astra | Get Started</title>
-</head>
-<body>
-    <div class="container">
-        <h1>Welcome to Astra, <%= user.username %>!</h1>
-        <p>It looks like your server isn't set up yet. Let's get you running in minutes.</p>
-        
-        <div class="card">
-            <h3>Step 1: Verification System</h3>
-            <p>Configure how your members join the server. Toggle 2-step verification and set your primary roles.</p>
-            <a href="/setup/verification" class="btn">Configure Verification</a>
+<%- include('partials/header') %>
+
+<div class="max-w-3xl mx-auto">
+    <div class="mb-8 md:mb-10 text-center sm:text-left">
+        <h1 class="text-2xl md:text-3xl font-bold text-white tracking-tight">Welcome to Astra, <%= user.username %>!</h1>
+        <p class="text-slate-400 mt-2 text-sm md:text-base">Let's get your server set up. You can always come back and change anything later.</p>
+    </div>
+
+    <div class="space-y-5">
+
+        <!-- STEP 1: VERIFICATION -->
+        <% const verificationDone = !!(settings.verify_channel_id && settings.member_role_id); %>
+        <div class="bg-slate-900 p-5 md:p-7 rounded-2xl border <%= verificationDone ? 'border-emerald-500/30' : 'border-slate-800' %> shadow-xl">
+            <div class="flex items-start justify-between gap-4 mb-2">
+                <h3 class="text-lg font-semibold text-white">Step 1 — Verification System</h3>
+                <% if (verificationDone) { %>
+                    <span class="shrink-0 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">✓ Configured</span>
+                <% } else { %>
+                    <span class="shrink-0 text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">Not set up</span>
+                <% } %>
+            </div>
+            <p class="text-slate-400 text-sm mb-5">Configure how your members join the server — verify channel, roles, and (optionally) a two-step rules gate.</p>
+            <a href="/dashboard" class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-6 rounded-xl transition-all shadow-lg active:scale-[0.98] text-sm">
+                <%= verificationDone ? 'Review Verification' : 'Configure Verification' %>
+            </a>
         </div>
 
-        <div class="card">
-            <h3>Step 2: Log Systems</h3>
-            <p>Keep track of moderation actions and join/leave logs.</p>
-            <a href="/setup/logs" class="btn">Configure Logs</a>
+        <!-- STEP 2: TICKETS -->
+        <% const ticketsDone = !!(settings.ticket_channel_id && settings.ticket_category_id); %>
+        <div class="bg-slate-900 p-5 md:p-7 rounded-2xl border <%= ticketsDone ? 'border-emerald-500/30' : 'border-slate-800' %> shadow-xl">
+            <div class="flex items-start justify-between gap-4 mb-2">
+                <h3 class="text-lg font-semibold text-white">Step 2 — Commission Tickets</h3>
+                <% if (ticketsDone) { %>
+                    <span class="shrink-0 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">✓ Configured</span>
+                <% } else { %>
+                    <span class="shrink-0 text-xs font-semibold text-slate-500 bg-slate-800 border border-slate-700 px-3 py-1 rounded-full">Optional</span>
+                <% } %>
+            </div>
+            <p class="text-slate-400 text-sm mb-5">Set up a ticket panel so members can open private commission requests with your artists.</p>
+            <a href="/tickets" class="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-6 rounded-xl transition-all shadow-lg active:scale-[0.98] text-sm">
+                <%= ticketsDone ? 'Review Tickets' : 'Configure Tickets' %>
+            </a>
         </div>
+
     </div>
-</body>
-</html>
+
+    <div class="mt-8 text-center">
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-white transition">Skip for now — go straight to the dashboard →</a>
+    </div>
+</div>
+
+<%- include('partials/footer') %>

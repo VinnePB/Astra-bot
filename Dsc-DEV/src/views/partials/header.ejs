@@ -7,13 +7,43 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
+
+    <!-- Mobile top bar — only visible below md breakpoint -->
+    <div class="md:hidden flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/95 backdrop-blur sticky top-0 z-40">
+        <span class="text-lg font-bold text-indigo-400">ASTRA<span class="text-white">SECURITY</span></span>
+        <button id="astra-menu-toggle" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-white active:scale-95 transition" aria-label="Open menu">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Dark overlay behind the drawer on mobile -->
+    <div id="astra-overlay" class="fixed inset-0 bg-black/60 z-40 hidden"></div>
+
     <div class="flex min-h-screen">
-        <aside class="w-64 border-r border-slate-800 p-6">
-            <h2 class="text-xl font-bold text-indigo-400 mb-8">Astra Control</h2>
-            <nav class="space-y-4">
-                <a href="/dashboard" class="block py-2 px-4 rounded-lg bg-slate-900 border border-slate-800">Configuration</a>
-                <a href="/logout" class="block py-2 px-4 text-slate-500 hover:text-white transition">Logout</a>
+        <aside id="astra-sidebar"
+            class="fixed md:static top-0 left-0 h-full w-72 md:w-64 border-r border-slate-800 p-6 bg-slate-950 z-50
+                   transform -translate-x-full md:translate-x-0 transition-transform duration-200 ease-out overflow-y-auto">
+            <div class="flex items-center justify-between mb-8">
+                <span class="text-xl font-bold text-indigo-400 hidden md:inline">ASTRA<span class="text-white">SECURITY</span></span>
+                <span class="text-xl font-bold text-indigo-400 md:hidden">Menu</span>
+                <button id="astra-menu-close" class="md:hidden text-slate-500 hover:text-white text-xl leading-none px-2" aria-label="Close menu">✕</button>
+            </div>
+            <nav class="space-y-2">
+                <a href="/onboarding" class="flex items-center gap-2 py-2.5 px-4 rounded-lg text-slate-400 hover:bg-slate-900 hover:text-white transition">
+                    <span>🚀</span> Get Started
+                </a>
+                <a href="/dashboard" class="flex items-center gap-2 py-2.5 px-4 rounded-lg bg-slate-900 border border-slate-800 hover:border-indigo-500/50 transition text-white">
+                    <span>⚙️</span> Configuration
+                </a>
+                <a href="/tickets" class="flex items-center gap-2 py-2.5 px-4 rounded-lg text-slate-400 hover:bg-slate-900 hover:text-white transition">
+                    <span>🎫</span> Tickets
+                </a>
+                <a href="/logout" class="flex items-center gap-2 py-2.5 px-4 rounded-lg text-slate-500 hover:text-white hover:bg-slate-900 transition mt-8">
+                    <span>↩️</span> Logout
+                </a>
             </nav>
         </aside>
 
-        <main class="flex-1 p-8">
+        <main class="flex-1 w-full min-w-0 p-4 sm:p-6 md:p-10">

@@ -78,9 +78,30 @@ app.get('/select-server', checkAuth, async (req, res) => {
     } catch (err) { res.status(500).send("Error fetching servers."); }
 });
 
-app.post('/select-server', checkAuth, (req, res) => {
+app.post('/select-server', checkAuth, async (req, res) => {
     req.session.selectedGuildId = req.body.guild_id;
-    res.redirect('/dashboard');
+
+    // NEW: brand-new servers (no verification set up yet) land on the
+    // onboarding page instead of the full dashboard.
+    try {
+        const { rows } = await db.query('SELECT verify_channel_id, member_role_id FROM guild_settings WHERE guild_id = $1', [req.body.guild_id]);
+        const settings = rows[0];
+        const isConfigured = settings && settings.verify_channel_id && settings.member_role_id;
+        res.redirect(isConfigured ? '/dashboard' : '/onboarding');
+    } catch (err) {
+        res.redirect('/dashboard');
+    }
+});
+
+app.get('/onboarding', checkAuth, async (req, res) => {
+    const guildId = req.session.selectedGuildId;
+    if (!guildId) return res.redirect('/select-server');
+
+    try {
+        const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+        const settings = rows[0] || { guild_id: guildId };
+        res.render('onboarding', { user: req.session.user, settings });
+    } catch (err) { res.status(500).send("DB Error."); }
 });
 
 app.get('/dashboard', checkAuth, async (req, res) => {
@@ -89,7 +110,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
 
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
-        const settings = rows[0] || { guild_id: guildId, member_role_id: '', log_channel_id: '' };
+        const settings = rows[0] || { guild_id: guildId };
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
 
         let channels = [], roles = [];
@@ -99,19 +120,88 @@ app.get('/dashboard', checkAuth, async (req, res) => {
                 axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })
             ]);
             channels = c.data.filter(ch => ch.type === 0);
-            roles = r.data;
+            roles = r.data.filter(role => role.name !== '@everyone');
         } catch (e) { console.error("Discord API fetch failed"); }
 
-        res.render('dashboard', { user: req.session.user, settings, channels, roles, success: req.query.status === 'success' });
+        // NEW: admin roles (for the Astra Admins panel) + artist count (for
+        // the quick-stats card).
+        const { rows: adminRoleRows } = await db.query('SELECT role_id FROM guild_admin_roles WHERE guild_id = $1', [guildId]);
+        const adminRoles = adminRoleRows
+            .map(r => roles.find(role => role.id === r.role_id))
+            .filter(Boolean);
+
+        const { rows: artistCountRows } = await db.query('SELECT COUNT(*) FROM artists WHERE guild_id = $1', [guildId]);
+        const artistCount = parseInt(artistCountRows[0]?.count || '0', 10);
+
+        res.render('dashboard', {
+            user: req.session.user, settings, channels, roles, adminRoles, artistCount,
+            success: req.query.status === 'success'
+        });
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
 app.post('/api/update-verification', checkAuth, async (req, res) => {
-    const { guild_id, member_role_id, log_channel_id } = req.body;
+    const { guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
     try {
-        await db.query(`INSERT INTO guild_settings (guild_id, member_role_id, log_channel_id) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET member_role_id = $2, log_channel_id = $3`, [guild_id, member_role_id, log_channel_id]);
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                verify_channel_id = $2, rules_channel_id = NULLIF($3, ''), rules_role_id = NULLIF($4, ''),
+                verify_role_id = NULLIF($5, ''), member_role_id = $6, log_channel_id = NULLIF($7, '')
+        `, [guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id]);
+        res.redirect('/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/update-antiscam', checkAuth, async (req, res) => {
+    const { guild_id, antiscam_enabled, antiscam_action, antiscam_min_age_hours, antiscam_require_no_avatar } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, antiscam_enabled, antiscam_action, antiscam_min_age_hours, antiscam_require_no_avatar)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                antiscam_enabled = $2, antiscam_action = $3, antiscam_min_age_hours = $4, antiscam_require_no_avatar = $5
+        `, [guild_id, antiscam_enabled === 'on', antiscam_action || 'log', parseInt(antiscam_min_age_hours, 10) || 24, antiscam_require_no_avatar === 'on']);
+        res.redirect('/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/update-autokick', checkAuth, async (req, res) => {
+    const { guild_id, auto_kick_enabled, auto_kick_days } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, auto_kick_enabled, auto_kick_days)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE SET auto_kick_enabled = $2, auto_kick_days = $3
+        `, [guild_id, auto_kick_enabled === 'on', parseInt(auto_kick_days, 10) || 2]);
+        res.redirect('/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/admins/add', checkAuth, async (req, res) => {
+    const { guild_id, role_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    if (!role_id) return res.redirect('/dashboard?status=success');
+
+    try {
+        await db.query(`INSERT INTO guild_admin_roles (guild_id, role_id) VALUES ($1, $2) ON CONFLICT (guild_id, role_id) DO NOTHING`, [guild_id, role_id]);
+        res.redirect('/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/admins/remove', checkAuth, async (req, res) => {
+    const { guild_id, role_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query('DELETE FROM guild_admin_roles WHERE guild_id = $1 AND role_id = $2', [guild_id, role_id]);
         res.redirect('/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
