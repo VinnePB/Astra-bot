@@ -17,23 +17,82 @@ process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// REQUIRED behind Render's proxy — without this, Express can't correctly
+// detect that the connection is HTTPS, which would silently break
+// `cookie.secure: true` below (the cookie would never actually get set).
+app.set('trust proxy', 1);
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
+
+if (!process.env.SESSION_SECRET) {
+    console.warn('⚠️  SESSION_SECRET is not set — using an insecure fallback value that is visible in this codebase. ' +
+        'Set a real, random SESSION_SECRET in your environment variables (Render → Environment) before relying on this in production. ' +
+        'Without it, anyone with a copy of this code could forge session cookies.');
+}
 
 app.use(session({
     store: new pgSession({
         pool: db.pool,
         tableName: 'session'
     }),
-    secret: process.env.SESSION_SECRET || 'fallback_secret',
+    secret: process.env.SESSION_SECRET || 'fallback_secret_DO_NOT_USE_IN_PRODUCTION',
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }
+    rolling: true, // refreshes the cookie's expiry on every request, so an
+                    // active user never gets logged out mid-use — only
+                    // 30 days of total inactivity does that.
+    cookie: {
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        secure: true,     // Render always serves this over HTTPS; requires trust proxy above to work correctly.
+        httpOnly: true,   // blocks any client-side JS (including injected/XSS) from reading the cookie.
+        sameSite: 'lax'   // blocks cross-site requests from using the cookie, while still allowing the Discord OAuth redirect back to this site.
+    }
 }));
 
-const checkAuth = (req, res, next) => {
+// Discord access tokens expire (~7 days). Previously nothing refreshed
+// them, so after expiry every Discord API call (guilds/channels/roles)
+// silently started failing — the session cookie stayed "logged in" but the
+// data behind it was stale/broken, which is what looked like the site
+// losing sync with the real server. This refreshes proactively before
+// that happens.
+async function refreshDiscordToken(req) {
+    if (!req.session.refreshToken) return false;
+    try {
+        const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+            client_id: process.env.DISCORD_CLIENT_ID,
+            client_secret: process.env.DISCORD_CLIENT_SECRET,
+            grant_type: 'refresh_token',
+            refresh_token: req.session.refreshToken,
+        }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+        req.session.token = tokenResponse.data.access_token;
+        req.session.refreshToken = tokenResponse.data.refresh_token;
+        req.session.tokenExpiresAt = Date.now() + tokenResponse.data.expires_in * 1000;
+        return true;
+    } catch (err) {
+        console.error('❌ Failed to refresh Discord token:', err.response?.data || err.message);
+        return false;
+    }
+}
+
+const checkAuth = async (req, res, next) => {
     if (!req.session.user || !req.session.token) return res.redirect('/');
+
+    // Refresh a minute before actual expiry, not after — avoids a request
+    // failing partway through with a now-dead token.
+    const expiresAt = req.session.tokenExpiresAt || 0;
+    if (Date.now() > expiresAt - 60_000) {
+        const refreshed = await refreshDiscordToken(req);
+        if (!refreshed) {
+            // Refresh token is also dead/revoked — nothing left to do but
+            // have them log in again for real, cleanly, rather than limping
+            // along with broken data.
+            return req.session.destroy(() => res.redirect('/'));
+        }
+    }
+
     next();
 };
 
@@ -65,6 +124,8 @@ app.get('/callback', async (req, res) => {
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
         req.session.token = tokenResponse.data.access_token;
+        req.session.refreshToken = tokenResponse.data.refresh_token;
+        req.session.tokenExpiresAt = Date.now() + tokenResponse.data.expires_in * 1000;
         const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${req.session.token}` } });
         req.session.user = userResponse.data;
         res.redirect('/select-server');
@@ -79,17 +140,34 @@ app.get('/select-server', checkAuth, async (req, res) => {
 });
 
 app.post('/select-server', checkAuth, async (req, res) => {
-    req.session.selectedGuildId = req.body.guild_id;
-
-    // NEW: brand-new servers (no verification set up yet) land on the
-    // onboarding page instead of the full dashboard.
+    // SECURITY FIX: this used to trust req.body.guild_id outright. A crafted
+    // POST with a different guild_id would have let someone manage a server
+    // they have no actual Administrator permission on — anyone who could
+    // reach this endpoint (not just legitimate admins) could point it at any
+    // server Astra is in. Now it re-checks against Discord's own record of
+    // which servers this authenticated user actually administers, the same
+    // way the GET route already filters the list they see.
     try {
+        const guildsResp = await axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } });
+        const adminGuildIds = new Set(
+            guildsResp.data.filter(g => (BigInt(g.permissions) & 8n) === 8n).map(g => g.id)
+        );
+
+        if (!adminGuildIds.has(req.body.guild_id)) {
+            return res.status(403).send('You do not have Administrator permission on that server.');
+        }
+
+        req.session.selectedGuildId = req.body.guild_id;
+
+        // Brand-new servers (no verification set up yet) land on the
+        // onboarding page instead of the full dashboard.
         const { rows } = await db.query('SELECT verify_channel_id, member_role_id FROM guild_settings WHERE guild_id = $1', [req.body.guild_id]);
         const settings = rows[0];
         const isConfigured = settings && settings.verify_channel_id && settings.member_role_id;
         res.redirect(isConfigured ? '/dashboard' : '/onboarding');
     } catch (err) {
-        res.redirect('/dashboard');
+        console.error('❌ Error validating guild selection:', err);
+        res.status(500).send('Could not verify your permissions for that server.');
     }
 });
 
