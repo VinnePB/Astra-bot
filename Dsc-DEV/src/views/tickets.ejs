@@ -2,7 +2,7 @@
 
 <div class="max-w-5xl mx-auto space-y-8">
     <div class="mb-2">
-        <h1 class="text-3xl font-bold text-white tracking-tight">Commission Tickets</h1>
+        <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 tracking-tight">🎫 Commission Tickets</h1>
         <p class="text-slate-400 mt-1">Configure the ticket system and manage registered artists.</p>
     </div>
 
@@ -13,7 +13,7 @@
     <% } %>
 
     <!-- TICKET CHANNEL / CATEGORY CONFIG -->
-    <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl">
+    <div class="bg-slate-900/80 backdrop-blur p-8 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-xl transition-colors">
         <h2 class="text-lg font-semibold text-white mb-6">Ticket System Setup</h2>
         <form action="/api/tickets/config" method="POST" class="space-y-6">
             <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
@@ -53,7 +53,7 @@
     </div>
 
     <!-- ARTIST LIST -->
-    <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-xl">
+    <div class="bg-slate-900/80 backdrop-blur p-8 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-xl transition-colors">
         <h2 class="text-lg font-semibold text-white mb-6">Registered Artists</h2>
 
         <div class="space-y-3 mb-8">
