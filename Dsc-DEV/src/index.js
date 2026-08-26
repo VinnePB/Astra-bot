@@ -132,11 +132,42 @@ app.get('/callback', async (req, res) => {
     } catch (error) { res.send('Auth failed.'); }
 });
 
+// Permissions requested for the bot invite link: View Channels, Send
+// Messages, Embed Links, Read Message History, Manage Messages, Manage
+// Channels, Manage Roles, Kick Members — everything Astra's features
+// actually use. Adjust via Discord's own permission calculator if you want
+// to change this later.
+const BOT_INVITE_PERMISSIONS = '268528658';
+
 app.get('/select-server', checkAuth, async (req, res) => {
     try {
-        const guilds = await axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } });
-        res.render('select_server', { user: req.session.user, guilds: guilds.data.filter(g => (BigInt(g.permissions) & 8n) === 8n) });
-    } catch (err) { res.status(500).send("Error fetching servers."); }
+        const [userGuildsResp, botGuildsResp] = await Promise.all([
+            axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } }),
+            axios.get('https://discord.com/api/v10/users/@me/guilds', { headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` } })
+        ]);
+
+        const botGuildIds = new Set(botGuildsResp.data.map(g => g.id));
+        const adminGuilds = userGuildsResp.data.filter(g => (BigInt(g.permissions) & 8n) === 8n);
+
+        // NEW: split into servers Astra is actually in vs. ones she isn't —
+        // this is what was missing before. The old version showed every
+        // server you administer, bot or no bot, which meant picking one
+        // Astra hadn't been invited to just produced a confusing empty
+        // dashboard with no explanation.
+        const guildsWithBot = adminGuilds.filter(g => botGuildIds.has(g.id));
+        const guildsWithoutBot = adminGuilds.filter(g => !botGuildIds.has(g.id));
+
+        res.render('select_server', {
+            user: req.session.user,
+            guildsWithBot,
+            guildsWithoutBot,
+            clientId: process.env.DISCORD_CLIENT_ID,
+            botInvitePermissions: BOT_INVITE_PERMISSIONS
+        });
+    } catch (err) {
+        console.error('❌ Error fetching guilds:', err);
+        res.status(500).send("Error fetching servers.");
+    }
 });
 
 app.post('/select-server', checkAuth, async (req, res) => {
@@ -148,13 +179,20 @@ app.post('/select-server', checkAuth, async (req, res) => {
     // which servers this authenticated user actually administers, the same
     // way the GET route already filters the list they see.
     try {
-        const guildsResp = await axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } });
+        const [guildsResp, botGuildsResp] = await Promise.all([
+            axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } }),
+            axios.get('https://discord.com/api/v10/users/@me/guilds', { headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` } })
+        ]);
         const adminGuildIds = new Set(
             guildsResp.data.filter(g => (BigInt(g.permissions) & 8n) === 8n).map(g => g.id)
         );
+        const botGuildIds = new Set(botGuildsResp.data.map(g => g.id));
 
         if (!adminGuildIds.has(req.body.guild_id)) {
             return res.status(403).send('You do not have Administrator permission on that server.');
+        }
+        if (!botGuildIds.has(req.body.guild_id)) {
+            return res.status(400).send('Astra isn\'t in that server yet — invite her first from the server selection page.');
         }
 
         req.session.selectedGuildId = req.body.guild_id;
