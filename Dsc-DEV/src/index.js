@@ -7,6 +7,7 @@ const pgSession = require('connect-pg-simple')(session);
 require('dotenv').config();
 
 const db = require('./database');
+const { t, normalizeLanguage } = require('./i18n');
 const configCommand = require('./commands/config');
 const helpCommand = require('./commands/help');
 const ticketsCommand = require('./commands/tickets');
@@ -98,7 +99,21 @@ const checkAuth = async (req, res, next) => {
 
 // --- ROUTES ---
 
-app.get('/', (req, res) => res.render('index', { title: 'Astra', subtitle: 'Panel', welcome_message: 'Login to start', login_button: 'Login' }));
+app.get('/', (req, res) => {
+    const lang = req.session.siteLang || 'en';
+    res.render('index', {
+        lang,
+        t: (key, vars) => t(lang, key, vars),
+        loggedIn: !!(req.session.user && req.session.token),
+        user: req.session.user || null,
+        pageTitle: 'Astra'
+    });
+});
+
+app.get('/lang/:lang', (req, res) => {
+    req.session.siteLang = normalizeLanguage(req.params.lang);
+    res.redirect(req.get('Referer') || '/');
+});
 
 app.get('/logout', (req, res) => {
     req.session.destroy(() => {
@@ -216,7 +231,7 @@ app.get('/onboarding', checkAuth, async (req, res) => {
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId };
-        res.render('onboarding', { user: req.session.user, settings });
+        res.render('onboarding', { user: req.session.user, settings, pageTitle: 'Astra — Get Started' });
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -229,14 +244,16 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const settings = rows[0] || { guild_id: guildId };
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
 
-        let channels = [], roles = [];
+        let channels = [], roles = [], memberCount = null;
         try {
-            const [c, r] = await Promise.all([
+            const [c, r, g] = await Promise.all([
                 axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
-                axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })
+                axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers }),
+                axios.get(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, { headers })
             ]);
             channels = c.data.filter(ch => ch.type === 0);
             roles = r.data.filter(role => role.name !== '@everyone');
+            memberCount = g.data.approximate_member_count ?? null;
         } catch (e) { console.error("Discord API fetch failed"); }
 
         // NEW: admin roles (for the Astra Admins panel) + artist count (for
@@ -250,26 +267,53 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const artistCount = parseInt(artistCountRows[0]?.count || '0', 10);
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, roles, adminRoles, artistCount,
-            success: req.query.status === 'success'
+            user: req.session.user, settings, channels, roles, adminRoles, artistCount, memberCount,
+            success: req.query.status === 'success', pageTitle: 'Astra — Dashboard'
         });
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
 app.post('/api/update-verification', checkAuth, async (req, res) => {
-    const { guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id } = req.body;
+    const { guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
     try {
         await db.query(`
-            INSERT INTO guild_settings (guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO guild_settings (guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guild_id) DO UPDATE SET
                 verify_channel_id = $2, rules_channel_id = NULLIF($3, ''), rules_role_id = NULLIF($4, ''),
-                verify_role_id = NULLIF($5, ''), member_role_id = $6, log_channel_id = NULLIF($7, '')
-        `, [guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id]);
+                verify_role_id = NULLIF($5, ''), member_role_id = $6, log_channel_id = NULLIF($7, ''),
+                joinleave_log_enabled = $8
+        `, [guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled === 'on']);
         res.redirect('/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// FIX: this is the actual fix for "setup via the site doesn't do anything" —
+// saving settings alone never posted the button panel to Discord. This
+// explicitly does what /config verification does on Discord, using the
+// settings already saved in the database. Requires Save Configuration to
+// have been clicked first.
+app.post('/api/send-verification-panel', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const guild = client.guilds.cache.get(guild_id);
+    if (!guild) return res.status(400).send('Astra is not in that server.');
+
+    try {
+        const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guild_id]);
+        const settings = rows[0];
+        if (!settings || !settings.verify_channel_id || !settings.member_role_id) {
+            return res.redirect('/dashboard?status=error&reason=incomplete');
+        }
+        await configCommand.postVerificationPanel(guild, settings);
+        res.redirect('/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error posting verification panel from site:', err);
+        res.status(500).send('Failed to post the panel — check Astra has permission to send messages in that channel.');
+    }
 });
 
 app.post('/api/update-antiscam', checkAuth, async (req, res) => {
@@ -370,7 +414,7 @@ app.get('/tickets', checkAuth, async (req, res) => {
             user: req.session.user, settings, channels, categories,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
-            success: req.query.status === 'success'
+            success: req.query.status === 'success', pageTitle: 'Astra — Tickets'
         });
     } catch (err) {
         console.error(err);
@@ -379,19 +423,45 @@ app.get('/tickets', checkAuth, async (req, res) => {
 });
 
 app.post('/api/tickets/config', checkAuth, async (req, res) => {
-    const { guild_id, ticket_channel_id, ticket_category_id, log_channel_id } = req.body;
+    const { guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
     try {
         await db.query(`
-            INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (guild_id) DO UPDATE SET
                 ticket_channel_id = $2, ticket_category_id = $3,
-                log_channel_id = COALESCE(NULLIF($4, ''), guild_settings.log_channel_id)
-        `, [guild_id, ticket_channel_id, ticket_category_id, log_channel_id]);
+                log_channel_id = COALESCE(NULLIF($4, ''), guild_settings.log_channel_id),
+                artist_setup_category_id = NULLIF($5, '')
+        `, [guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id]);
         res.redirect('/tickets?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// FIX: same issue as verification — saving ticket config never actually
+// posted the "Open a Ticket" button to Discord. This does that explicitly.
+app.post('/api/send-ticket-panel', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const guild = client.guilds.cache.get(guild_id);
+    if (!guild) return res.status(400).send('Astra is not in that server.');
+
+    try {
+        const { rows } = await db.query('SELECT ticket_channel_id FROM guild_settings WHERE guild_id = $1', [guild_id]);
+        const ticketChannelId = rows[0]?.ticket_channel_id;
+        if (!ticketChannelId) return res.redirect('/tickets?status=error&reason=incomplete');
+
+        const ticketChannel = await guild.channels.fetch(ticketChannelId).catch(() => null);
+        if (!ticketChannel) return res.status(400).send('Ticket channel not found — check it still exists.');
+
+        await configCommand.postTicketPanel(ticketChannel);
+        res.redirect('/tickets?status=success');
+    } catch (err) {
+        console.error('❌ Error posting ticket panel from site:', err);
+        res.status(500).send('Failed to post the panel — check Astra has permission to send messages in that channel.');
+    }
 });
 
 app.post('/api/artists/add', checkAuth, async (req, res) => {
@@ -401,8 +471,34 @@ app.post('/api/artists/add', checkAuth, async (req, res) => {
 
     try {
         await db.query(`INSERT INTO artists (guild_id, user_id) VALUES ($1, $2) ON CONFLICT (guild_id, user_id) DO NOTHING`, [guild_id, user_id]);
+
+        // Best-effort: also create their private setup channel, same as
+        // the /artist add Discord command does. This works even though
+        // we're in an Express route because `client` (the discord.js
+        // client, declared further down this file) is fully initialized
+        // by the time any real request reaches here.
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) {
+            await ticketsCommand.ensureArtistSetupChannel(guild, user_id).catch(err => console.error('❌ Error creating setup channel from site:', err));
+        }
+
         res.redirect('/tickets?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/artists/create-setup-channel', checkAuth, async (req, res) => {
+    const { guild_id, user_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return res.status(500).send('Astra isn\'t connected to that server right now.');
+        await ticketsCommand.ensureArtistSetupChannel(guild, user_id);
+        res.redirect('/tickets?status=success');
+    } catch (err) {
+        console.error('❌ Error creating setup channel:', err);
+        res.status(500).send('Could not create the setup channel — make sure an Artist Setup Category is configured and Astra has Manage Channels permission.');
+    }
 });
 
 app.post('/api/artists/remove', checkAuth, async (req, res) => {
@@ -417,15 +513,15 @@ app.post('/api/artists/remove', checkAuth, async (req, res) => {
 });
 
 app.post('/api/artists/panel', checkAuth, async (req, res) => {
-    const { guild_id, user_id, tos_text, wontdo_text } = req.body;
+    const { guild_id, user_id, tos_text, wontdo_text, askme_text } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
     const pricingCategories = ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'];
 
     try {
         await db.query(
-            `UPDATE artists SET tos_text = NULLIF($1, ''), wontdo_text = NULLIF($2, '') WHERE guild_id = $3 AND user_id = $4`,
-            [tos_text, wontdo_text, guild_id, user_id]
+            `UPDATE artists SET tos_text = NULLIF($1, ''), wontdo_text = NULLIF($2, ''), askme_text = NULLIF($3, '') WHERE guild_id = $4 AND user_id = $5`,
+            [tos_text, wontdo_text, askme_text, guild_id, user_id]
         );
 
         for (let i = 0; i < pricingCategories.length; i++) {
@@ -493,7 +589,35 @@ client.once('ready', async () => {
 client.on('guildMemberAdd', async (member) => {
     const kicked = await configCommand.checkScamSignals(member);
     if (!kicked) await configCommand.handleNewMember(member);
+    await logMemberEvent(member.guild, 'join', member);
 });
+
+client.on('guildMemberRemove', async (member) => {
+    await logMemberEvent(member.guild, 'leave', member);
+});
+
+// NEW: join/leave logging, toggleable via /config verification
+// joinleave_logs, shared with the same log_channel_id used everywhere else.
+async function logMemberEvent(guild, type, member) {
+    try {
+        const { rows } = await db.query('SELECT log_channel_id, joinleave_log_enabled FROM guild_settings WHERE guild_id = $1', [guild.id]);
+        const settings = rows[0];
+        if (!settings || !settings.log_channel_id || settings.joinleave_log_enabled === false) return;
+
+        const logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
+        if (!logChannel) return;
+
+        const memberCount = guild.memberCount;
+        if (type === 'join') {
+            const accountAgeDays = Math.round((Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60 * 24));
+            await logChannel.send(`📥 **${member.user.tag}** joined (account age: ${accountAgeDays}d) — now **${memberCount}** members.`).catch(() => {});
+        } else {
+            await logChannel.send(`📤 **${member.user.tag}** left — now **${memberCount}** members.`).catch(() => {});
+        }
+    } catch (err) {
+        console.error('❌ Error logging member event:', err);
+    }
+}
 
 // NEW: Chat B moderation — deletes anything that isn't "!verify" in the
 // configured verify channel (dual-role mode only) and warns the sender.
@@ -525,7 +649,7 @@ client.on('interactionCreate', async (interaction) => {
             await ticketsCommand.executeSlashPanel(interaction);
         }
     } else if (interaction.isButton()) {
-        if (interaction.customId.startsWith('astra_ticket_')) {
+        if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {
             await ticketsCommand.handleButton(interaction);
         } else {
             await configCommand.handleButton(interaction);
@@ -535,6 +659,10 @@ client.on('interactionCreate', async (interaction) => {
             await ticketsCommand.handleSelectMenu(interaction);
         } else {
             await configCommand.handleMenu(interaction);
+        }
+    } else if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('astra_panel_modal_')) {
+            await ticketsCommand.handleModalSubmit(interaction);
         }
     }
 });

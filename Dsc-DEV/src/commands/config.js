@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType } = require('discord.js');
 const db = require('../database');
 const { isServerAdministrator, isAstraAdmin } = require('../permissions');
+const { t } = require('../i18n');
 
 async function getSettings(guildId) {
     const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
@@ -60,6 +61,10 @@ module.exports = {
                 .addChannelOption(option =>
                     option.setName('log_channel')
                         .setDescription('Channel to log verifications and auto-kicks')
+                        .setRequired(false))
+                .addBooleanOption(option =>
+                    option.setName('joinleave_logs')
+                        .setDescription('Log member joins/leaves to the log channel (default: on)')
                         .setRequired(false))
                 .addStringOption(option =>
                     option.setName('title')
@@ -146,6 +151,11 @@ module.exports = {
                     option.setName('log_channel')
                         .setDescription('Channel to log ticket opens/closes (reuses the verification log channel if omitted)')
                         .setRequired(false))
+                .addChannelOption(option =>
+                    option.setName('artist_setup_category')
+                        .setDescription('Category where artists\' private setup channels get created')
+                        .addChannelTypes(ChannelType.GuildCategory)
+                        .setRequired(false))
         )
         .addSubcommandGroup(group =>
             group
@@ -162,6 +172,19 @@ module.exports = {
                 .addSubcommand(sub =>
                     sub.setName('list')
                         .setDescription('List roles that automatically count as artists'))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('language')
+                .setDescription('Set the language Astra uses for member-facing messages in this server')
+                .addStringOption(option =>
+                    option.setName('language')
+                        .setDescription('Language')
+                        .setRequired(true)
+                        .addChoices(
+                            { name: 'English', value: 'en' },
+                            { name: 'Português (Brasil)', value: 'pt-br' }
+                        ))
         ),
 
     // --- SLASH COMMAND HANDLER ---
@@ -175,6 +198,10 @@ module.exports = {
 
         if (group === 'artist-roles') {
             return this.handleArtistRolesSubcommand(interaction, sub);
+        }
+
+        if (sub === 'language') {
+            return this.handleLanguageSubcommand(interaction);
         }
 
         if (sub === 'verification') {
@@ -201,36 +228,45 @@ module.exports = {
         const ticketChannel = interaction.options.getChannel('ticket_channel');
         const ticketCategory = interaction.options.getChannel('ticket_category');
         const logChannel = interaction.options.getChannel('log_channel');
+        const artistSetupCategory = interaction.options.getChannel('artist_setup_category');
 
         try {
             await db.query(`
-                INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (guild_id) DO UPDATE SET
                     ticket_channel_id = EXCLUDED.ticket_channel_id,
                     ticket_category_id = EXCLUDED.ticket_category_id,
-                    log_channel_id = COALESCE(EXCLUDED.log_channel_id, guild_settings.log_channel_id);
-            `, [guildId, ticketChannel.id, ticketCategory.id, logChannel ? logChannel.id : null]);
+                    log_channel_id = COALESCE(EXCLUDED.log_channel_id, guild_settings.log_channel_id),
+                    artist_setup_category_id = COALESCE(EXCLUDED.artist_setup_category_id, guild_settings.artist_setup_category_id);
+            `, [guildId, ticketChannel.id, ticketCategory.id, logChannel ? logChannel.id : null, artistSetupCategory ? artistSetupCategory.id : null]);
 
-            const embed = new EmbedBuilder()
-                .setTitle('🎫 Open a Commission Ticket')
-                .setDescription('Click below and pick an artist to open a private ticket with them.')
-                .setColor('#2b2d31')
-                .setFooter({ text: 'Astra Ticket System' });
-
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('astra_ticket_open').setLabel('Open a Ticket').setStyle(ButtonStyle.Success)
-            );
-
-            await ticketChannel.send({ embeds: [embed], components: [row] });
+            const result = await module.exports.postTicketPanel(ticketChannel);
 
             await interaction.editReply({
-                content: `✅ Tickets configured!\n🎫 Panel sent to: ${ticketChannel}\n📁 New tickets will be created under: ${ticketCategory}\n\nNow register artists with \`/artist add\` or \`/config artist-roles add\`, then have them run \`/panel\` to set up their ToS, won't-do list, and pricing.`
+                content: `${result.message}\n📁 New tickets will be created under: ${ticketCategory}\n\nNow register artists with \`/artist add\` or \`/config artist-roles add\`, then have them run \`/panel\` to set up their ToS, won't-do list, and pricing.`
             });
         } catch (error) {
             console.error('❌ Database save error:', error);
             await interaction.editReply({ content: '❌ An error occurred while saving ticket configuration.' });
         }
+    },
+
+    // --- SHARED: posts the "Open a Ticket" panel to a channel. Used by
+    // /config tickets above and the website's "Post Panel to Discord" button.
+    async postTicketPanel(ticketChannel) {
+        const embed = new EmbedBuilder()
+            .setTitle('🎫 Open a Commission Ticket')
+            .setDescription('Click below and pick an artist to open a private ticket with them.')
+            .setColor('#2b2d31')
+            .setFooter({ text: 'Astra' });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('astra_ticket_open').setLabel('Open a Ticket').setStyle(ButtonStyle.Success)
+        );
+
+        await ticketChannel.send({ embeds: [embed], components: [row] });
+        return { ok: true, message: `✅ **Ticket panel posted to ${ticketChannel}!**` };
     },
 
     async handleArtistRolesSubcommand(interaction, sub) {
@@ -323,6 +359,25 @@ module.exports = {
         }
     },
 
+    async handleLanguageSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const language = interaction.options.getString('language');
+        try {
+            await db.query(
+                `INSERT INTO guild_settings (guild_id, language) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET language = $2`,
+                [interaction.guild.id, language]
+            );
+            const label = language === 'pt-br' ? 'Português (Brasil)' : 'English';
+            return interaction.reply({ content: `✅ Astra will now use **${label}** for member-facing messages in this server.`, ephemeral: true });
+        } catch (error) {
+            console.error('❌ Error saving language:', error);
+            return interaction.reply({ content: '❌ Database error while saving.', ephemeral: true });
+        }
+    },
+
     async handleVerificationSubcommand(interaction) {
         if (!(await isAstraAdmin(interaction.member))) {
             return interaction.reply({
@@ -363,13 +418,15 @@ module.exports = {
         const description = descriptionRaw.replace(/\\n/g, '\n');
 
         try {
+            const joinLeaveLogs = interaction.options.getBoolean('joinleave_logs') ?? true;
+
             await db.query(`
                 INSERT INTO guild_settings (
                     guild_id, verify_channel_id, member_role_id, log_channel_id,
                     embed_title, embed_description, rules_channel_id, rules_role_id, verify_role_id,
-                    auto_kick_enabled, auto_kick_days
+                    auto_kick_enabled, auto_kick_days, joinleave_log_enabled
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 ON CONFLICT (guild_id)
                 DO UPDATE SET 
                     verify_channel_id = EXCLUDED.verify_channel_id,
@@ -381,69 +438,26 @@ module.exports = {
                     rules_role_id = EXCLUDED.rules_role_id,
                     verify_role_id = EXCLUDED.verify_role_id,
                     auto_kick_enabled = EXCLUDED.auto_kick_enabled,
-                    auto_kick_days = EXCLUDED.auto_kick_days;
+                    auto_kick_days = EXCLUDED.auto_kick_days,
+                    joinleave_log_enabled = EXCLUDED.joinleave_log_enabled;
             `, [
                 guildId, verifyChannel.id, memberRole.id, logChannelId,
                 title, description,
                 rulesChannel ? rulesChannel.id : null,
                 rulesRole ? rulesRole.id : null,
                 verifyRole ? verifyRole.id : null,
-                autoKick, autoKickDays
+                autoKick, autoKickDays, joinLeaveLogs
             ]);
 
-            let replyContent;
+            const result = await module.exports.postVerificationPanel(interaction.guild, {
+                verify_channel_id: verifyChannel.id, member_role_id: memberRole.id,
+                embed_title: title, embed_description: description,
+                rules_channel_id: rulesChannel ? rulesChannel.id : null,
+                rules_role_id: rulesRole ? rulesRole.id : null,
+                verify_role_id: verifyRole ? verifyRole.id : null,
+            });
 
-            if (rulesChannel) {
-                // DUAL-ROLE MODE — Chat A gets the button, Chat B is
-                // text-only: no button, just instructions. The actual
-                // moderation (deleting off-topic messages, warning users,
-                // and granting verify_role_id on "!verify") happens in
-                // executeMessage() below, not here.
-                const rulesEmbed = new EmbedBuilder()
-                    .setTitle('📜 Rules Acknowledgement')
-                    .setDescription('By clicking below, you confirm you\'ve read and agree to follow the rules above.')
-                    .setColor('#2b2d31')
-                    .setFooter({ text: 'Astra Security System — Step 1 of 2' });
-
-                const rulesRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('astra_rules_accept')
-                        .setLabel('I Agree')
-                        .setStyle(ButtonStyle.Secondary)
-                );
-
-                await rulesChannel.send({ embeds: [rulesEmbed], components: [rulesRow] });
-
-                const verifyInstructions = new EmbedBuilder()
-                    .setTitle(title)
-                    .setDescription(`${description}\n\nType \`!verify\` in this channel to complete step 2. Anything else you type here will be removed.`)
-                    .setColor('#2b2d31')
-                    .setFooter({ text: 'Astra Security System — Step 2 of 2' });
-
-                await verifyChannel.send({ embeds: [verifyInstructions] });
-
-                replyContent = `✅ **Astra successfully configured!**\n📜 Chat A (button) sent to: ${rulesChannel}\n💬 Chat B (types \`!verify\`) sent to: ${verifyChannel}\n🔗 Both ${rulesRole} and ${verifyRole} are required for ${memberRole}.`;
-            } else {
-                // LEGACY SINGLE-STEP MODE — verify_channel gets a button that
-                // grants member_role_id directly. Kept for servers that
-                // haven't configured the dual-role gate.
-                const verifyEmbed = new EmbedBuilder()
-                    .setTitle(title)
-                    .setDescription(description)
-                    .setColor('#2b2d31')
-                    .setFooter({ text: 'Astra Security System' });
-
-                const verifyRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('member_verify_button')
-                        .setLabel('Verify')
-                        .setStyle(ButtonStyle.Success)
-                );
-
-                await verifyChannel.send({ embeds: [verifyEmbed], components: [verifyRow] });
-                replyContent = `✅ **Astra successfully configured!**\n📍 Verify panel sent to: ${verifyChannel}\n🛡️ Final role: ${memberRole}`;
-            }
-
+            let replyContent = result.message;
             if (autoKick) {
                 replyContent += `\n⏱️ Auto-kick enabled — members without ${memberRole} after ${autoKickDays} day(s) will be removed (bots and admins are exempt).`;
             }
@@ -454,6 +468,58 @@ module.exports = {
             console.error('❌ Database save error:', error);
             await interaction.editReply({ content: '❌ An error occurred while saving configurations to the database.' });
         }
+    },
+
+    // --- SHARED: actually posts the verification panel message(s) to Discord.
+    // Used by the /config verification command above, AND by the website's
+    // "Post Panel to Discord" button (index.js) — previously the website
+    // only ever saved settings to the database and never actually sent
+    // anything to Discord, which is what made "setup via the site" feel
+    // broken even though the data was technically saved correctly.
+    async postVerificationPanel(guild, settings) {
+        const verifyChannel = await guild.channels.fetch(settings.verify_channel_id).catch(() => null);
+        if (!verifyChannel) return { ok: false, message: '❌ Could not find the verify channel — check it still exists.' };
+
+        const title = settings.embed_title || '🔒 Verification System — Astra';
+        const description = settings.embed_description || 'To ensure server security and unlock all channels, click the **Verify** button below.';
+
+        if (settings.rules_channel_id && settings.rules_role_id && settings.verify_role_id) {
+            const rulesChannel = await guild.channels.fetch(settings.rules_channel_id).catch(() => null);
+            if (!rulesChannel) return { ok: false, message: '❌ Could not find the rules channel — check it still exists.' };
+
+            const rulesEmbed = new EmbedBuilder()
+                .setTitle('📜 Rules Acknowledgement')
+                .setDescription('By clicking below, you confirm you\'ve read and agree to follow the rules above.')
+                .setColor('#2b2d31')
+                .setFooter({ text: 'Astra — Step 1 of 2' });
+
+            const rulesRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('astra_rules_accept').setLabel('I Agree').setStyle(ButtonStyle.Secondary)
+            );
+            await rulesChannel.send({ embeds: [rulesEmbed], components: [rulesRow] });
+
+            const verifyInstructions = new EmbedBuilder()
+                .setTitle(title)
+                .setDescription(`${description}\n\nType \`!verify\` in this channel to complete step 2. Anything else you type here will be removed.`)
+                .setColor('#2b2d31')
+                .setFooter({ text: 'Astra — Step 2 of 2' });
+            await verifyChannel.send({ embeds: [verifyInstructions] });
+
+            return { ok: true, message: `✅ **Verification panels posted!**\n📜 Chat A (button) sent to: ${rulesChannel}\n💬 Chat B (types \`!verify\`) sent to: ${verifyChannel}` };
+        }
+
+        const verifyEmbed = new EmbedBuilder()
+            .setTitle(title)
+            .setDescription(description)
+            .setColor('#2b2d31')
+            .setFooter({ text: 'Astra' });
+
+        const verifyRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('member_verify_button').setLabel('Verify').setStyle(ButtonStyle.Success)
+        );
+        await verifyChannel.send({ embeds: [verifyEmbed], components: [verifyRow] });
+
+        return { ok: true, message: `✅ **Verify panel posted to ${verifyChannel}!**` };
     },
 
     async handleAdminsSubcommand(interaction, sub) {
@@ -532,7 +598,7 @@ module.exports = {
                 // grey it out, we just short-circuit here before touching
                 // any roles again.
                 if (settings.member_role_id && member.roles.cache.has(settings.member_role_id)) {
-                    return interaction.reply({ content: "✅ You're already verified — nothing more to do!", ephemeral: true });
+                    return interaction.reply({ content: t(settings.language, 'verify.already_verified'), ephemeral: true });
                 }
 
                 if (!member.roles.cache.has(settings.rules_role_id)) {
@@ -542,11 +608,11 @@ module.exports = {
                 const fullyVerified = await checkAndGrantFinalRole(member, settings);
 
                 if (fullyVerified) {
-                    return interaction.reply({ content: "✅ You're verified! Enjoy the server.", ephemeral: true });
+                    return interaction.reply({ content: t(settings.language, 'verify.you_are_verified'), ephemeral: true });
                 }
 
                 const verifyChannelMention = settings.verify_channel_id ? `<#${settings.verify_channel_id}>` : 'the verification channel';
-                return interaction.reply({ content: `✅ Rules accepted. Now head to ${verifyChannelMention} to finish verifying.`, ephemeral: true });
+                return interaction.reply({ content: t(settings.language, 'verify.go_to_verify_channel', { channel: verifyChannelMention }), ephemeral: true });
             } catch (error) {
                 console.error(error);
                 if (!interaction.replied) await interaction.reply({ content: "Error while processing your request.", ephemeral: true });
@@ -568,7 +634,7 @@ module.exports = {
                 // Already fully verified — same short-circuit as the rules
                 // button, for servers still on legacy single-step mode too.
                 if (member.roles.cache.has(settings.member_role_id)) {
-                    return interaction.reply({ content: "✅ You're already verified — nothing more to do!", ephemeral: true });
+                    return interaction.reply({ content: t(settings.language, 'verify.already_verified'), ephemeral: true });
                 }
 
                 // Legacy single-step mode: no dual-role gate configured, so
@@ -588,11 +654,11 @@ module.exports = {
                 const fullyVerified = await checkAndGrantFinalRole(member, settings);
 
                 if (fullyVerified) {
-                    return interaction.reply({ content: "✅ You're verified! Enjoy the server.", ephemeral: true });
+                    return interaction.reply({ content: t(settings.language, 'verify.you_are_verified'), ephemeral: true });
                 }
 
                 const rulesChannelMention = settings.rules_channel_id ? `<#${settings.rules_channel_id}>` : 'the rules channel';
-                return interaction.reply({ content: `✅ Step complete. Now head to ${rulesChannelMention} and click **I Agree** to finish verifying.`, ephemeral: true });
+                return interaction.reply({ content: t(settings.language, 'verify.go_to_rules_channel', { channel: rulesChannelMention }), ephemeral: true });
             } catch (error) {
                 console.error(error);
                 if (!interaction.replied) await interaction.reply({ content: "Error during verification.", ephemeral: true });
@@ -622,7 +688,7 @@ module.exports = {
 
         if (!isVerifyCommand) {
             await message.delete().catch(() => {});
-            const warning = await message.channel.send(`Hey ${message.author}, please type \`!verify\` here.`).catch(() => null);
+            const warning = await message.channel.send(t(settings.language, 'verify.type_verify_warning', { user: message.author.toString() })).catch(() => null);
             if (warning) setTimeout(() => warning.delete().catch(() => {}), 5000);
             return;
         }
@@ -635,7 +701,7 @@ module.exports = {
             // re-process anything.
             if (settings.member_role_id && member.roles.cache.has(settings.member_role_id)) {
                 await message.delete().catch(() => {});
-                const already = await message.channel.send(`✅ ${member}, you're already verified!`).catch(() => null);
+                const already = await message.channel.send(t(settings.language, 'verify.already_verified', {}) + ` ${member}`).catch(() => null);
                 if (already) setTimeout(() => already.delete().catch(() => {}), 5000);
                 return;
             }
@@ -649,8 +715,8 @@ module.exports = {
 
             const confirmation = await message.channel.send(
                 fullyVerified
-                    ? `✅ ${member} is verified! Welcome to the server.`
-                    : `✅ ${member}, step 2 complete. Head to <#${settings.rules_channel_id}> and click **I Agree** to finish.`
+                    ? t(settings.language, 'verify.welcome', { user: member.toString() })
+                    : t(settings.language, 'verify.step2_done_wait_step1', { user: member.toString(), rulesChannel: `<#${settings.rules_channel_id}>` })
             ).catch(() => null);
             if (confirmation) setTimeout(() => confirmation.delete().catch(() => {}), 8000);
         } catch (error) {

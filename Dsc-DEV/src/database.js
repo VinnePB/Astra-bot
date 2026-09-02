@@ -93,6 +93,31 @@ pool.connect()
                 );
             `);
 
+            // NEW: "Ask Me About" text (the positive counterpart to
+            // won't-do), and the private per-artist setup channel this
+            // artist has been given (if any).
+            await client.query(`
+                ALTER TABLE artists
+                ADD COLUMN IF NOT EXISTS askme_text TEXT,
+                ADD COLUMN IF NOT EXISTS setup_channel_id VARCHAR(30);
+            `);
+
+            // NEW: per-server language, used by i18n.js for member-facing
+            // bot messages. Defaults to English; /config language switches
+            // a server to Portuguese (Brazil).
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en';
+            `);
+
+            // NEW: category for artists' private setup channels, and a
+            // toggle for join/leave logging (shared log_channel_id).
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS artist_setup_category_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS joinleave_log_enabled BOOLEAN DEFAULT TRUE;
+            `);
+
             // Per-artist pricing sheet: one row per category (Headshot, Bust,
             // Full Body, etc.) with a free-text price value.
             await client.query(`
@@ -108,7 +133,8 @@ pool.connect()
 
             // Tracks open ticket channels so /close can verify who's allowed
             // to close it, and so the ticket-artist select menu knows which
-            // channel belongs to whom.
+            // channel belongs to whom. Also used to block a user from
+            // opening a second ticket while one is already open.
             await client.query(`
                 CREATE TABLE IF NOT EXISTS tickets (
                     channel_id VARCHAR(30) PRIMARY KEY,

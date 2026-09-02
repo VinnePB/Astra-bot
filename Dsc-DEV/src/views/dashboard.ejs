@@ -84,6 +84,14 @@
                         Save Verification
                     </button>
                 </form>
+
+                <form action="/api/send-verification-panel" method="POST" class="mt-3">
+                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                    <button type="submit" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2">
+                        📨 Post / Update Panel in Discord
+                    </button>
+                    <p class="text-xs text-slate-600 mt-2 text-center">Save first, then click this to actually send the button message(s) to your channels.</p>
+                </form>
             </div>
 
             <!-- ANTI-SCAM -->

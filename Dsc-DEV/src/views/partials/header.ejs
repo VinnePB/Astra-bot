@@ -3,14 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Astra Security</title>
+    <title><%= typeof pageTitle !== 'undefined' ? pageTitle : 'Astra' %></title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
+<body class="bg-slate-950 text-slate-100 min-h-screen relative">
+
+    <!-- Soft background glow — purely decorative, sits behind everything -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div class="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-indigo-600/20 rounded-full blur-[100px]"></div>
+        <div class="absolute top-1/2 -right-32 w-[26rem] h-[26rem] bg-purple-600/15 rounded-full blur-[100px]"></div>
+        <div class="absolute -bottom-32 left-1/3 w-[24rem] h-[24rem] bg-pink-600/10 rounded-full blur-[100px]"></div>
+    </div>
 
     <!-- Mobile top bar — only visible below md breakpoint -->
     <div class="md:hidden flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/95 backdrop-blur sticky top-0 z-40">
-        <span class="text-lg font-bold text-indigo-400">ASTRA<span class="text-white">SECURITY</span></span>
+        <span class="text-lg font-bold text-indigo-400 flex items-center gap-1.5">🛡️ ASTRA</span>
         <button id="astra-menu-toggle" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-white active:scale-95 transition" aria-label="Open menu">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -23,10 +35,10 @@
 
     <div class="flex min-h-screen">
         <aside id="astra-sidebar"
-            class="fixed md:static top-0 left-0 h-full w-72 md:w-64 border-r border-slate-800 p-6 bg-slate-950 z-50
+            class="fixed md:static top-0 left-0 h-full w-72 md:w-64 border-r border-slate-800 p-6 bg-slate-950/80 md:bg-slate-950/60 backdrop-blur-xl z-50
                    transform -translate-x-full md:translate-x-0 transition-transform duration-200 ease-out overflow-y-auto">
             <div class="flex items-center justify-between mb-8">
-                <span class="text-xl font-bold text-indigo-400 hidden md:inline">ASTRA<span class="text-white">SECURITY</span></span>
+                <span class="text-xl font-bold text-indigo-400 hidden md:flex items-center gap-1.5">🛡️ ASTRA</span>
                 <span class="text-xl font-bold text-indigo-400 md:hidden">Menu</span>
                 <button id="astra-menu-close" class="md:hidden text-slate-500 hover:text-white text-xl leading-none px-2" aria-label="Close menu">✕</button>
             </div>
@@ -34,11 +46,14 @@
                 <a href="/onboarding" class="flex items-center gap-2 py-2.5 px-4 rounded-lg text-slate-400 hover:bg-slate-900 hover:text-white transition">
                     <span>🚀</span> Get Started
                 </a>
-                <a href="/dashboard" class="flex items-center gap-2 py-2.5 px-4 rounded-lg bg-slate-900 border border-slate-800 hover:border-indigo-500/50 transition text-white">
+                <a href="/dashboard" class="flex items-center gap-2 py-2.5 px-4 rounded-lg bg-gradient-to-r from-indigo-600/20 to-transparent border border-indigo-500/30 hover:border-indigo-500/50 transition text-white">
                     <span>⚙️</span> Configuration
                 </a>
                 <a href="/tickets" class="flex items-center gap-2 py-2.5 px-4 rounded-lg text-slate-400 hover:bg-slate-900 hover:text-white transition">
                     <span>🎫</span> Tickets
+                </a>
+                <a href="/select-server" class="flex items-center gap-2 py-2.5 px-4 rounded-lg text-slate-400 hover:bg-slate-900 hover:text-white transition">
+                    <span>🔄</span> Switch Server
                 </a>
                 <a href="/logout" class="flex items-center gap-2 py-2.5 px-4 rounded-lg text-slate-500 hover:text-white hover:bg-slate-900 transition mt-8">
                     <span>↩️</span> Logout

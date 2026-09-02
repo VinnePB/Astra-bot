@@ -1,0 +1,38 @@
+{
+  "verify.already_verified": "✅ Você já está verificado — não há mais nada a fazer!",
+  "verify.rules_step_prompt": "Etapa 1 concluída. Agora vá até o canal de verificação.",
+  "verify.type_verify_warning": "Ei {user}, por favor digite `!verify` aqui.",
+  "verify.welcome": "✅ {user} está verificado! Bem-vindo(a) ao servidor.",
+  "verify.step2_done_wait_step1": "✅ {user}, etapa 2 concluída. Vá até {rulesChannel} e clique em **Concordo** para finalizar.",
+  "verify.you_are_verified": "✅ Você está verificado(a)! Aproveite o servidor.",
+  "verify.go_to_verify_channel": "✅ Regras aceitas. Agora vá até {channel} para finalizar a verificação.",
+  "verify.go_to_rules_channel": "✅ Etapa concluída. Agora vá até {channel} e clique em **Concordo** para finalizar a verificação.",
+
+  "tickets.choose_artist": "Com qual artista você gostaria de abrir um ticket?",
+  "tickets.no_artists": "Nenhum artista está aceitando tickets no momento — volte mais tarde.",
+  "tickets.already_open": "❌ Você já tem um ticket aberto: {channel}. Use esse ou feche-o antes de abrir outro.",
+  "tickets.opening": "Abrindo seu ticket com {artist}...",
+  "tickets.welcome": "{user} — bem-vindo(a)! {artist} vai te atender em breve.",
+  "tickets.closing": "🔒 Fechando este ticket em 5 segundos...",
+
+  "help.title": "🤖 Astra — Comandos",
+  "help.everyone": "Todos",
+  "help.artists": "Artistas",
+  "help.admins": "Admins da Astra",
+  "help.superadmins": "Administradores do Servidor",
+
+  "site.nav.get_started": "Começar",
+  "site.nav.configuration": "Configuração",
+  "site.nav.tickets": "Tickets",
+  "site.nav.logout": "Sair",
+  "site.home.title": "Astra",
+  "site.home.subtitle": "Segurança de servidor & comissões, resolvidas.",
+  "site.home.tagline": "Verificação, proteção anti-golpe e um sistema completo de tickets de comissão para seu servidor Discord — configurável pelo Discord ou por aqui, na web.",
+  "site.home.login_button": "Entrar com Discord",
+  "site.home.feature_verification": "Verificação",
+  "site.home.feature_antiscam": "Anti-Golpe",
+  "site.home.feature_tickets": "Tickets",
+  "site.home.greeting": "Olá, {username}",
+  "site.home.go_to_dashboard": "Painel",
+  "site.home.logout": "Sair"
+}

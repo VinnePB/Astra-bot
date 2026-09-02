@@ -1,0 +1,38 @@
+{
+  "verify.already_verified": "✅ You're already verified — nothing more to do!",
+  "verify.rules_step_prompt": "Step 1 complete. Head to the verify channel next.",
+  "verify.type_verify_warning": "Hey {user}, please type `!verify` here.",
+  "verify.welcome": "✅ {user} is verified! Welcome to the server.",
+  "verify.step2_done_wait_step1": "✅ {user}, step 2 complete. Head to {rulesChannel} and click **I Agree** to finish.",
+  "verify.you_are_verified": "✅ You're verified! Enjoy the server.",
+  "verify.go_to_verify_channel": "✅ Rules accepted. Now head to {channel} to finish verifying.",
+  "verify.go_to_rules_channel": "✅ Step complete. Now head to {channel} and click **I Agree** to finish verifying.",
+
+  "tickets.choose_artist": "Who would you like to open a ticket with?",
+  "tickets.no_artists": "No artists are currently taking tickets — check back later.",
+  "tickets.already_open": "❌ You already have an open ticket: {channel}. Please use that one or close it before opening another.",
+  "tickets.opening": "Opening your ticket with {artist}...",
+  "tickets.welcome": "{user} — welcome! {artist} will be with you shortly.",
+  "tickets.closing": "🔒 Closing this ticket in 5 seconds...",
+
+  "help.title": "🤖 Astra — Commands",
+  "help.everyone": "Everyone",
+  "help.artists": "Artists",
+  "help.admins": "Astra Admins",
+  "help.superadmins": "Server Administrators",
+
+  "site.nav.get_started": "Get Started",
+  "site.nav.configuration": "Configuration",
+  "site.nav.tickets": "Tickets",
+  "site.nav.logout": "Logout",
+  "site.home.title": "Astra",
+  "site.home.subtitle": "Server security & commissions, handled.",
+  "site.home.tagline": "Verification, anti-scam protection, and a full commission ticket system for your Discord server — configurable from Discord or right here on the web.",
+  "site.home.login_button": "Login with Discord",
+  "site.home.feature_verification": "Verification",
+  "site.home.feature_antiscam": "Anti-Scam",
+  "site.home.feature_tickets": "Tickets",
+  "site.home.greeting": "Hello, {username}",
+  "site.home.go_to_dashboard": "Dashboard",
+  "site.home.logout": "Logout"
+}
