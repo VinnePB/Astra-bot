@@ -1,4 +1,8 @@
-# Astra ( a Discord BOT )
+# PROJECKT V
+## ASTRA
+
+{DISCORD_BOT}
+
 #  — Changelog —
 
 ---
@@ -100,3 +104,6 @@
 - Added bilingual support: **English** (default) and **Português (Brasil)**, configurable per server via `/config language`, plus a language toggle on the website
 - Rebuilt the homepage: it detects if I'm logged in, shows a "Hello, [name]" menu with quick Dashboard/Logout access, or a Login button if not
 - Added join/leave logging and a live member count on the dashboard
+
+{UPCOMING UPDATE, SOON}
+- REVAMPED SITE AND OPTIMIZED FUNCTIONS AND ADDED CLEARER INSTRUCTIONS ON HOW TO USE OF ASTRA'S TOOLS
