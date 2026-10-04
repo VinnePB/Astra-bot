@@ -8,6 +8,14 @@
   "verify.go_to_verify_channel": "✅ Rules accepted. Now head to {channel} to finish verifying.",
   "verify.go_to_rules_channel": "✅ Step complete. Now head to {channel} and click **I Agree** to finish verifying.",
 
+  "panel.rules_title": "📜 Rules Acknowledgement",
+  "panel.rules_description": "By clicking below, you confirm you've read and agree to follow the rules above.",
+  "panel.i_agree": "I Agree",
+  "panel.verify_button": "Verify",
+  "panel.step1_footer": "Astra — Step 1 of 2",
+  "panel.step2_footer": "Astra — Step 2 of 2",
+  "panel.step2_instructions": "Type `!verify` in this channel to complete step 2. Anything else you type here will be removed.",
+
   "tickets.choose_artist": "Who would you like to open a ticket with?",
   "tickets.no_artists": "No artists are currently taking tickets — check back later.",
   "tickets.already_open": "❌ You already have an open ticket: {channel}. Please use that one or close it before opening another.",
@@ -20,6 +28,23 @@
   "help.artists": "Artists",
   "help.admins": "Astra Admins",
   "help.superadmins": "Server Administrators",
+
+  "about.description": "Astra handles three things for your server: **verification** (keep bots and randoms out until they prove they're real), **anti-scam protection** (catch brand-new throwaway accounts on join), and a **commission ticket system** (private channels between clients and artists, with custom terms and pricing). Everything's configurable from Discord or the web dashboard — new here? Try `/quickstart`.",
+  "about.footer": "Made with care — run /quickstart to get set up, or /help for the full command list.",
+
+  "quickstart.title": "🚀 Astra — Quickstart",
+  "quickstart.intro": "A few minutes of setup and you're done. Run these roughly in order:",
+  "quickstart.step1_title": "1️⃣ Check Astra's permissions",
+  "quickstart.step1_desc": "In Server Settings → Roles, make sure Astra's role sits **above** any role she'll need to assign, and that she has Manage Roles, Manage Channels, Manage Messages, and Kick Members.",
+  "quickstart.step2_title": "2️⃣ Create your roles",
+  "quickstart.step2_desc": "Make at least one \"verified member\" role. Want a two-step gate (agree to rules, then verify)? Make two more: one for \"rules accepted\" and one for \"verified\".",
+  "quickstart.step3_title": "3️⃣ Set up verification",
+  "quickstart.step3_desc": "Run `/config verification` and fill in your channels and roles — or do the same thing visually from the web dashboard.",
+  "quickstart.step4_title": "4️⃣ (Optional) Set up tickets",
+  "quickstart.step4_desc": "Run `/config tickets`, then `/artist add` for each artist taking commissions. They can customize their own panel with `/panel`.",
+  "quickstart.step5_title": "5️⃣ Prefer clicking over typing?",
+  "quickstart.step5_desc": "Everything above can also be done from Astra's web dashboard — log in, pick this server, and the same settings are right there.",
+  "quickstart.footer": "Run /help anytime to see every command.",
 
   "site.nav.get_started": "Get Started",
   "site.nav.configuration": "Configuration",

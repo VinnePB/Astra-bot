@@ -97,6 +97,19 @@ const checkAuth = async (req, res, next) => {
     next();
 };
 
+// NEW: lets settings forms auto-save on change (via fetch, marked with this
+// header client-side) instead of requiring a separate "click Save to
+// confirm" step, while still working as a normal full-page form submit if
+// JS is off. Only used for pure settings routes — anything that also
+// triggers a real Discord side effect (posting a panel message, creating a
+// channel) stays a deliberate, explicit button click instead.
+function respondSaved(req, res, redirectPath) {
+    if (req.get('X-Requested-With') === 'fetch') {
+        return res.json({ ok: true });
+    }
+    res.redirect(redirectPath);
+}
+
 // --- ROUTES ---
 
 app.get('/', (req, res) => {
@@ -231,7 +244,7 @@ app.get('/onboarding', checkAuth, async (req, res) => {
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId };
-        res.render('onboarding', { user: req.session.user, settings, pageTitle: 'Astra — Get Started' });
+        res.render('onboarding', { user: req.session.user, settings, t: (key, vars) => t(settings.language || 'en', key, vars), pageTitle: 'Astra — Get Started' });
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -268,6 +281,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
 
         res.render('dashboard', {
             user: req.session.user, settings, channels, roles, adminRoles, artistCount, memberCount,
+            t: (key, vars) => t(settings.language || 'en', key, vars),
             success: req.query.status === 'success', pageTitle: 'Astra — Dashboard'
         });
     } catch (err) { res.status(500).send("DB Error."); }
@@ -286,7 +300,29 @@ app.post('/api/update-verification', checkAuth, async (req, res) => {
                 verify_role_id = NULLIF($5, ''), member_role_id = $6, log_channel_id = NULLIF($7, ''),
                 joinleave_log_enabled = $8
         `, [guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled === 'on']);
-        res.redirect('/dashboard?status=success');
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated verification settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/update-language', checkAuth, async (req, res) => {
+    const { guild_id, language } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const lang = normalizeLanguage(language);
+    try {
+        await db.query(
+            `INSERT INTO guild_settings (guild_id, language) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET language = $2`,
+            [guild_id, lang]
+        );
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `🌐 ${req.session.user.username} changed Astra's language to ${lang === 'pt-br' ? 'Português (Brasil)' : 'English'} from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -327,7 +363,11 @@ app.post('/api/update-antiscam', checkAuth, async (req, res) => {
             ON CONFLICT (guild_id) DO UPDATE SET
                 antiscam_enabled = $2, antiscam_action = $3, antiscam_min_age_hours = $4, antiscam_require_no_avatar = $5
         `, [guild_id, antiscam_enabled === 'on', antiscam_action || 'log', parseInt(antiscam_min_age_hours, 10) || 24, antiscam_require_no_avatar === 'on']);
-        res.redirect('/dashboard?status=success');
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated anti-scam settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -341,7 +381,11 @@ app.post('/api/update-autokick', checkAuth, async (req, res) => {
             VALUES ($1, $2, $3)
             ON CONFLICT (guild_id) DO UPDATE SET auto_kick_enabled = $2, auto_kick_days = $3
         `, [guild_id, auto_kick_enabled === 'on', parseInt(auto_kick_days, 10) || 2]);
-        res.redirect('/dashboard?status=success');
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated auto-kick settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -413,6 +457,7 @@ app.get('/tickets', checkAuth, async (req, res) => {
         res.render('tickets', {
             user: req.session.user, settings, channels, categories,
             artists: artistDetails, editingArtist,
+            t: (key, vars) => t(settings.language || 'en', key, vars),
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
             success: req.query.status === 'success', pageTitle: 'Astra — Tickets'
         });
@@ -435,7 +480,11 @@ app.post('/api/tickets/config', checkAuth, async (req, res) => {
                 log_channel_id = COALESCE(NULLIF($4, ''), guild_settings.log_channel_id),
                 artist_setup_category_id = NULLIF($5, '')
         `, [guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id]);
-        res.redirect('/tickets?status=success');
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated ticket settings from the website.`);
+
+        respondSaved(req, res, '/tickets?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -558,8 +607,11 @@ client.once('ready', async () => {
         const commands = [
             configCommand.data.toJSON(),
             helpCommand.data.toJSON(),
+            helpCommand.aboutData.toJSON(),
+            helpCommand.quickstartData.toJSON(),
             ticketsCommand.artistData.toJSON(),
-            ticketsCommand.panelData.toJSON()
+            ticketsCommand.panelData.toJSON(),
+            ticketsCommand.ticketsOverviewData.toJSON()
         ];
 
         for (const [guildId, guild] of client.guilds.cache) {
@@ -579,6 +631,19 @@ client.once('ready', async () => {
     }
 
     console.log(`🚀 Astra online.`);
+});
+
+// NEW: cleans up the tickets table the moment a ticket channel is deleted
+// directly (dragged to trash, cleaned up by hand) instead of via the Close
+// Ticket button — without this, that user would appear to have a
+// permanently "open" ticket and get blocked from opening a new one.
+client.on('channelDelete', async (channel) => {
+    if (!channel.guild) return;
+    try {
+        await db.query('DELETE FROM tickets WHERE channel_id = $1', [channel.id]);
+    } catch (err) {
+        console.error('❌ Error cleaning up ticket row on channel delete:', err);
+    }
 });
 
 // NEW: nudges brand-new members toward the rules/verify channel right away.
@@ -643,10 +708,16 @@ client.on('interactionCreate', async (interaction) => {
             await configCommand.executeSlash(interaction);
         } else if (interaction.commandName === 'help') {
             await helpCommand.executeSlash(interaction);
+        } else if (interaction.commandName === 'about') {
+            await helpCommand.executeSlashAbout(interaction);
+        } else if (interaction.commandName === 'quickstart') {
+            await helpCommand.executeSlashQuickstart(interaction);
         } else if (interaction.commandName === 'artist') {
             await ticketsCommand.executeSlashArtist(interaction);
         } else if (interaction.commandName === 'panel') {
             await ticketsCommand.executeSlashPanel(interaction);
+        } else if (interaction.commandName === 'tickets') {
+            await ticketsCommand.executeSlashTicketsOverview(interaction);
         }
     } else if (interaction.isButton()) {
         if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {

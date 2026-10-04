@@ -8,6 +8,14 @@
   "verify.go_to_verify_channel": "✅ Regras aceitas. Agora vá até {channel} para finalizar a verificação.",
   "verify.go_to_rules_channel": "✅ Etapa concluída. Agora vá até {channel} e clique em **Concordo** para finalizar a verificação.",
 
+  "panel.rules_title": "📜 Confirmação das Regras",
+  "panel.rules_description": "Ao clicar abaixo, você confirma que leu e concorda em seguir as regras acima.",
+  "panel.i_agree": "Concordo",
+  "panel.verify_button": "Verificar",
+  "panel.step1_footer": "Astra — Etapa 1 de 2",
+  "panel.step2_footer": "Astra — Etapa 2 de 2",
+  "panel.step2_instructions": "Digite `!verify` neste canal para completar a etapa 2. Qualquer outra coisa que você digitar aqui será removida.",
+
   "tickets.choose_artist": "Com qual artista você gostaria de abrir um ticket?",
   "tickets.no_artists": "Nenhum artista está aceitando tickets no momento — volte mais tarde.",
   "tickets.already_open": "❌ Você já tem um ticket aberto: {channel}. Use esse ou feche-o antes de abrir outro.",
@@ -20,6 +28,23 @@
   "help.artists": "Artistas",
   "help.admins": "Admins da Astra",
   "help.superadmins": "Administradores do Servidor",
+
+  "about.description": "A Astra cuida de três coisas no seu servidor: **verificação** (mantém bots e desconhecidos fora até provarem que são reais), **proteção anti-golpe** (detecta contas novas e descartáveis ao entrar) e um **sistema de tickets de comissão** (canais privados entre clientes e artistas, com termos e preços personalizados). Tudo é configurável pelo Discord ou pelo painel web — novo por aqui? Experimente `/quickstart`.",
+  "about.footer": "Feita com carinho — use /quickstart para configurar, ou /help para ver todos os comandos.",
+
+  "quickstart.title": "🚀 Astra — Início Rápido",
+  "quickstart.intro": "Alguns minutos de configuração e pronto. Siga mais ou menos nesta ordem:",
+  "quickstart.step1_title": "1️⃣ Confira as permissões da Astra",
+  "quickstart.step1_desc": "Em Configurações do Servidor → Cargos, garanta que o cargo da Astra fique **acima** de qualquer cargo que ela vá atribuir, e que ela tenha Gerenciar Cargos, Gerenciar Canais, Gerenciar Mensagens e Expulsar Membros.",
+  "quickstart.step2_title": "2️⃣ Crie seus cargos",
+  "quickstart.step2_desc": "Crie pelo menos um cargo de \"membro verificado\". Quer um sistema de duas etapas (aceitar regras, depois verificar)? Crie mais dois: um para \"regras aceitas\" e outro para \"verificado\".",
+  "quickstart.step3_title": "3️⃣ Configure a verificação",
+  "quickstart.step3_desc": "Use `/config verification` e preencha seus canais e cargos — ou faça o mesmo visualmente pelo painel web.",
+  "quickstart.step4_title": "4️⃣ (Opcional) Configure os tickets",
+  "quickstart.step4_desc": "Use `/config tickets` e depois `/artist add` para cada artista que for atender comissões. Cada um pode personalizar seu próprio painel com `/panel`.",
+  "quickstart.step5_title": "5️⃣ Prefere clicar em vez de digitar?",
+  "quickstart.step5_desc": "Tudo acima também pode ser feito pelo painel web da Astra — faça login, escolha este servidor e as mesmas configurações estarão lá.",
+  "quickstart.footer": "Use /help a qualquer momento para ver todos os comandos.",
 
   "site.nav.get_started": "Começar",
   "site.nav.configuration": "Configuração",

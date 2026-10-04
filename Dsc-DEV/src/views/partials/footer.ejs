@@ -1,4 +1,4 @@
-</main>
+        </main>
     </div>
 
     <script>
@@ -23,6 +23,62 @@
             toggle && toggle.addEventListener('click', openMenu);
             closeBtn && closeBtn.addEventListener('click', closeMenu);
             overlay.addEventListener('click', closeMenu);
+        })();
+    </script>
+
+    <script>
+        // NEW: auto-save for settings forms. Any <form data-autosave> submits
+        // itself via fetch the instant a select/checkbox/radio inside it
+        // changes — no separate "click Save to confirm" step. Text/number
+        // inputs auto-save too, but debounced, so it doesn't fire on every
+        // keystroke. Falls back to a normal full-page submit if JS is
+        // disabled, since the form's action/method still work as plain HTML.
+        //
+        // Deliberately NOT applied to forms that trigger a real Discord side
+        // effect (posting a panel message, creating/deleting something) —
+        // those keep their explicit button so a settings tweak can never
+        // accidentally re-trigger an action with visible side effects.
+        (function () {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-5 right-5 bg-emerald-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-2xl z-50 opacity-0 pointer-events-none transition-opacity duration-200';
+            toast.textContent = '✓ Saved';
+            document.body.appendChild(toast);
+
+            let toastTimer;
+            function showSaved() {
+                toast.style.opacity = '1';
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 1500);
+            }
+
+            async function autosave(form) {
+                try {
+                    const res = await fetch(form.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'fetch' },
+                        body: new FormData(form)
+                    });
+                    if (res.ok) showSaved();
+                } catch (err) {
+                    console.error('Autosave failed:', err);
+                }
+            }
+
+            document.querySelectorAll('form[data-autosave]').forEach((form) => {
+                form.addEventListener('change', (e) => {
+                    if (e.target.matches('select, input[type="checkbox"], input[type="radio"]')) {
+                        autosave(form);
+                    }
+                });
+
+                let debounceTimer;
+                form.addEventListener('input', (e) => {
+                    if (e.target.matches('input[type="text"], input[type="number"]')) {
+                        clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(() => autosave(form), 800);
+                    }
+                });
+            });
         })();
     </script>
 </body>
