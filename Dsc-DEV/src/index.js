@@ -119,7 +119,7 @@ app.get('/', (req, res) => {
         t: (key, vars) => t(lang, key, vars),
         loggedIn: !!(req.session.user && req.session.token),
         user: req.session.user || null,
-        pageTitle: 'Astra'
+        pageTitle: 'Projeckt V: Astra'
     });
 });
 
@@ -244,7 +244,7 @@ app.get('/onboarding', checkAuth, async (req, res) => {
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId };
-        res.render('onboarding', { user: req.session.user, settings, t: (key, vars) => t(settings.language || 'en', key, vars), pageTitle: 'Astra — Get Started' });
+        res.render('onboarding', { user: req.session.user, settings, t: (key, vars) => t(settings.language || 'en', key, vars), pageTitle: 'Projeckt V: Astra — Get Started' });
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -282,7 +282,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         res.render('dashboard', {
             user: req.session.user, settings, channels, roles, adminRoles, artistCount, memberCount,
             t: (key, vars) => t(settings.language || 'en', key, vars),
-            success: req.query.status === 'success', pageTitle: 'Astra — Dashboard'
+            success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Dashboard'
         });
     } catch (err) { res.status(500).send("DB Error."); }
 });
@@ -459,7 +459,7 @@ app.get('/tickets', checkAuth, async (req, res) => {
             artists: artistDetails, editingArtist,
             t: (key, vars) => t(settings.language || 'en', key, vars),
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
-            success: req.query.status === 'success', pageTitle: 'Astra — Tickets'
+            success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Tickets'
         });
     } catch (err) {
         console.error(err);

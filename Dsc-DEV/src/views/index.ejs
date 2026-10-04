@@ -3,54 +3,98 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Astra</title>
+    <title>Projeckt V: Astra</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f111a; color: #ffffff; }
-        .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        :root {
+            --fui-cyan: #22e5ff;
+            --fui-line: rgba(34, 229, 255, 0.28);
+        }
+        body { font-family: 'Rajdhani', sans-serif; background-color: #05070a; color: #e8fbff; }
+        .fui-brand { font-family: 'Orbitron', sans-serif; letter-spacing: 0.08em; }
+        .fui-tracked { letter-spacing: 0.14em; }
+
+        .fui-panel {
+            background: linear-gradient(160deg, rgba(10,15,22,0.9), rgba(5,7,10,0.95));
+            border: 1px solid var(--fui-line);
+            clip-path: polygon(0 16px, 16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+            position: relative;
+        }
+        .fui-corners::before, .fui-corners::after {
+            content: ''; position: absolute; width: 16px; height: 16px;
+            border-color: var(--fui-cyan); pointer-events: none; opacity: 0.85;
+        }
+        .fui-corners::before { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+        .fui-corners::after { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
+
+        .fui-btn {
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+            border: 1px solid var(--fui-line);
+            transition: all 0.15s ease;
+        }
+        .fui-btn:hover { border-color: var(--fui-cyan); box-shadow: 0 0 20px -2px rgba(34,229,255,0.55), inset 0 0 14px -4px rgba(34,229,255,0.3); }
+        .fui-btn-solid { background: rgba(34,229,255,0.1); border-color: var(--fui-cyan); color: var(--fui-cyan); }
+        .fui-btn-solid:hover { background: rgba(34,229,255,0.18); }
+
+        .fui-grid-bg {
+            background-image:
+                linear-gradient(rgba(34,229,255,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34,229,255,0.04) 1px, transparent 1px);
+            background-size: 42px 42px;
+        }
+        .fui-scanline {
+            position: fixed; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(34,229,255,0.5), transparent);
+            animation: fui-sweep 9s linear infinite; pointer-events: none; z-index: 0;
+        }
+        @keyframes fui-sweep { 0% { top: 0%; } 100% { top: 100%; } }
     </style>
 </head>
 <body class="min-h-screen antialiased relative overflow-x-hidden">
 
-    <!-- Soft background glow -->
-    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div class="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-indigo-600/25 rounded-full blur-[110px]"></div>
-        <div class="absolute top-1/2 -right-32 w-[26rem] h-[26rem] bg-purple-600/20 rounded-full blur-[110px]"></div>
-        <div class="absolute -bottom-32 left-1/3 w-[24rem] h-[24rem] bg-pink-600/15 rounded-full blur-[110px]"></div>
+    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10 fui-grid-bg">
+        <div class="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-cyan-500/10 rounded-full blur-[120px]"></div>
+        <div class="absolute top-1/2 -right-32 w-[26rem] h-[26rem] bg-fuchsia-600/10 rounded-full blur-[120px]"></div>
+        <div class="absolute -bottom-32 left-1/3 w-[24rem] h-[24rem] bg-cyan-500/5 rounded-full blur-[120px]"></div>
     </div>
+    <div class="fui-scanline"></div>
 
     <!-- TOP BAR -->
-    <div class="flex items-center justify-between px-5 sm:px-8 py-5 max-w-6xl mx-auto">
-        <span class="text-lg font-bold text-indigo-400 flex items-center gap-1.5">🛡️ ASTRA</span>
+    <div class="flex items-center justify-between px-5 sm:px-8 py-5 max-w-6xl mx-auto relative z-10">
+        <div class="leading-none">
+            <div class="fui-brand text-base sm:text-lg font-extrabold text-cyan-300 fui-tracked">PROJECKT V</div>
+            <div class="fui-tracked text-[10px] text-slate-500">: ASTRA</div>
+        </div>
 
         <div class="flex items-center gap-4">
-            <!-- Language toggle -->
-            <div class="flex items-center gap-1 text-xs bg-white/5 border border-white/10 rounded-full p-1">
-                <a href="/lang/en" class="px-2.5 py-1 rounded-full transition <%= lang === 'en' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white' %>">EN</a>
-                <a href="/lang/pt-br" class="px-2.5 py-1 rounded-full transition <%= lang === 'pt-br' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white' %>">PT-BR</a>
+            <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">
+                <a href="/lang/en" class="px-2.5 py-1 transition fui-tracked <%= lang === 'en' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-cyan-300' %>">EN</a>
+                <a href="/lang/pt-br" class="px-2.5 py-1 transition fui-tracked <%= lang === 'pt-br' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-cyan-300' %>">PT-BR</a>
             </div>
 
             <% if (loggedIn) { %>
-                <!-- Logged-in: "Hello [name]" with click-to-open dropdown -->
                 <div class="relative">
-                    <button id="astra-user-menu-btn" class="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full pl-1.5 pr-3 py-1.5 transition">
+                    <button id="astra-user-menu-btn" class="flex items-center gap-2 bg-white/5 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-400/50 pl-1.5 pr-3 py-1.5 transition">
                         <% if (user.avatar) { %>
                             <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png" class="w-6 h-6 rounded-full" alt="">
                         <% } else { %>
-                            <div class="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold"><%= user.username.charAt(0).toUpperCase() %></div>
+                            <div class="w-6 h-6 bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-xs font-bold text-cyan-300"><%= user.username.charAt(0).toUpperCase() %></div>
                         <% } %>
-                        <span class="text-sm font-medium text-white hidden sm:inline"><%= t('site.home.greeting', { username: user.username }) %></span>
-                        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <span class="text-sm font-medium text-slate-200 hidden sm:inline"><%= t('site.home.greeting', { username: user.username }) %></span>
+                        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                     </button>
-                    <div id="astra-user-menu" class="hidden absolute right-0 mt-2 w-44 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50">
-                        <a href="/select-server" class="block px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition">📋 <%= t('site.home.go_to_dashboard') %></a>
-                        <a href="/logout" class="block px-4 py-2.5 text-sm text-red-400 hover:bg-slate-800 transition">↩️ <%= t('site.home.logout') %></a>
+                    <div id="astra-user-menu" class="hidden absolute right-0 mt-2 w-44 bg-black border border-cyan-500/25 shadow-[0_0_24px_-6px_rgba(34,229,255,0.4)] overflow-hidden z-50">
+                        <a href="/select-server" class="block px-4 py-2.5 text-sm text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-300 transition fui-tracked uppercase text-xs"><%= t('site.home.go_to_dashboard') %></a>
+                        <a href="/logout" class="block px-4 py-2.5 text-sm text-fuchsia-400 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs"><%= t('site.home.logout') %></a>
                     </div>
                 </div>
             <% } else { %>
-                <a href="/login" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold py-2 px-4 rounded-full transition shadow-lg shadow-indigo-500/20">
+                <a href="/login" class="fui-btn fui-btn-solid text-sm font-semibold py-2 px-4">
                     <%= t('site.home.login_button') %>
                 </a>
             <% } %>
@@ -58,41 +102,42 @@
     </div>
 
     <!-- HERO -->
-    <div class="max-w-3xl mx-auto px-5 sm:px-8 pt-10 pb-20 text-center">
-        <div class="mb-4 text-4xl">🛡️</div>
-        <h1 class="text-4xl sm:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 tracking-tight mb-4">
-            <%= t('site.home.title') %>
+    <div class="max-w-3xl mx-auto px-5 sm:px-8 pt-14 pb-20 text-center relative z-10">
+        <div class="fui-tracked text-xs text-cyan-500/70 mb-5">// SERVER SECURITY &amp; COMMISSION SYSTEM</div>
+        <h1 class="fui-brand text-4xl sm:text-6xl font-black text-cyan-300 tracking-tight mb-2" style="text-shadow: 0 0 30px rgba(34,229,255,0.35);">
+            PROJECKT V
         </h1>
+        <div class="fui-tracked text-lg sm:text-xl text-slate-500 mb-6">: ASTRA</div>
         <p class="text-lg text-slate-300 mb-3"><%= t('site.home.subtitle') %></p>
         <p class="text-slate-400 leading-relaxed max-w-xl mx-auto mb-10"><%= t('site.home.tagline') %></p>
 
         <% if (!loggedIn) { %>
-            <a href="/login" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-8 rounded-xl transition shadow-lg shadow-indigo-500/30">
+            <a href="/login" class="fui-btn fui-btn-solid inline-flex items-center gap-2 font-semibold py-3 px-8">
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
                 <%= t('site.home.login_button') %>
             </a>
         <% } else { %>
-            <a href="/select-server" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-8 rounded-xl transition shadow-lg shadow-indigo-500/30">
-                📋 <%= t('site.home.go_to_dashboard') %>
+            <a href="/select-server" class="fui-btn fui-btn-solid inline-flex items-center gap-2 font-semibold py-3 px-8">
+                <%= t('site.home.go_to_dashboard') %>
             </a>
         <% } %>
     </div>
 
     <!-- FEATURES -->
-    <div class="max-w-4xl mx-auto px-5 sm:px-8 pb-24 grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div class="glass-panel rounded-2xl p-6 text-center">
-            <div class="text-3xl mb-3">🔐</div>
-            <h3 class="font-semibold text-white mb-1"><%= t('site.home.feature_verification') %></h3>
+    <div class="max-w-4xl mx-auto px-5 sm:px-8 pb-24 grid grid-cols-1 sm:grid-cols-3 gap-5 relative z-10">
+        <div class="fui-panel fui-corners p-6 text-center">
+            <div class="w-8 h-8 mx-auto mb-4 border-2 border-cyan-400 rotate-45"></div>
+            <h3 class="fui-tracked text-xs uppercase text-cyan-300 mb-2"><%= t('site.home.feature_verification') %></h3>
             <p class="text-sm text-slate-400">Single or two-step role gates, fully configurable per server.</p>
         </div>
-        <div class="glass-panel rounded-2xl p-6 text-center">
-            <div class="text-3xl mb-3">🕵️</div>
-            <h3 class="font-semibold text-white mb-1"><%= t('site.home.feature_antiscam') %></h3>
+        <div class="fui-panel fui-corners p-6 text-center">
+            <div class="w-8 h-8 mx-auto mb-4 border-2 border-fuchsia-400" style="clip-path: polygon(50% 0, 100% 100%, 0 100%);"></div>
+            <h3 class="fui-tracked text-xs uppercase text-cyan-300 mb-2"><%= t('site.home.feature_antiscam') %></h3>
             <p class="text-sm text-slate-400">Flags or auto-kicks brand-new, avatar-less accounts on join.</p>
         </div>
-        <div class="glass-panel rounded-2xl p-6 text-center">
-            <div class="text-3xl mb-3">🎫</div>
-            <h3 class="font-semibold text-white mb-1"><%= t('site.home.feature_tickets') %></h3>
+        <div class="fui-panel fui-corners p-6 text-center">
+            <div class="w-8 h-8 mx-auto mb-4 border-2 border-cyan-400 rounded-full"></div>
+            <h3 class="fui-tracked text-xs uppercase text-cyan-300 mb-2"><%= t('site.home.feature_tickets') %></h3>
             <p class="text-sm text-slate-400">Private commission channels per artist, with custom ToS &amp; pricing.</p>
         </div>
     </div>
