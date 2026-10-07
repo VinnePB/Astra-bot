@@ -248,6 +248,10 @@ app.get('/onboarding', checkAuth, async (req, res) => {
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
+// UNIFIED /dashboard — Verification, Anti-Scam, Auto-Kick, Tickets, Artists,
+// and Admin Roles are now tabs on this one page instead of /dashboard and
+// /tickets being two separate pages. Fetches everything every tab needs up
+// front since switching tabs is pure client-side show/hide, no reload.
 app.get('/dashboard', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
     if (!guildId) return res.redirect('/select-server');
@@ -257,7 +261,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const settings = rows[0] || { guild_id: guildId };
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
 
-        let channels = [], roles = [], memberCount = null;
+        let channels = [], categories = [], roles = [], memberCount = null;
         try {
             const [c, r, g] = await Promise.all([
                 axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
@@ -265,26 +269,51 @@ app.get('/dashboard', checkAuth, async (req, res) => {
                 axios.get(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, { headers })
             ]);
             channels = c.data.filter(ch => ch.type === 0);
+            categories = c.data.filter(ch => ch.type === 4);
             roles = r.data.filter(role => role.name !== '@everyone');
             memberCount = g.data.approximate_member_count ?? null;
         } catch (e) { console.error("Discord API fetch failed"); }
 
-        // NEW: admin roles (for the Astra Admins panel) + artist count (for
-        // the quick-stats card).
         const { rows: adminRoleRows } = await db.query('SELECT role_id FROM guild_admin_roles WHERE guild_id = $1', [guildId]);
-        const adminRoles = adminRoleRows
-            .map(r => roles.find(role => role.id === r.role_id))
-            .filter(Boolean);
+        const adminRoles = adminRoleRows.map(r => roles.find(role => role.id === r.role_id)).filter(Boolean);
 
-        const { rows: artistCountRows } = await db.query('SELECT COUNT(*) FROM artists WHERE guild_id = $1', [guildId]);
-        const artistCount = parseInt(artistCountRows[0]?.count || '0', 10);
+        const { rows: artists } = await db.query('SELECT * FROM artists WHERE guild_id = $1', [guildId]);
+        const { rows: pricingRows } = await db.query('SELECT * FROM artist_pricing WHERE guild_id = $1', [guildId]);
+        const pricingByArtist = {};
+        for (const row of pricingRows) {
+            if (!pricingByArtist[row.user_id]) pricingByArtist[row.user_id] = [];
+            pricingByArtist[row.user_id].push(row);
+        }
+        const artistDetails = await Promise.all(artists.map(async (artist) => {
+            try {
+                const u = await axios.get(`https://discord.com/api/v10/users/${artist.user_id}`, { headers });
+                return { ...artist, username: u.data.username, pricing: pricingByArtist[artist.user_id] || [] };
+            } catch (e) {
+                return { ...artist, username: `Unknown (${artist.user_id})`, pricing: pricingByArtist[artist.user_id] || [] };
+            }
+        }));
+        const artistCount = artistDetails.length;
+
+        const editingId = req.query.edit || null;
+        const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, roles, adminRoles, artistCount, memberCount,
+            user: req.session.user, settings, channels, categories, roles, adminRoles, artistCount, memberCount,
+            artists: artistDetails, editingArtist,
+            pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
             t: (key, vars) => t(settings.language || 'en', key, vars),
+            activeTab: req.query.tab || (editingArtist ? 'tickets' : 'verification'),
             success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Dashboard'
         });
-    } catch (err) { res.status(500).send("DB Error."); }
+    } catch (err) { console.error(err); res.status(500).send("DB Error."); }
+});
+
+// Old /tickets URL now redirects into the Tickets tab of the unified page,
+// so any existing links/bookmarks still land somewhere sensible.
+app.get('/tickets', checkAuth, (req, res) => {
+    const query = new URLSearchParams(req.query);
+    query.set('tab', 'tickets');
+    res.redirect(`/dashboard?${query.toString()}`);
 });
 
 app.post('/api/update-verification', checkAuth, async (req, res) => {
@@ -416,57 +445,6 @@ app.post('/api/admins/remove', checkAuth, async (req, res) => {
 // of this specific guild" check here beyond what select-server already
 // filtered on (guilds where they hold Administrator), matching the rest of
 // this dashboard's existing trust model.
-app.get('/tickets', checkAuth, async (req, res) => {
-    const guildId = req.session.selectedGuildId;
-    if (!guildId) return res.redirect('/select-server');
-
-    try {
-        const { rows: settingsRows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
-        const settings = settingsRows[0] || { guild_id: guildId };
-
-        const { rows: artists } = await db.query('SELECT * FROM artists WHERE guild_id = $1', [guildId]);
-        const { rows: pricingRows } = await db.query('SELECT * FROM artist_pricing WHERE guild_id = $1', [guildId]);
-        const pricingByArtist = {};
-        for (const row of pricingRows) {
-            if (!pricingByArtist[row.user_id]) pricingByArtist[row.user_id] = [];
-            pricingByArtist[row.user_id].push(row);
-        }
-
-        const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
-        let channels = [], categories = [];
-        try {
-            const c = await axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers });
-            channels = c.data.filter(ch => ch.type === 0);
-            categories = c.data.filter(ch => ch.type === 4);
-        } catch (e) { console.error("Discord API fetch failed"); }
-
-        // Resolve display names/avatars for each artist individually — a
-        // full member-list fetch isn't needed for a handful of artists.
-        const artistDetails = await Promise.all(artists.map(async (artist) => {
-            try {
-                const u = await axios.get(`https://discord.com/api/v10/users/${artist.user_id}`, { headers });
-                return { ...artist, username: u.data.username, pricing: pricingByArtist[artist.user_id] || [] };
-            } catch (e) {
-                return { ...artist, username: `Unknown (${artist.user_id})`, pricing: pricingByArtist[artist.user_id] || [] };
-            }
-        }));
-
-        const editingId = req.query.edit || null;
-        const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
-
-        res.render('tickets', {
-            user: req.session.user, settings, channels, categories,
-            artists: artistDetails, editingArtist,
-            t: (key, vars) => t(settings.language || 'en', key, vars),
-            pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
-            success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Tickets'
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).send("DB Error.");
-    }
-});
-
 app.post('/api/tickets/config', checkAuth, async (req, res) => {
     const { guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -484,7 +462,7 @@ app.post('/api/tickets/config', checkAuth, async (req, res) => {
         const guild = client.guilds.cache.get(guild_id);
         if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated ticket settings from the website.`);
 
-        respondSaved(req, res, '/tickets?status=success');
+        respondSaved(req, res, '/dashboard?tab=tickets&status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -500,13 +478,13 @@ app.post('/api/send-ticket-panel', checkAuth, async (req, res) => {
     try {
         const { rows } = await db.query('SELECT ticket_channel_id FROM guild_settings WHERE guild_id = $1', [guild_id]);
         const ticketChannelId = rows[0]?.ticket_channel_id;
-        if (!ticketChannelId) return res.redirect('/tickets?status=error&reason=incomplete');
+        if (!ticketChannelId) return res.redirect('/dashboard?tab=tickets&status=error&reason=incomplete');
 
         const ticketChannel = await guild.channels.fetch(ticketChannelId).catch(() => null);
         if (!ticketChannel) return res.status(400).send('Ticket channel not found — check it still exists.');
 
         await configCommand.postTicketPanel(ticketChannel);
-        res.redirect('/tickets?status=success');
+        res.redirect('/dashboard?tab=tickets&status=success');
     } catch (err) {
         console.error('❌ Error posting ticket panel from site:', err);
         res.status(500).send('Failed to post the panel — check Astra has permission to send messages in that channel.');
@@ -531,7 +509,7 @@ app.post('/api/artists/add', checkAuth, async (req, res) => {
             await ticketsCommand.ensureArtistSetupChannel(guild, user_id).catch(err => console.error('❌ Error creating setup channel from site:', err));
         }
 
-        res.redirect('/tickets?status=success');
+        res.redirect('/dashboard?tab=tickets&status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -543,7 +521,7 @@ app.post('/api/artists/create-setup-channel', checkAuth, async (req, res) => {
         const guild = client.guilds.cache.get(guild_id);
         if (!guild) return res.status(500).send('Astra isn\'t connected to that server right now.');
         await ticketsCommand.ensureArtistSetupChannel(guild, user_id);
-        res.redirect('/tickets?status=success');
+        res.redirect('/dashboard?tab=tickets&status=success');
     } catch (err) {
         console.error('❌ Error creating setup channel:', err);
         res.status(500).send('Could not create the setup channel — make sure an Artist Setup Category is configured and Astra has Manage Channels permission.');
@@ -557,7 +535,7 @@ app.post('/api/artists/remove', checkAuth, async (req, res) => {
     try {
         await db.query('DELETE FROM artists WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
         await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
-        res.redirect('/tickets?status=success');
+        res.redirect('/dashboard?tab=tickets&status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -584,7 +562,7 @@ app.post('/api/artists/panel', checkAuth, async (req, res) => {
             );
         }
 
-        res.redirect('/tickets?status=success');
+        res.redirect('/dashboard?tab=tickets&status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
 

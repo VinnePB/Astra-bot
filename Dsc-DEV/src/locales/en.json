@@ -59,5 +59,8 @@
   "site.home.feature_tickets": "Tickets",
   "site.home.greeting": "Hello, {username}",
   "site.home.go_to_dashboard": "Dashboard",
-  "site.home.logout": "Logout"
+  "site.home.logout": "Logout",
+  "site.home.feature_verification_desc": "Single or two-step role gates, fully configurable per server.",
+  "site.home.feature_antiscam_desc": "Flags or auto-kicks brand-new, avatar-less accounts on join.",
+  "site.home.feature_tickets_desc": "Private commission channels per artist, with custom ToS & pricing."
 }

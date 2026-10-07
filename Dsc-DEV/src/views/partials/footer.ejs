@@ -1,28 +1,20 @@
         </main>
-    </div>
 
     <script>
+        // Nav popup — click toggles it open/closed (the reliable baseline for
+        // every device); header.ejs's CSS also opens it on hover for devices
+        // with a real pointer. Clicking anywhere outside closes it.
         (function () {
-            const toggle = document.getElementById('astra-menu-toggle');
-            const closeBtn = document.getElementById('astra-menu-close');
-            const sidebar = document.getElementById('astra-sidebar');
-            const overlay = document.getElementById('astra-overlay');
-            if (!sidebar || !overlay) return;
+            const trigger = document.getElementById('astra-nav-trigger');
+            const popup = document.getElementById('astra-nav-popup');
+            if (!trigger || !popup) return;
 
-            function openMenu() {
-                sidebar.classList.remove('-translate-x-full');
-                overlay.classList.remove('hidden');
-                document.body.classList.add('overflow-hidden');
-            }
-            function closeMenu() {
-                sidebar.classList.add('-translate-x-full');
-                overlay.classList.add('hidden');
-                document.body.classList.remove('overflow-hidden');
-            }
-
-            toggle && toggle.addEventListener('click', openMenu);
-            closeBtn && closeBtn.addEventListener('click', closeMenu);
-            overlay.addEventListener('click', closeMenu);
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                popup.classList.toggle('open');
+            });
+            popup.addEventListener('click', (e) => e.stopPropagation());
+            document.addEventListener('click', () => popup.classList.remove('open'));
         })();
     </script>
 

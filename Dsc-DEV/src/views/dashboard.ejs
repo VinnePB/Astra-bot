@@ -2,228 +2,363 @@
 
 <div class="max-w-5xl mx-auto space-y-6 md:space-y-8">
     <div class="mb-2">
-        <h1 class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 tracking-tight">⚙️ Configuration</h1>
-        <p class="text-slate-400 mt-1 text-sm md:text-base">Manage your server's security settings and verify members.</p>
+        <h1 class="fui-brand text-2xl md:text-3xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);">CONFIGURATION</h1>
+        <p class="text-slate-400 mt-1 text-sm md:text-base">Manage your server's security settings, tickets, and access.</p>
     </div>
 
     <% if (typeof success !== 'undefined' && success) { %>
-        <div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-5 py-3 rounded-xl text-sm font-medium">
-            ✓ Settings saved successfully.
+        <div class="fui-panel fui-corners px-5 py-3 text-sm font-medium text-cyan-300">
+            // Settings saved successfully.
         </div>
     <% } %>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        <div class="lg:col-span-2 space-y-6 md:space-y-8">
+    <!-- STATS STRIP -->
+    <div class="grid grid-cols-3 gap-3 md:gap-4">
+        <div class="fui-panel fui-corners p-4 text-center">
+            <div class="flex items-center justify-center gap-2 mb-1">
+                <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
+                </span>
+                <span class="fui-tracked text-[10px] text-slate-500 uppercase">Status</span>
+            </div>
+            <p class="text-sm font-bold text-white">Active</p>
+        </div>
+        <div class="fui-panel fui-corners p-4 text-center">
+            <div class="fui-tracked text-[10px] text-slate-500 uppercase mb-1">Members</div>
+            <p class="text-lg font-black text-cyan-300"><%= memberCount !== null ? memberCount.toLocaleString() : '—' %></p>
+        </div>
+        <div class="fui-panel fui-corners p-4 text-center">
+            <div class="fui-tracked text-[10px] text-slate-500 uppercase mb-1">Artists</div>
+            <p class="text-lg font-black text-cyan-300"><%= artistCount %></p>
+        </div>
+    </div>
 
-            <!-- VERIFICATION -->
-            <div class="bg-slate-900/80 backdrop-blur p-5 md:p-8 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-xl transition-colors">
-                <h2 class="text-lg font-semibold text-white mb-1">Verification Gate</h2>
-                <p class="text-sm text-slate-500 mb-6">Set both a rules channel/role and a verify channel/role to require both before granting the final role. Leave the rules fields blank to use single-step verification instead.</p>
+    <!-- TABS -->
+    <div class="border-b border-cyan-500/15 flex overflow-x-auto">
+        <button class="fui-tab-btn" data-tab="verification">Verification</button>
+        <button class="fui-tab-btn" data-tab="antiscam">Anti-Scam</button>
+        <button class="fui-tab-btn" data-tab="autokick">Auto-Kick</button>
+        <button class="fui-tab-btn" data-tab="tickets">Tickets</button>
+        <button class="fui-tab-btn" data-tab="admins">Admin Roles</button>
+    </div>
 
-                <form action="/api/update-verification" method="POST" class="space-y-6" data-autosave>
+    <!-- VERIFICATION TAB -->
+    <div class="fui-tab-panel" data-tab-content="verification">
+        <div class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title">Verification Gate</h2>
+            <p class="text-sm text-slate-500 mb-6">Set both a rules channel/role and a verify channel/role to require both before granting the final role. Leave the rules fields blank to use single-step verification instead.</p>
+
+            <form action="/api/update-verification" method="POST" class="space-y-6" data-autosave>
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="fui-label">Rules Channel <span class="normal-case text-slate-600">(optional)</span></label>
+                        <select name="rules_channel_id" class="fui-input">
+                            <option value="" <%= !settings.rules_channel_id ? 'selected' : '' %>>None (single-step mode)</option>
+                            <% channels.forEach(channel => { %>
+                                <option value="<%= channel.id %>" <%= settings.rules_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fui-label">Rules Role <span class="normal-case text-slate-600">(optional)</span></label>
+                        <select name="rules_role_id" class="fui-input">
+                            <option value="" <%= !settings.rules_role_id ? 'selected' : '' %>>None</option>
+                            <% roles.forEach(role => { %>
+                                <option value="<%= role.id %>" <%= settings.rules_role_id === role.id ? 'selected' : '' %>>@<%= role.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fui-label">Verify Channel</label>
+                        <select name="verify_channel_id" required class="fui-input">
+                            <option value="" <%= !settings.verify_channel_id ? 'selected' : '' %>>Select a channel...</option>
+                            <% channels.forEach(channel => { %>
+                                <option value="<%= channel.id %>" <%= settings.verify_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fui-label">Verify Role <span class="normal-case text-slate-600">(optional in single-step mode)</span></label>
+                        <select name="verify_role_id" class="fui-input">
+                            <option value="" <%= !settings.verify_role_id ? 'selected' : '' %>>None</option>
+                            <% roles.forEach(role => { %>
+                                <option value="<%= role.id %>" <%= settings.verify_role_id === role.id ? 'selected' : '' %>>@<%= role.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="fui-label">Final Member Role</label>
+                        <select name="member_role_id" required class="fui-input">
+                            <option value="" <%= !settings.member_role_id ? 'selected' : '' %>>Select a role...</option>
+                            <% roles.forEach(role => { %>
+                                <option value="<%= role.id %>" <%= settings.member_role_id === role.id ? 'selected' : '' %>>@<%= role.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="fui-label">Log Channel <span class="normal-case text-slate-600">(shared by verification, anti-scam, auto-kick, tickets)</span></label>
+                        <select name="log_channel_id" class="fui-input">
+                            <option value="" <%= !settings.log_channel_id ? 'selected' : '' %>>None selected</option>
+                            <% channels.forEach(channel => { %>
+                                <option value="<%= channel.id %>" <%= settings.log_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-600 text-center fui-tracked">// CHANGES SAVE AUTOMATICALLY</p>
+            </form>
+
+            <form action="/api/send-verification-panel" method="POST" class="mt-4">
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <button type="submit" class="fui-btn w-full py-2.5 text-sm text-cyan-300 border-cyan-500/30">Post / Update Panel in Discord</button>
+                <p class="text-xs text-slate-600 mt-2 text-center">Settings save automatically above — click this whenever you want to (re)send the button message(s) to your channels.</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- ANTI-SCAM TAB -->
+    <div class="fui-tab-panel" data-tab-content="antiscam">
+        <div class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title">Anti-Scam Protection</h2>
+            <p class="text-sm text-slate-500 mb-6">Flag or auto-kick brand-new accounts on join — the classic scam-bot signature.</p>
+
+            <form action="/api/update-antiscam" method="POST" class="space-y-6" data-autosave>
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <div class="flex items-center justify-between p-4 bg-black/40 border border-cyan-500/10">
+                    <label class="font-medium text-white text-sm">Enable Anti-Scam Checks</label>
+                    <input type="checkbox" name="antiscam_enabled" <%= settings.antiscam_enabled ? 'checked' : '' %> class="w-6 h-6 accent-cyan-500 cursor-pointer">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    <div>
+                        <label class="fui-label">Action</label>
+                        <select name="antiscam_action" class="fui-input">
+                            <option value="log" <%= settings.antiscam_action !== 'kick' ? 'selected' : '' %>>Log only</option>
+                            <option value="kick" <%= settings.antiscam_action === 'kick' ? 'selected' : '' %>>Kick automatically</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fui-label">Min. Account Age (hours)</label>
+                        <input type="number" name="antiscam_min_age_hours" min="1" max="720" value="<%= settings.antiscam_min_age_hours || 24 %>" class="fui-input">
+                    </div>
+                    <div class="flex items-end pb-1">
+                        <label class="flex items-center gap-2 text-sm text-slate-400">
+                            <input type="checkbox" name="antiscam_require_no_avatar" <%= settings.antiscam_require_no_avatar !== false ? 'checked' : '' %> class="w-5 h-5 accent-cyan-500 cursor-pointer">
+                            Require no avatar too
+                        </label>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-600 text-center fui-tracked">// CHANGES SAVE AUTOMATICALLY</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- AUTO-KICK TAB -->
+    <div class="fui-tab-panel" data-tab-content="autokick">
+        <div class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title">Auto-Kick Unverified Members</h2>
+            <p class="text-sm text-slate-500 mb-6">Bots, the owner, and Astra Admins are always exempt.</p>
+
+            <form action="/api/update-autokick" method="POST" class="space-y-6" data-autosave>
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <div class="flex items-center justify-between p-4 bg-black/40 border border-cyan-500/10">
+                    <label class="font-medium text-white text-sm">Enable Auto-Kick</label>
+                    <input type="checkbox" name="auto_kick_enabled" <%= settings.auto_kick_enabled ? 'checked' : '' %> class="w-6 h-6 accent-cyan-500 cursor-pointer">
+                </div>
+                <div>
+                    <label class="fui-label">Grace Period (days)</label>
+                    <input type="number" name="auto_kick_days" min="1" max="30" value="<%= settings.auto_kick_days || 2 %>" class="fui-input sm:w-40">
+                </div>
+                <p class="text-xs text-slate-600 text-center fui-tracked">// CHANGES SAVE AUTOMATICALLY</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- TICKETS TAB -->
+    <div class="fui-tab-panel" data-tab-content="tickets">
+        <div class="space-y-6 md:space-y-8">
+
+            <div class="fui-panel fui-corners p-5 md:p-8">
+                <h2 class="fui-section-title">Ticket System Setup</h2>
+                <p class="text-sm text-slate-500 mb-6">Where the ticket panel lives, and where new ticket channels get created.</p>
+                <form action="/api/tickets/config" method="POST" class="space-y-6" data-autosave>
                     <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                         <div>
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Rules Channel <span class="text-slate-600">(optional)</span></label>
-                            <select name="rules_channel_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                                <option value="" <%= !settings.rules_channel_id ? 'selected' : '' %>>None (single-step mode)</option>
+                            <label class="fui-label">Ticket Panel Channel</label>
+                            <select name="ticket_channel_id" class="fui-input">
+                                <option value="">Select a channel...</option>
                                 <% channels.forEach(channel => { %>
-                                    <option value="<%= channel.id %>" <%= settings.rules_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                                    <option value="<%= channel.id %>" <%= settings.ticket_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
                                 <% }) %>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Rules Role <span class="text-slate-600">(optional)</span></label>
-                            <select name="rules_role_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                                <option value="" <%= !settings.rules_role_id ? 'selected' : '' %>>None</option>
-                                <% roles.forEach(role => { %>
-                                    <option value="<%= role.id %>" <%= settings.rules_role_id === role.id ? 'selected' : '' %>>@<%= role.name %></option>
+                            <label class="fui-label">Ticket Category</label>
+                            <select name="ticket_category_id" class="fui-input">
+                                <option value="">Select a category...</option>
+                                <% categories.forEach(cat => { %>
+                                    <option value="<%= cat.id %>" <%= settings.ticket_category_id === cat.id ? 'selected' : '' %>><%= cat.name %></option>
                                 <% }) %>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Verify Channel</label>
-                            <select name="verify_channel_id" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                                <option value="" <%= !settings.verify_channel_id ? 'selected' : '' %>>Select a channel...</option>
-                                <% channels.forEach(channel => { %>
-                                    <option value="<%= channel.id %>" <%= settings.verify_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
-                                <% }) %>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Verify Role <span class="text-slate-600">(optional in single-step mode)</span></label>
-                            <select name="verify_role_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                                <option value="" <%= !settings.verify_role_id ? 'selected' : '' %>>None</option>
-                                <% roles.forEach(role => { %>
-                                    <option value="<%= role.id %>" <%= settings.verify_role_id === role.id ? 'selected' : '' %>>@<%= role.name %></option>
-                                <% }) %>
-                            </select>
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Final Member Role</label>
-                            <select name="member_role_id" required class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                                <option value="" <%= !settings.member_role_id ? 'selected' : '' %>>Select a role...</option>
-                                <% roles.forEach(role => { %>
-                                    <option value="<%= role.id %>" <%= settings.member_role_id === role.id ? 'selected' : '' %>>@<%= role.name %></option>
-                                <% }) %>
-                            </select>
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Log Channel <span class="text-slate-600">(shared by verification, anti-scam, auto-kick, tickets)</span></label>
-                            <select name="log_channel_id" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                                <option value="" <%= !settings.log_channel_id ? 'selected' : '' %>>None selected</option>
+                            <label class="fui-label">Log Channel <span class="normal-case text-slate-600">(optional)</span></label>
+                            <select name="log_channel_id" class="fui-input">
+                                <option value="">Leave as-is</option>
                                 <% channels.forEach(channel => { %>
                                     <option value="<%= channel.id %>" <%= settings.log_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
                                 <% }) %>
                             </select>
                         </div>
                     </div>
-
-                    <p class="text-xs text-slate-600 text-center flex items-center justify-center gap-1.5">
-                        <span class="relative flex h-1.5 w-1.5"><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-                        Changes save automatically
-                    </p>
+                    <p class="text-xs text-slate-600 text-center fui-tracked">// CHANGES SAVE AUTOMATICALLY</p>
                 </form>
-
-                <form action="/api/send-verification-panel" method="POST" class="mt-3">
+                <form action="/api/send-ticket-panel" method="POST" class="mt-4">
                     <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
-                    <button type="submit" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-xl transition-all text-sm flex items-center justify-center gap-2">
-                        📨 Post / Update Panel in Discord
-                    </button>
-                    <p class="text-xs text-slate-600 mt-2 text-center">Settings save automatically as you edit them above — click this whenever you want to (re)send the button message(s) to your channels.</p>
+                    <button type="submit" class="fui-btn w-full py-2.5 text-sm text-cyan-300 border-cyan-500/30">Post / Update Panel in Discord</button>
+                    <p class="text-xs text-slate-600 mt-2 text-center">Settings save automatically above — click this whenever you want to (re)send the "Open a Ticket" button to your channel.</p>
                 </form>
             </div>
 
-            <!-- ANTI-SCAM -->
-            <div class="bg-slate-900/80 backdrop-blur p-5 md:p-8 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-xl transition-colors">
-                <h2 class="text-lg font-semibold text-white mb-1">Anti-Scam Protection</h2>
-                <p class="text-sm text-slate-500 mb-6">Flag or auto-kick brand-new accounts on join — the classic scam-bot signature.</p>
+            <div class="fui-panel fui-corners p-5 md:p-8">
+                <h2 class="fui-section-title">Registered Artists</h2>
+                <p class="text-sm text-slate-500 mb-6"></p>
 
-                <form action="/api/update-antiscam" method="POST" class="space-y-6" data-autosave>
-                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
-
-                    <div class="flex items-center justify-between p-4 bg-slate-950/50 rounded-xl border border-slate-800">
-                        <label class="font-medium text-white text-sm">Enable Anti-Scam Checks</label>
-                        <input type="checkbox" name="antiscam_enabled" <%= settings.antiscam_enabled ? 'checked' : '' %>
-                            class="w-6 h-6 accent-indigo-500 cursor-pointer rounded">
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Action</label>
-                            <select name="antiscam_action" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                                <option value="log" <%= settings.antiscam_action !== 'kick' ? 'selected' : '' %>>Log only</option>
-                                <option value="kick" <%= settings.antiscam_action === 'kick' ? 'selected' : '' %>>Kick automatically</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-400 mb-2">Min. Account Age (hours)</label>
-                            <input type="number" name="antiscam_min_age_hours" min="1" max="720" value="<%= settings.antiscam_min_age_hours || 24 %>"
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                        </div>
-                        <div class="flex items-end pb-1">
-                            <label class="flex items-center gap-2 text-sm text-slate-400">
-                                <input type="checkbox" name="antiscam_require_no_avatar" <%= settings.antiscam_require_no_avatar !== false ? 'checked' : '' %>
-                                    class="w-5 h-5 accent-indigo-500 cursor-pointer rounded">
-                                Require no avatar too
-                            </label>
-                        </div>
-                    </div>
-
-                    <p class="text-xs text-slate-600 text-center flex items-center justify-center gap-1.5">
-                        <span class="relative flex h-1.5 w-1.5"><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-                        Changes save automatically
-                    </p>
-                </form>
-            </div>
-
-            <!-- AUTO-KICK -->
-            <div class="bg-slate-900/80 backdrop-blur p-5 md:p-8 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-xl transition-colors">
-                <h2 class="text-lg font-semibold text-white mb-1">Auto-Kick Unverified Members</h2>
-                <p class="text-sm text-slate-500 mb-6">Bots, the owner, and Astra Admins are always exempt.</p>
-
-                <form action="/api/update-autokick" method="POST" class="space-y-6" data-autosave>
-                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
-
-                    <div class="flex items-center justify-between p-4 bg-slate-950/50 rounded-xl border border-slate-800">
-                        <label class="font-medium text-white text-sm">Enable Auto-Kick</label>
-                        <input type="checkbox" name="auto_kick_enabled" <%= settings.auto_kick_enabled ? 'checked' : '' %>
-                            class="w-6 h-6 accent-indigo-500 cursor-pointer rounded">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-slate-400 mb-2">Grace Period (days)</label>
-                        <input type="number" name="auto_kick_days" min="1" max="30" value="<%= settings.auto_kick_days || 2 %>"
-                            class="w-full sm:w-40 bg-slate-950 border border-slate-800 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 text-white outline-none text-sm">
-                    </div>
-
-                    <p class="text-xs text-slate-600 text-center flex items-center justify-center gap-1.5">
-                        <span class="relative flex h-1.5 w-1.5"><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span></span>
-                        Changes save automatically
-                    </p>
-                </form>
-            </div>
-
-        </div>
-
-        <!-- SIDEBAR: STATUS + ASTRA ADMINS -->
-        <div class="space-y-6">
-            <div class="bg-slate-900/80 backdrop-blur p-5 md:p-6 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-xl transition-colors space-y-6">
-                <div>
-                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Server Status</h3>
-                    <div class="flex items-center gap-2">
-                        <span class="relative flex h-3 w-3">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                        </span>
-                        <span class="text-white font-medium text-sm">System Active</span>
-                    </div>
-                </div>
-                <div class="pt-6 border-t border-slate-800">
-                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Registered Artists</h3>
-                    <p class="text-3xl font-black text-white"><%= artistCount %></p>
-                </div>
-                <div class="pt-6 border-t border-slate-800">
-                    <a href="/tickets" class="block text-center bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 rounded-lg transition text-sm">
-                        🎫 Manage Tickets
-                    </a>
-                </div>
-            </div>
-
-            <div class="bg-slate-900/80 backdrop-blur p-5 md:p-6 rounded-2xl border border-slate-800 hover:border-slate-700 shadow-xl transition-colors">
-                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Astra Admin Roles</h3>
-                <p class="text-xs text-slate-500 mb-4">Roles here can use Astra's config commands (not this site) without needing real Administrator permission.</p>
-
-                <div class="space-y-2 mb-4">
-                    <% if (adminRoles.length === 0) { %>
-                        <p class="text-slate-600 text-xs">Only real Administrators can configure Astra right now.</p>
+                <div class="space-y-2 mb-6">
+                    <% if (artists.length === 0) { %>
+                        <p class="text-slate-500 text-sm">No artists registered yet. Add one below, or grant an artist role on Discord via <code class="text-cyan-400">/config artist-roles add</code>.</p>
                     <% } %>
-                    <% adminRoles.forEach(role => { %>
-                        <div class="flex items-center justify-between bg-slate-950/50 rounded-lg border border-slate-800 px-3 py-2">
-                            <span class="text-sm text-white">@<%= role.name %></span>
-                            <form action="/api/admins/remove" method="POST">
-                                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
-                                <input type="hidden" name="role_id" value="<%= role.id %>">
-                                <button type="submit" class="text-xs text-red-400 hover:text-red-300">Remove</button>
-                            </form>
+                    <% artists.forEach(artist => { %>
+                        <div class="flex items-center justify-between p-4 bg-black/40 border border-cyan-500/10">
+                            <div>
+                                <p class="text-white font-medium">@<%= artist.username %></p>
+                                <p class="text-xs text-slate-500"><%= artist.user_id %></p>
+                            </div>
+                            <div class="flex gap-2">
+                                <a href="/dashboard?tab=tickets&edit=<%= artist.user_id %>" class="fui-btn text-xs py-2 px-4 text-cyan-300 border-cyan-500/30">Edit Panel</a>
+                                <form action="/api/artists/remove" method="POST">
+                                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                                    <input type="hidden" name="user_id" value="<%= artist.user_id %>">
+                                    <button type="submit" class="fui-btn text-xs py-2 px-4 text-fuchsia-400 border-fuchsia-500/30">Remove</button>
+                                </form>
+                            </div>
                         </div>
                     <% }) %>
                 </div>
 
-                <form action="/api/admins/add" method="POST" class="flex gap-2">
+                <form action="/api/artists/add" method="POST" class="flex gap-3">
                     <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
-                    <select name="role_id" class="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded-lg p-2 text-white outline-none text-xs">
-                        <option value="">Select a role...</option>
-                        <% roles.forEach(role => { %>
-                            <option value="<%= role.id %>">@<%= role.name %></option>
-                        <% }) %>
-                    </select>
-                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 rounded-lg transition whitespace-nowrap">Add</button>
+                    <input type="text" name="user_id" placeholder="Discord User ID (enable Developer Mode → right-click → Copy User ID)" class="fui-input flex-1" required pattern="\d{15,25}">
+                    <button type="submit" class="fui-btn py-3 px-6 text-sm text-cyan-300 border-cyan-500/30 whitespace-nowrap">+ Add Artist</button>
                 </form>
             </div>
+
+            <% if (editingArtist) { %>
+                <div class="fui-panel fui-corners p-5 md:p-8" style="border-color: rgba(34,229,255,0.5);">
+                    <h2 class="fui-section-title">Editing Panel — @<%= editingArtist.username %></h2>
+                    <p class="text-slate-500 text-sm mb-6">Leave a field blank to fall back to Astra's default template for that section.</p>
+
+                    <form action="/api/artists/panel" method="POST" class="space-y-6">
+                        <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                        <input type="hidden" name="user_id" value="<%= editingArtist.user_id %>">
+
+                        <div>
+                            <label class="fui-label">Terms of Service</label>
+                            <textarea name="tos_text" rows="3" class="fui-input" placeholder="Default: By opening a ticket, you agree to pay as arranged..."><%= editingArtist.tos_text || '' %></textarea>
+                        </div>
+                        <div>
+                            <label class="fui-label">Won't Do</label>
+                            <textarea name="wontdo_text" rows="2" class="fui-input" placeholder="Default: NSFW/R18 content, hate symbols..."><%= editingArtist.wontdo_text || '' %></textarea>
+                        </div>
+                        <div>
+                            <label class="fui-label">Ask Me About</label>
+                            <textarea name="askme_text" rows="2" class="fui-input" placeholder="Default: Feel free to ask about styles, turnaround time..."><%= editingArtist.askme_text || '' %></textarea>
+                        </div>
+                        <div>
+                            <label class="fui-label mb-3">Pricing</label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <% pricingCategories.forEach((category, i) => {
+                                    const existing = editingArtist.pricing.find(p => p.category === category);
+                                %>
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1"><%= category %></label>
+                                        <input type="text" name="price_<%= i %>" value="<%= existing ? existing.price : '' %>" placeholder="Message me for pricing" class="fui-input">
+                                    </div>
+                                <% }) %>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button type="submit" class="fui-btn py-3 px-6 text-sm text-cyan-300 border-cyan-500/30">Save Panel</button>
+                            <a href="/dashboard?tab=tickets" class="py-3 px-6 text-slate-400 hover:text-white transition text-sm">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <!-- ADMIN ROLES TAB -->
+    <div class="fui-tab-panel" data-tab-content="admins">
+        <div class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title">Astra Admin Roles</h2>
+            <p class="text-sm text-slate-500 mb-6">Roles here can use Astra's config commands (not this site) without needing real Administrator permission.</p>
+
+            <div class="space-y-2 mb-6">
+                <% if (adminRoles.length === 0) { %>
+                    <p class="text-slate-600 text-xs">Only real Administrators can configure Astra right now.</p>
+                <% } %>
+                <% adminRoles.forEach(role => { %>
+                    <div class="flex items-center justify-between bg-black/40 border border-cyan-500/10 px-4 py-2.5">
+                        <span class="text-sm text-white">@<%= role.name %></span>
+                        <form action="/api/admins/remove" method="POST">
+                            <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                            <input type="hidden" name="role_id" value="<%= role.id %>">
+                            <button type="submit" class="text-xs text-fuchsia-400 hover:text-fuchsia-300 fui-tracked uppercase">Remove</button>
+                        </form>
+                    </div>
+                <% }) %>
+            </div>
+
+            <form action="/api/admins/add" method="POST" class="flex gap-2">
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <select name="role_id" class="fui-input flex-1">
+                    <option value="">Select a role...</option>
+                    <% roles.forEach(role => { %>
+                        <option value="<%= role.id %>">@<%= role.name %></option>
+                    <% }) %>
+                </select>
+                <button type="submit" class="fui-btn text-xs px-4 text-cyan-300 border-cyan-500/30 whitespace-nowrap">Add</button>
+            </form>
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const buttons = document.querySelectorAll('.fui-tab-btn');
+        const panels = document.querySelectorAll('.fui-tab-panel');
+        const params = new URLSearchParams(window.location.search);
+        const initialTab = params.get('tab') || (params.get('edit') ? 'tickets' : '<%= activeTab %>') || 'verification';
+
+        function activate(tab) {
+            buttons.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+            panels.forEach(p => p.classList.toggle('active', p.dataset.tabContent === tab));
+        }
+
+        buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                activate(btn.dataset.tab);
+                const url = new URL(window.location);
+                url.searchParams.set('tab', btn.dataset.tab);
+                url.searchParams.delete('edit');
+                window.history.replaceState({}, '', url);
+            });
+        });
+
+        activate(initialTab);
+    })();
+</script>
 
 <%- include('partials/footer') %>

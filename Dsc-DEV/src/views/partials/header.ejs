@@ -10,18 +10,14 @@
     <style>
         :root {
             --fui-bg: #05070a;
-            --fui-panel: #0a0f16;
             --fui-cyan: #22e5ff;
-            --fui-cyan-dim: #0b7a8f;
             --fui-magenta: #ff2e6d;
             --fui-line: rgba(34, 229, 255, 0.28);
-            --fui-line-soft: rgba(34, 229, 255, 0.12);
         }
         body { font-family: 'Rajdhani', sans-serif; background-color: var(--fui-bg); }
         .fui-brand { font-family: 'Orbitron', sans-serif; letter-spacing: 0.08em; }
         .fui-tracked { letter-spacing: 0.14em; }
 
-        /* Angular panel: corners cut diagonally, thin glowing cyan border */
         .fui-panel {
             background: linear-gradient(160deg, rgba(10,15,22,0.92), rgba(5,7,10,0.96));
             border: 1px solid var(--fui-line);
@@ -29,15 +25,6 @@
             box-shadow: 0 0 0 1px rgba(34,229,255,0.03), 0 8px 32px -8px rgba(0,0,0,0.6);
             position: relative;
         }
-        .fui-panel::before {
-            content: '';
-            position: absolute; inset: 0;
-            background-image:
-                repeating-linear-gradient(0deg, rgba(34,229,255,0.015) 0px, rgba(34,229,255,0.015) 1px, transparent 1px, transparent 3px);
-            pointer-events: none;
-        }
-
-        /* Corner bracket accents — HUD targeting-reticle look */
         .fui-corners::before, .fui-corners::after {
             content: ''; position: absolute; width: 14px; height: 14px;
             border-color: var(--fui-cyan); pointer-events: none; opacity: 0.85;
@@ -53,17 +40,12 @@
             border: 1px solid var(--fui-line);
             transition: all 0.15s ease;
         }
-        .fui-btn:hover {
-            border-color: var(--fui-cyan);
-            box-shadow: 0 0 16px -2px rgba(34,229,255,0.5), inset 0 0 12px -4px rgba(34,229,255,0.3);
-        }
+        .fui-btn:hover { border-color: var(--fui-cyan); box-shadow: 0 0 16px -2px rgba(34,229,255,0.5), inset 0 0 12px -4px rgba(34,229,255,0.3); }
 
-        /* Thin animated scanline sweeping the viewport — subtle, decorative */
         .fui-scanline {
             position: fixed; left: 0; right: 0; height: 1px;
             background: linear-gradient(90deg, transparent, rgba(34,229,255,0.5), transparent);
-            animation: fui-sweep 9s linear infinite;
-            pointer-events: none; z-index: 0;
+            animation: fui-sweep 9s linear infinite; pointer-events: none; z-index: 0;
         }
         @keyframes fui-sweep { 0% { top: 0%; } 100% { top: 100%; } }
 
@@ -73,11 +55,52 @@
                 linear-gradient(90deg, rgba(34,229,255,0.035) 1px, transparent 1px);
             background-size: 42px 42px;
         }
+
+        /* Nav popup — click toggles it (works on every device), and on
+           devices with a real pointer it also opens on hover, as asked for. */
+        #astra-nav-popup { display: none; }
+        #astra-nav-popup.open { display: block; }
+        @media (hover: hover) {
+            #astra-nav-trigger:hover + #astra-nav-popup,
+            #astra-nav-popup:hover { display: block; }
+        }
+
+        /* Shared form/content utility classes — used across Dashboard,
+           Onboarding, and anywhere else that needs the FUI look. Defined
+           once here so every page that includes this header gets them. */
+        .fui-input {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(34,229,255,0.2);
+            color: #e8fbff;
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.15s ease;
+            width: 100%;
+        }
+        .fui-input:focus { border-color: var(--fui-cyan); }
+        .fui-label { display: block; font-size: 0.7rem; font-weight: 600; color: #94a3b8; margin-bottom: 0.5rem; letter-spacing: 0.1em; text-transform: uppercase; }
+        .fui-section-title { font-size: 0.8rem; font-weight: 700; color: var(--fui-cyan); letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.25rem; }
+        .fui-badge { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.25rem 0.7rem; border: 1px solid; white-space: nowrap; }
+        .fui-tab-btn {
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            padding: 0.65rem 1.1rem;
+            color: #64748b;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .fui-tab-btn:hover { color: #67e8f9; }
+        .fui-tab-btn.active { color: var(--fui-cyan); border-bottom-color: var(--fui-cyan); }
+        .fui-tab-panel { display: none; }
+        .fui-tab-panel.active { display: block; }
     </style>
 </head>
 <body class="text-slate-100 min-h-screen relative">
 
-    <!-- Background: grid + soft glow + sweeping scanline, recolored cyan/magenta for the FUI look -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10 fui-grid-bg">
         <div class="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-cyan-500/10 rounded-full blur-[120px]"></div>
         <div class="absolute top-1/2 -right-32 w-[26rem] h-[26rem] bg-fuchsia-600/10 rounded-full blur-[120px]"></div>
@@ -85,47 +108,47 @@
     </div>
     <div class="fui-scanline"></div>
 
-    <!-- Mobile top bar -->
-    <div class="md:hidden flex items-center justify-between px-4 py-3 border-b border-cyan-500/20 bg-black/90 backdrop-blur sticky top-0 z-40">
-        <span class="fui-brand text-base font-bold text-cyan-300 fui-tracked">PROJECKT V <span class="text-slate-500 font-normal">: ASTRA</span></span>
-        <button id="astra-menu-toggle" class="p-2 border border-cyan-500/30 text-cyan-300 active:scale-95 transition" aria-label="Open menu" style="clip-path: polygon(0 6px, 6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-        </button>
+    <!-- TOP BAR — same on every screen size, no sidebar, no overlay -->
+    <div class="relative z-30 flex items-center justify-between px-4 sm:px-6 py-3 border-b border-cyan-500/15 bg-black/60 backdrop-blur sticky top-0">
+        <div class="relative">
+            <button id="astra-nav-trigger" class="flex items-center gap-2 group" aria-haspopup="true">
+                <% if (typeof user !== 'undefined' && user && user.avatar) { %>
+                    <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png" class="w-7 h-7 rounded-full border border-cyan-500/30" alt="">
+                <% } else if (typeof user !== 'undefined' && user) { %>
+                    <div class="w-7 h-7 bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-xs font-bold text-cyan-300"><%= user.username.charAt(0).toUpperCase() %></div>
+                <% } %>
+                <span class="leading-none text-left">
+                    <span class="fui-brand block text-sm font-bold text-cyan-300 fui-tracked group-hover:text-cyan-200 transition">PROJECKT V<span class="text-slate-500 font-normal"> : ASTRA</span></span>
+                </span>
+                <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-300 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            </button>
+
+            <div id="astra-nav-popup" class="fui-panel fui-corners absolute left-0 top-full mt-2 w-60 py-2 z-50">
+                <% if (typeof user !== 'undefined' && user) { %>
+                    <div class="px-4 py-2.5 border-b border-cyan-500/15 mb-1">
+                        <div class="text-xs text-slate-500 fui-tracked uppercase">Signed in as</div>
+                        <div class="text-sm font-semibold text-white truncate"><%= user.username %></div>
+                    </div>
+                <% } %>
+                <a href="/onboarding" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
+                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> Help &amp; Setup
+                </a>
+                <a href="/dashboard" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
+                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> Configuration
+                </a>
+                <a href="/select-server" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
+                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> Switch Server
+                </a>
+                <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-sm text-fuchsia-400 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs mt-1 border-t border-cyan-500/15 pt-2">
+                    <span class="w-1 h-1 bg-fuchsia-500 rotate-45 shrink-0"></span> Logout
+                </a>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">
+            <a href="/lang/en" class="px-2.5 py-1 transition fui-tracked text-slate-500 hover:text-cyan-300">EN</a>
+            <a href="/lang/pt-br" class="px-2.5 py-1 transition fui-tracked text-slate-500 hover:text-cyan-300">PT-BR</a>
+        </div>
     </div>
 
-    <div id="astra-overlay" class="fixed inset-0 bg-black/70 z-40 hidden"></div>
-
-    <div class="flex min-h-screen relative z-10">
-        <aside id="astra-sidebar"
-            class="fixed md:static top-0 left-0 h-full w-72 md:w-64 border-r border-cyan-500/15 p-6 bg-black/70 md:bg-black/40 backdrop-blur-xl z-50
-                   transform -translate-x-full md:translate-x-0 transition-transform duration-200 ease-out overflow-y-auto">
-            <div class="flex items-center justify-between mb-10">
-                <div class="hidden md:block leading-none">
-                    <div class="fui-brand text-lg font-extrabold text-cyan-300 fui-tracked">PROJECKT V</div>
-                    <div class="fui-tracked text-[11px] text-slate-500 mt-1">: ASTRA</div>
-                </div>
-                <span class="fui-brand text-lg font-bold text-cyan-300 md:hidden fui-tracked">MENU</span>
-                <button id="astra-menu-close" class="md:hidden text-slate-500 hover:text-cyan-300 text-xl leading-none px-2" aria-label="Close menu">✕</button>
-            </div>
-            <nav class="space-y-1">
-                <a href="/onboarding" class="flex items-center gap-3 py-2.5 px-3 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/5 border-l-2 border-transparent hover:border-cyan-400 transition fui-tracked text-sm uppercase">
-                    <span class="w-1.5 h-1.5 bg-slate-600 rotate-45 shrink-0"></span> Help &amp; Setup
-                </a>
-                <a href="/dashboard" class="flex items-center gap-3 py-2.5 px-3 text-cyan-300 bg-cyan-500/10 border-l-2 border-cyan-400 transition fui-tracked text-sm uppercase">
-                    <span class="w-1.5 h-1.5 bg-cyan-400 rotate-45 shrink-0"></span> Configuration
-                </a>
-                <a href="/tickets" class="flex items-center gap-3 py-2.5 px-3 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/5 border-l-2 border-transparent hover:border-cyan-400 transition fui-tracked text-sm uppercase">
-                    <span class="w-1.5 h-1.5 bg-slate-600 rotate-45 shrink-0"></span> Tickets
-                </a>
-                <a href="/select-server" class="flex items-center gap-3 py-2.5 px-3 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/5 border-l-2 border-transparent hover:border-cyan-400 transition fui-tracked text-sm uppercase">
-                    <span class="w-1.5 h-1.5 bg-slate-600 rotate-45 shrink-0"></span> Switch Server
-                </a>
-                <a href="/logout" class="flex items-center gap-3 py-2.5 px-3 text-slate-500 hover:text-fuchsia-400 hover:bg-fuchsia-500/5 border-l-2 border-transparent hover:border-fuchsia-500 transition fui-tracked text-sm uppercase mt-8">
-                    <span class="w-1.5 h-1.5 bg-slate-600 rotate-45 shrink-0"></span> Logout
-                </a>
-            </nav>
-        </aside>
-
-        <main class="flex-1 w-full min-w-0 p-4 sm:p-6 md:p-10">
+    <main class="relative z-10 p-4 sm:p-6 md:p-10">

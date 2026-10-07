@@ -59,5 +59,8 @@
   "site.home.feature_tickets": "Tickets",
   "site.home.greeting": "Olá, {username}",
   "site.home.go_to_dashboard": "Painel",
-  "site.home.logout": "Sair"
+  "site.home.logout": "Sair",
+  "site.home.feature_verification_desc": "Portões de verificação em uma ou duas etapas, totalmente configuráveis por servidor.",
+  "site.home.feature_antiscam_desc": "Sinaliza ou expulsa automaticamente contas novas e sem avatar ao entrar.",
+  "site.home.feature_tickets_desc": "Canais privados de comissão por artista, com termos e preços personalizados."
 }
