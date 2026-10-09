@@ -6,6 +6,7 @@ const {
 const db = require('../database');
 const { isAstraAdmin } = require('../permissions');
 const { t } = require('../i18n');
+const { logAction } = require('./config');
 
 const DEFAULT_TOS = 'By opening a ticket, you agree to pay as arranged before or during work, allow reasonable time for completion, and understand revisions beyond what\'s offered may cost extra.';
 const DEFAULT_WONTDO = 'NSFW/R18 content, hate symbols or extremist imagery, real-person likeness without consent, heavy mecha/vehicles.';
@@ -167,9 +168,120 @@ function buildPricingModal(existingPricing) {
     return modal;
 }
 
+// Checks for an existing open ticket, but doesn't trust the database row
+// blindly — if the channel was deleted by hand (dragged to trash, cleaned
+// up manually) instead of via the Close Ticket button, the row would
+// otherwise linger forever and permanently block that user from opening a
+// new ticket. This confirms the channel is actually still there before
+// treating it as a real block, and quietly cleans up the stale row if not.
+async function findRealOpenTicket(guild, userId) {
+    const { rows } = await db.query('SELECT channel_id FROM tickets WHERE guild_id = $1 AND user_id = $2', [guild.id, userId]);
+    if (rows.length === 0) return null;
+
+    const channel = await guild.channels.fetch(rows[0].channel_id).catch(() => null);
+    if (channel) return rows[0].channel_id;
+
+    // Channel's gone — the row was stale. Clean it up and report "no open ticket".
+    await db.query('DELETE FROM tickets WHERE guild_id = $1 AND user_id = $2', [guild.id, userId]);
+    return null;
+}
+
+// Shared close logic — used by the in-channel Close Ticket button AND the
+// remote close buttons in /tickets. Returns { ok, message } rather than
+// replying directly, so both callers can wrap it in their own interaction
+// response.
+async function closeTicketByChannelId(guild, channelId, closedByUser, options = {}) {
+    const { rows } = await db.query('SELECT * FROM tickets WHERE channel_id = $1', [channelId]);
+    const ticket = rows[0];
+    if (!ticket) return { ok: false, message: '❌ That ticket is already closed.' };
+
+    const canClose = closedByUser.id === ticket.user_id
+        || closedByUser.id === ticket.artist_id
+        || await isAstraAdmin(options.member || null);
+
+    if (!canClose) {
+        return { ok: false, message: '❌ Only the ticket opener, the artist, or an admin can close this.' };
+    }
+
+    const channel = await guild.channels.fetch(channelId).catch(() => null);
+
+    const settings = (await db.query('SELECT log_channel_id FROM guild_settings WHERE guild_id = $1', [guild.id])).rows[0];
+    if (settings?.log_channel_id) {
+        const logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
+        if (logChannel) {
+            await logChannel.send(`🎫 Ticket closed: #${channel ? channel.name : 'unknown'} (opener: <@${ticket.user_id}>, artist: <@${ticket.artist_id}>, closed by: ${closedByUser})`).catch(() => {});
+        }
+    }
+
+    await db.query('DELETE FROM tickets WHERE channel_id = $1', [channelId]);
+    if (channel) setTimeout(() => channel.delete().catch(() => {}), 5000);
+
+    return { ok: true, message: `✅ Closed <#${channelId}>.` };
+}
+
 module.exports = {
     isArtist,
+    findRealOpenTicket,
     ensureArtistSetupChannel,
+
+    // --- /tickets — see and manage tickets you're involved in, whether
+    // you're the artist assigned to them or the person who opened them.
+    // Replaces the old /myticket, which only checked tickets you'd
+    // personally opened — useless to an artist checking what's waiting on
+    // them. Each listed ticket gets its own Close button, so an artist
+    // never has to go dig up a channel they lost track of.
+    ticketsOverviewData: new SlashCommandBuilder()
+        .setName('tickets')
+        .setDescription('See tickets assigned to you or opened by you, and close them if needed'),
+
+    async executeSlashTicketsOverview(interaction) {
+        const guild = interaction.guild;
+        const userId = interaction.user.id;
+
+        const { rows: asArtistRaw } = await db.query('SELECT channel_id, user_id FROM tickets WHERE guild_id = $1 AND artist_id = $2', [guild.id, userId]);
+        const { rows: asOpenerRaw } = await db.query('SELECT channel_id, artist_id FROM tickets WHERE guild_id = $1 AND user_id = $2', [guild.id, userId]);
+
+        // Self-heal: drop rows whose channel no longer exists rather than
+        // showing (and letting someone try to close) a phantom ticket.
+        const asArtist = [];
+        for (const row of asArtistRaw) {
+            const ch = await guild.channels.fetch(row.channel_id).catch(() => null);
+            if (ch) asArtist.push(row); else await db.query('DELETE FROM tickets WHERE channel_id = $1', [row.channel_id]);
+        }
+        const asOpener = [];
+        for (const row of asOpenerRaw) {
+            const ch = await guild.channels.fetch(row.channel_id).catch(() => null);
+            if (ch) asOpener.push(row); else await db.query('DELETE FROM tickets WHERE channel_id = $1', [row.channel_id]);
+        }
+
+        if (asArtist.length === 0 && asOpener.length === 0) {
+            return interaction.reply({ content: "You don't have any open tickets right now.", ephemeral: true });
+        }
+
+        let description = '';
+        if (asArtist.length > 0) {
+            description += '**Assigned to you as artist:**\n' + asArtist.map(r => `<#${r.channel_id}> — opened by <@${r.user_id}>`).join('\n') + '\n\n';
+        }
+        if (asOpener.length > 0) {
+            description += '**Your own open ticket(s):**\n' + asOpener.map(r => `<#${r.channel_id}> — artist <@${r.artist_id}>`).join('\n');
+        }
+
+        // Discord caps at 5 buttons/row and 5 rows — 25 tickets max, plenty
+        // of headroom for this use case.
+        const allChannelIds = [...asArtist.map(r => r.channel_id), ...asOpener.map(r => r.channel_id)].slice(0, 25);
+        const rows = [];
+        for (let i = 0; i < allChannelIds.length; i += 5) {
+            const chunk = allChannelIds.slice(i, i + 5);
+            rows.push(new ActionRowBuilder().addComponents(
+                chunk.map((channelId, idx) => new ButtonBuilder()
+                    .setCustomId(`astra_ticket_remote_close_${channelId}`)
+                    .setLabel(`Close #${i + idx + 1}`)
+                    .setStyle(ButtonStyle.Danger))
+            ));
+        }
+
+        return interaction.reply({ content: description, components: rows, ephemeral: true });
+    },
 
     // --- /artist (admin-managed registration) ---
     artistData: new SlashCommandBuilder()
@@ -214,6 +326,7 @@ module.exports = {
                 });
                 if (setupChannel) channelNote = ` I've also created a private setup channel for them: ${setupChannel}.`;
 
+                await logAction(interaction.guild, `🎨 ${interaction.user} registered ${user} as an artist.`);
                 return interaction.reply({ content: `✅ ${user} is now a registered artist.${channelNote}`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error adding artist:', error);
@@ -226,6 +339,7 @@ module.exports = {
             try {
                 await db.query('DELETE FROM artists WHERE guild_id = $1 AND user_id = $2', [guildId, user.id]);
                 await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guildId, user.id]);
+                await logAction(interaction.guild, `🎨 ${interaction.user} removed ${user} as a registered artist.`);
                 return interaction.reply({ content: `✅ ${user} is no longer a registered artist.`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error removing artist:', error);
@@ -339,18 +453,21 @@ module.exports = {
             if (sub === 'set-tos') {
                 const text = interaction.options.getString('text');
                 await db.query('UPDATE artists SET tos_text = $1 WHERE guild_id = $2 AND user_id = $3', [text, guildId, artistUser.id]);
+                await logAction(interaction.guild, `🎨 ${interaction.user} updated ${artistUser}'s Terms of Service.`);
                 return interaction.reply({ content: `✅ ToS updated for ${artistUser}.`, ephemeral: true });
             }
 
             if (sub === 'set-wontdo') {
                 const text = interaction.options.getString('text');
                 await db.query('UPDATE artists SET wontdo_text = $1 WHERE guild_id = $2 AND user_id = $3', [text, guildId, artistUser.id]);
+                await logAction(interaction.guild, `🎨 ${interaction.user} updated ${artistUser}'s Won't-Do list.`);
                 return interaction.reply({ content: `✅ Won't-do list updated for ${artistUser}.`, ephemeral: true });
             }
 
             if (sub === 'set-askme') {
                 const text = interaction.options.getString('text');
                 await db.query('UPDATE artists SET askme_text = $1 WHERE guild_id = $2 AND user_id = $3', [text, guildId, artistUser.id]);
+                await logAction(interaction.guild, `🎨 ${interaction.user} updated ${artistUser}'s Ask-Me text.`);
                 return interaction.reply({ content: `✅ Ask-me text updated for ${artistUser}.`, ephemeral: true });
             }
 
@@ -363,6 +480,7 @@ module.exports = {
                      ON CONFLICT (guild_id, user_id, category) DO UPDATE SET price = EXCLUDED.price`,
                     [guildId, artistUser.id, category, amount, sortOrder]
                 );
+                await logAction(interaction.guild, `🎨 ${interaction.user} set ${artistUser}'s ${category} price to "${amount}".`);
                 return interaction.reply({ content: `✅ ${category} price set to "${amount}" for ${artistUser}.`, ephemeral: true });
             }
 
@@ -395,13 +513,11 @@ module.exports = {
             const lang = await getGuildLanguage(interaction.guild.id);
 
             // Spam guard: one open ticket per user at a time, regardless of
-            // which artist it's with.
-            const { rows: existingTickets } = await db.query(
-                'SELECT channel_id FROM tickets WHERE guild_id = $1 AND user_id = $2',
-                [interaction.guild.id, interaction.user.id]
-            );
-            if (existingTickets.length > 0) {
-                return interaction.reply({ content: t(lang, 'tickets.already_open', { channel: `<#${existingTickets[0].channel_id}>` }), ephemeral: true });
+            // which artist it's with. Self-heals if the old ticket's
+            // channel was deleted manually instead of via Close Ticket.
+            const openChannelId = await findRealOpenTicket(interaction.guild, interaction.user.id);
+            if (openChannelId) {
+                return interaction.reply({ content: t(lang, 'tickets.already_open', { channel: `<#${openChannelId}>` }), ephemeral: true });
             }
 
             const artistList = await getArtistList(interaction.guild);
@@ -432,18 +548,14 @@ module.exports = {
 
             const lang = await getGuildLanguage(interaction.guild.id);
             await interaction.reply({ content: t(lang, 'tickets.closing') });
-
-            const settings = (await db.query('SELECT log_channel_id FROM guild_settings WHERE guild_id = $1', [interaction.guild.id])).rows[0];
-            if (settings?.log_channel_id) {
-                const logChannel = await interaction.guild.channels.fetch(settings.log_channel_id).catch(() => null);
-                if (logChannel) {
-                    await logChannel.send(`🎫 Ticket closed: #${interaction.channel.name} (opener: <@${ticket.user_id}>, artist: <@${ticket.artist_id}>, closed by: ${interaction.user})`).catch(() => {});
-                }
-            }
-
-            await db.query('DELETE FROM tickets WHERE channel_id = $1', [interaction.channel.id]);
-            setTimeout(() => interaction.channel.delete().catch(() => {}), 5000);
+            await closeTicketByChannelId(interaction.guild, interaction.channel.id, interaction.user, { member: interaction.member });
             return;
+        }
+
+        if (interaction.customId.startsWith('astra_ticket_remote_close_')) {
+            const channelId = interaction.customId.replace('astra_ticket_remote_close_', '');
+            const result = await closeTicketByChannelId(interaction.guild, channelId, interaction.user, { member: interaction.member });
+            return interaction.reply({ content: result.message, ephemeral: true });
         }
 
         // --- PRIVATE ARTIST SETUP CHANNEL BUTTONS ---
@@ -515,12 +627,9 @@ module.exports = {
         const guild = interaction.guild;
         const lang = await getGuildLanguage(guild.id);
 
-        const { rows: existingTickets } = await db.query(
-            'SELECT channel_id FROM tickets WHERE guild_id = $1 AND user_id = $2',
-            [guild.id, interaction.user.id]
-        );
-        if (existingTickets.length > 0) {
-            return interaction.update({ content: t(lang, 'tickets.already_open', { channel: `<#${existingTickets[0].channel_id}>` }), components: [] });
+        const openChannelId = await findRealOpenTicket(guild, interaction.user.id);
+        if (openChannelId) {
+            return interaction.update({ content: t(lang, 'tickets.already_open', { channel: `<#${openChannelId}>` }), components: [] });
         }
 
         const settingsRows = (await db.query('SELECT ticket_category_id, log_channel_id FROM guild_settings WHERE guild_id = $1', [guild.id])).rows;
