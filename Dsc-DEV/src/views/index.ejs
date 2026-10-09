@@ -81,7 +81,9 @@
                 <div class="relative">
                     <button id="astra-user-menu-btn" class="flex items-center gap-2 bg-white/5 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-400/50 pl-1.5 pr-3 py-1.5 transition">
                         <% if (user.avatar) { %>
-                            <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png" class="w-6 h-6 rounded-full" alt="">
+                            <% const avatarExt = user.avatar.startsWith('a_') ? 'gif' : 'png'; %>
+                            <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.<%= avatarExt %>" class="w-6 h-6 rounded-full" alt=""
+                                onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'w-6 h-6 bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-xs font-bold text-cyan-300', textContent: '<%= user.username.charAt(0).toUpperCase() %>'}))">
                         <% } else { %>
                             <div class="w-6 h-6 bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-xs font-bold text-cyan-300"><%= user.username.charAt(0).toUpperCase() %></div>
                         <% } %>

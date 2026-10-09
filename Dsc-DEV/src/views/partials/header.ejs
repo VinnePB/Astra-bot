@@ -113,7 +113,9 @@
         <div class="relative">
             <button id="astra-nav-trigger" class="flex items-center gap-2 group" aria-haspopup="true">
                 <% if (typeof user !== 'undefined' && user && user.avatar) { %>
-                    <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png" class="w-7 h-7 rounded-full border border-cyan-500/30" alt="">
+                    <% const avatarExt = user.avatar.startsWith('a_') ? 'gif' : 'png'; %>
+                    <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.<%= avatarExt %>" class="w-7 h-7 rounded-full border border-cyan-500/30" alt=""
+                        onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'w-7 h-7 bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-xs font-bold text-cyan-300', textContent: '<%= user.username.charAt(0).toUpperCase() %>'}))">
                 <% } else if (typeof user !== 'undefined' && user) { %>
                     <div class="w-7 h-7 bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-xs font-bold text-cyan-300"><%= user.username.charAt(0).toUpperCase() %></div>
                 <% } %>

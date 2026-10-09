@@ -1,109 +1,78 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Projeckt V: Astra — Select Server</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen relative">
+<%- include('partials/header') %>
 
-    <!-- Soft background glow, matching the rest of the site -->
-    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
-        <div class="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-indigo-600/20 rounded-full blur-[100px]"></div>
-        <div class="absolute top-1/2 -right-32 w-[26rem] h-[26rem] bg-purple-600/15 rounded-full blur-[100px]"></div>
-        <div class="absolute -bottom-32 left-1/3 w-[24rem] h-[24rem] bg-pink-600/10 rounded-full blur-[100px]"></div>
-    </div>
+<div class="max-w-4xl mx-auto">
+    <header class="mb-10 text-center sm:text-left">
+        <h1 class="fui-brand text-2xl md:text-3xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);">SELECT A SERVER</h1>
+        <p class="text-slate-400 mt-2 text-sm md:text-base">Choose which server you want to manage with Astra, <%= user.username %>.</p>
+    </header>
 
-    <div class="max-w-4xl mx-auto p-4 sm:p-6 md:p-10">
-        <header class="mb-10 text-center sm:text-left">
-            <h1 class="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 tracking-tight mb-2">
-                🛡️ Select a Server
-            </h1>
-            <p class="text-slate-400">Choose which server you want to manage with Astra, <%= user.username %>.</p>
-        </header>
+    <!-- ACTIVE SERVERS -->
+    <section class="mb-12">
+        <h2 class="fui-section-title flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
+            </span>
+            Astra is active here
+        </h2>
 
-        <!-- ACTIVE SERVERS -->
-        <section class="mb-12">
-            <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <span class="relative flex h-2.5 w-2.5">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
-                </span>
-                Astra is active here
-            </h2>
-
-            <% if (guildsWithBot.length === 0) { %>
-                <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center text-slate-500 text-sm">
-                    Astra isn't active in any server you administer yet — invite her to one below to get started.
-                </div>
-            <% } else { %>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <% guildsWithBot.forEach(guild => { %>
-                        <form action="/select-server" method="POST">
-                            <input type="hidden" name="guild_id" value="<%= guild.id %>">
-                            <button type="submit" class="w-full flex items-center gap-4 p-4 bg-slate-900 border border-slate-800 rounded-2xl hover:border-indigo-500/60 hover:bg-slate-800/80 transition-all shadow-lg hover:shadow-indigo-500/10 text-left group">
-                                <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-800 flex-shrink-0 border border-slate-700 group-hover:border-indigo-500/50 transition">
-                                    <% if (guild.icon) { %>
-                                        <img src="https://cdn.discordapp.com/icons/<%= guild.id %>/<%= guild.icon %>.png" alt="Icon" class="w-full h-full object-cover">
-                                    <% } else { %>
-                                        <div class="w-full h-full flex items-center justify-center text-slate-500 font-bold bg-slate-800">
-                                            <%= guild.name.charAt(0) %>
-                                        </div>
-                                    <% } %>
-                                </div>
-                                <div class="text-left overflow-hidden flex-1">
-                                    <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
-                                    <span class="text-xs text-emerald-400 font-medium tracking-wide flex items-center gap-1">🟢 Active</span>
-                                </div>
-                                <span class="text-slate-600 group-hover:text-indigo-400 transition text-xl">→</span>
-                            </button>
-                        </form>
-                    <% }) %>
-                </div>
-            <% } %>
-        </section>
-
-        <!-- NEEDS INVITE -->
-        <% if (guildsWithoutBot.length > 0) { %>
-            <section>
-                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">You administer these too, but Astra isn't here yet</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <% guildsWithoutBot.forEach(guild => { %>
-                        <div class="flex items-center gap-4 p-4 bg-slate-900/50 border border-slate-800/70 rounded-2xl">
-                            <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-800 flex-shrink-0 border border-slate-700 grayscale opacity-70">
+        <% if (guildsWithBot.length === 0) { %>
+            <div class="fui-panel fui-corners p-8 text-center text-slate-500 text-sm mt-4">
+                Astra isn't active in any server you administer yet — invite her to one below to get started.
+            </div>
+        <% } else { %>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <% guildsWithBot.forEach(guild => { %>
+                    <form action="/select-server" method="POST">
+                        <input type="hidden" name="guild_id" value="<%= guild.id %>">
+                        <button type="submit" class="fui-panel fui-corners w-full flex items-center gap-4 p-4 hover:border-cyan-400/60 transition-all text-left group">
+                            <div class="w-12 h-12 rounded-full overflow-hidden bg-black/60 flex-shrink-0 border border-cyan-500/20 group-hover:border-cyan-400/50 transition">
                                 <% if (guild.icon) { %>
                                     <img src="https://cdn.discordapp.com/icons/<%= guild.id %>/<%= guild.icon %>.png" alt="Icon" class="w-full h-full object-cover">
                                 <% } else { %>
-                                    <div class="w-full h-full flex items-center justify-center text-slate-500 font-bold bg-slate-800">
-                                        <%= guild.name.charAt(0) %>
-                                    </div>
+                                    <div class="w-full h-full flex items-center justify-center text-cyan-300 font-bold bg-black/60"><%= guild.name.charAt(0) %></div>
                                 <% } %>
                             </div>
-                            <div class="flex-1 overflow-hidden">
-                                <h3 class="font-semibold text-slate-300 truncate"><%= guild.name %></h3>
-                                <span class="text-xs text-slate-500">Not added</span>
+                            <div class="text-left overflow-hidden flex-1">
+                                <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
+                                <span class="text-xs text-cyan-400 font-medium fui-tracked uppercase">Active</span>
                             </div>
-                            <a href="https://discord.com/api/oauth2/authorize?client_id=<%= clientId %>&permissions=<%= botInvitePermissions %>&scope=bot%20applications.commands&guild_id=<%= guild.id %>&disable_guild_select=true"
-                                target="_blank" rel="noopener"
-                                class="text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white py-2 px-4 rounded-lg transition whitespace-nowrap">
-                                + Invite
-                            </a>
-                        </div>
-                    <% }) %>
-                </div>
-            </section>
+                            <span class="text-slate-600 group-hover:text-cyan-400 transition text-xl">→</span>
+                        </button>
+                    </form>
+                <% }) %>
+            </div>
         <% } %>
+    </section>
 
-        <div class="mt-10 text-center">
-            <a href="/logout" class="text-sm text-slate-600 hover:text-slate-400 transition">Not you? Log out</a>
-        </div>
-    </div>
+    <!-- NEEDS INVITE -->
+    <% if (guildsWithoutBot.length > 0) { %>
+        <section>
+            <h2 class="fui-section-title" style="color: #94a3b8;">You administer these too, but Astra isn't here yet</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <% guildsWithoutBot.forEach(guild => { %>
+                    <div class="fui-panel fui-corners flex items-center gap-4 p-4" style="opacity: 0.85;">
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-black/60 flex-shrink-0 border border-slate-700 grayscale opacity-70">
+                            <% if (guild.icon) { %>
+                                <img src="https://cdn.discordapp.com/icons/<%= guild.id %>/<%= guild.icon %>.png" alt="Icon" class="w-full h-full object-cover">
+                            <% } else { %>
+                                <div class="w-full h-full flex items-center justify-center text-slate-500 font-bold bg-black/60"><%= guild.name.charAt(0) %></div>
+                            <% } %>
+                        </div>
+                        <div class="flex-1 overflow-hidden">
+                            <h3 class="font-semibold text-slate-300 truncate"><%= guild.name %></h3>
+                            <span class="text-xs text-slate-500">Not added</span>
+                        </div>
+                        <a href="https://discord.com/api/oauth2/authorize?client_id=<%= clientId %>&permissions=<%= botInvitePermissions %>&scope=bot%20applications.commands&guild_id=<%= guild.id %>&disable_guild_select=true"
+                            target="_blank" rel="noopener"
+                            class="fui-btn text-xs py-2 px-4 text-cyan-300 border-cyan-500/30 whitespace-nowrap">
+                            + Invite
+                        </a>
+                    </div>
+                <% }) %>
+            </div>
+        </section>
+    <% } %>
+</div>
 
-</body>
-</html>
+<%- include('partials/footer') %>

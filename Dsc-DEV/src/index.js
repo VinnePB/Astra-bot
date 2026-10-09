@@ -190,7 +190,8 @@ app.get('/select-server', checkAuth, async (req, res) => {
             guildsWithBot,
             guildsWithoutBot,
             clientId: process.env.DISCORD_CLIENT_ID,
-            botInvitePermissions: BOT_INVITE_PERMISSIONS
+            botInvitePermissions: BOT_INVITE_PERMISSIONS,
+            pageTitle: 'Projeckt V: Astra — Select Server'
         });
     } catch (err) {
         console.error('❌ Error fetching guilds:', err);
