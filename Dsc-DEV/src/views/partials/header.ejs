@@ -127,9 +127,18 @@
 
             <div id="astra-nav-popup" class="fui-panel fui-corners absolute left-0 top-full mt-2 w-60 py-2 z-50">
                 <% if (typeof user !== 'undefined' && user) { %>
-                    <div class="px-4 py-2.5 border-b border-cyan-500/15 mb-1">
-                        <div class="text-xs text-slate-500 fui-tracked uppercase">Signed in as</div>
-                        <div class="text-sm font-semibold text-white truncate"><%= user.username %></div>
+                    <div class="flex items-center gap-2.5 px-4 py-2.5 border-b border-cyan-500/15 mb-1">
+                        <% if (user.avatar) { %>
+                            <% const popupAvatarExt = user.avatar.startsWith('a_') ? 'gif' : 'png'; %>
+                            <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.<%= popupAvatarExt %>" class="w-9 h-9 rounded-full border border-cyan-500/30 shrink-0" alt=""
+                                onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'w-9 h-9 bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-sm font-bold text-cyan-300 shrink-0', textContent: '<%= user.username.charAt(0).toUpperCase() %>'}))">
+                        <% } else { %>
+                            <div class="w-9 h-9 bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-sm font-bold text-cyan-300 shrink-0"><%= user.username.charAt(0).toUpperCase() %></div>
+                        <% } %>
+                        <div class="min-w-0">
+                            <div class="text-xs text-slate-500 fui-tracked uppercase">Signed in as</div>
+                            <div class="text-sm font-semibold text-white truncate"><%= user.username %></div>
+                        </div>
                     </div>
                 <% } %>
                 <a href="/onboarding" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">

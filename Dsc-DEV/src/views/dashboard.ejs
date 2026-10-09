@@ -49,6 +49,15 @@
             <h2 class="fui-section-title">Verification Gate</h2>
             <p class="text-sm text-slate-500 mb-6">Set both a rules channel/role and a verify channel/role to require both before granting the final role. Leave the rules fields blank to use single-step verification instead.</p>
 
+            <form action="/api/update-language" method="POST" class="mb-6" data-autosave>
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <label class="fui-label">Astra's Language <span class="normal-case text-slate-600">(member-facing messages: verification, tickets, logs)</span></label>
+                <select name="language" class="fui-input sm:w-72">
+                    <option value="en" <%= settings.language !== 'pt-br' ? 'selected' : '' %>>English</option>
+                    <option value="pt-br" <%= settings.language === 'pt-br' ? 'selected' : '' %>>Português (Brasil)</option>
+                </select>
+            </form>
+
             <form action="/api/update-verification" method="POST" class="space-y-6" data-autosave>
                 <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
