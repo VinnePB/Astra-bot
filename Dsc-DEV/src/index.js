@@ -128,6 +128,30 @@ app.get('/lang/:lang', (req, res) => {
     res.redirect(req.get('Referer') || '/');
 });
 
+// Guild-context twin of /lang/:lang. The homepage/select-server toggle above
+// is a session-only preference (no guild picked yet, nothing to save it to).
+// Once a guild is selected, the SAME top-bar EN/PT-BR toggle instead writes
+// straight to that guild's guild_settings.language — the identical field the
+// Configuration page's Language dropdown saves to — so both controls always
+// agree and clicking either one actually does something.
+app.get('/lang-guild/:lang', checkAuth, async (req, res) => {
+    const guildId = req.session.selectedGuildId;
+    if (!guildId) return res.redirect('/select-server');
+
+    const lang = normalizeLanguage(req.params.lang);
+    try {
+        await db.query(
+            `INSERT INTO guild_settings (guild_id, language) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET language = $2`,
+            [guildId, lang]
+        );
+        const guild = client.guilds.cache.get(guildId);
+        if (guild) await configCommand.logAction(guild, `🌐 ${req.session.user.username} changed Astra's language to ${lang === 'pt-br' ? 'Português (Brasil)' : 'English'} from the website.`);
+    } catch (err) {
+        console.error('❌ Error updating guild language from nav toggle:', err);
+    }
+    res.redirect(req.get('Referer') || '/dashboard');
+});
+
 app.get('/logout', (req, res) => {
     req.session.destroy(() => {
         res.clearCookie('connect.sid');
@@ -185,12 +209,15 @@ app.get('/select-server', checkAuth, async (req, res) => {
         const guildsWithBot = adminGuilds.filter(g => botGuildIds.has(g.id));
         const guildsWithoutBot = adminGuilds.filter(g => !botGuildIds.has(g.id));
 
+        const siteLang = req.session.siteLang || 'en';
         res.render('select_server', {
             user: req.session.user,
             guildsWithBot,
             guildsWithoutBot,
             clientId: process.env.DISCORD_CLIENT_ID,
             botInvitePermissions: BOT_INVITE_PERMISSIONS,
+            currentLang: siteLang,
+            t: (key, vars) => t(siteLang, key, vars),
             pageTitle: 'Projeckt V: Astra — Select Server'
         });
     } catch (err) {
@@ -245,7 +272,13 @@ app.get('/onboarding', checkAuth, async (req, res) => {
     try {
         const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
         const settings = rows[0] || { guild_id: guildId };
-        res.render('onboarding', { user: req.session.user, settings, t: (key, vars) => t(settings.language || 'en', key, vars), pageTitle: 'Projeckt V: Astra — Get Started' });
+        res.render('onboarding', {
+            user: req.session.user, settings,
+            currentLang: settings.language || 'en',
+            guildLangContext: true,
+            t: (key, vars) => t(settings.language || 'en', key, vars),
+            pageTitle: 'Projeckt V: Astra — Get Started'
+        });
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
@@ -302,6 +335,8 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             user: req.session.user, settings, channels, categories, roles, adminRoles, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
+            currentLang: settings.language || 'en',
+            guildLangContext: true,
             t: (key, vars) => t(settings.language || 'en', key, vars),
             activeTab: req.query.tab || (editingArtist ? 'tickets' : 'verification'),
             success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Dashboard'

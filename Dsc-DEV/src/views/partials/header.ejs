@@ -136,29 +136,38 @@
                             <div class="w-9 h-9 bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-sm font-bold text-cyan-300 shrink-0"><%= user.username.charAt(0).toUpperCase() %></div>
                         <% } %>
                         <div class="min-w-0">
-                            <div class="text-xs text-slate-500 fui-tracked uppercase">Signed in as</div>
+                            <div class="text-xs text-slate-500 fui-tracked uppercase"><%= typeof t !== 'undefined' ? t('site.nav.signed_in_as') : 'Signed in as' %></div>
                             <div class="text-sm font-semibold text-white truncate"><%= user.username %></div>
                         </div>
                     </div>
                 <% } %>
                 <a href="/onboarding" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
-                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> Help &amp; Setup
+                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.help') : 'Help & Setup' %>
                 </a>
                 <a href="/dashboard" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
-                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> Configuration
+                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.configuration') : 'Configuration' %>
                 </a>
                 <a href="/select-server" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
-                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> Switch Server
+                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.switch_server') : 'Switch Server' %>
                 </a>
                 <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-sm text-fuchsia-400 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs mt-1 border-t border-cyan-500/15 pt-2">
-                    <span class="w-1 h-1 bg-fuchsia-500 rotate-45 shrink-0"></span> Logout
+                    <span class="w-1 h-1 bg-fuchsia-500 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.logout') : 'Logout' %>
                 </a>
             </div>
         </div>
 
+        <% /* Guild-context pages (Dashboard, Onboarding) point this at
+              /lang-guild/:lang, which writes guild_settings.language — the
+              same field the Configuration page's Language dropdown saves
+              to, so both controls always show the same state. Pages with
+              no guild picked yet (Select a Server) use the session-only
+              /lang/:lang toggle instead. Either way the active language is
+              now highlighted, so it's never ambiguous which one is on. */ %>
+        <% const navCurLang = typeof currentLang !== 'undefined' ? currentLang : 'en'; %>
+        <% const navLangBase = (typeof guildLangContext !== 'undefined' && guildLangContext) ? '/lang-guild/' : '/lang/'; %>
         <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">
-            <a href="/lang/en" class="px-2.5 py-1 transition fui-tracked text-slate-500 hover:text-cyan-300">EN</a>
-            <a href="/lang/pt-br" class="px-2.5 py-1 transition fui-tracked text-slate-500 hover:text-cyan-300">PT-BR</a>
+            <a href="<%= navLangBase %>en" class="px-2.5 py-1 transition fui-tracked <%= navCurLang !== 'pt-br' ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-500 hover:text-cyan-300' %>">EN</a>
+            <a href="<%= navLangBase %>pt-br" class="px-2.5 py-1 transition fui-tracked <%= navCurLang === 'pt-br' ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-500 hover:text-cyan-300' %>">PT-BR</a>
         </div>
     </div>
 

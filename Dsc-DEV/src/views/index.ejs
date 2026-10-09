@@ -1,162 +1,755 @@
-<!DOCTYPE html>
-<html lang="<%= lang === 'pt-br' ? 'pt-BR' : 'en' %>">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Projeckt V: Astra</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --fui-cyan: #22e5ff;
-            --fui-line: rgba(34, 229, 255, 0.28);
+const { Client, GatewayIntentBits, Partials, REST, Routes } = require('discord.js');
+const express = require('express');
+const path = require('path');
+const axios = require('axios');
+const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+require('dotenv').config();
+
+const db = require('./database');
+const { t, normalizeLanguage } = require('./i18n');
+const configCommand = require('./commands/config');
+const helpCommand = require('./commands/help');
+const ticketsCommand = require('./commands/tickets');
+
+process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
+process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// REQUIRED behind Render's proxy — without this, Express can't correctly
+// detect that the connection is HTTPS, which would silently break
+// `cookie.secure: true` below (the cookie would never actually get set).
+app.set('trust proxy', 1);
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+app.use(express.urlencoded({ extended: true }));
+
+if (!process.env.SESSION_SECRET) {
+    console.warn('⚠️  SESSION_SECRET is not set — using an insecure fallback value that is visible in this codebase. ' +
+        'Set a real, random SESSION_SECRET in your environment variables (Render → Environment) before relying on this in production. ' +
+        'Without it, anyone with a copy of this code could forge session cookies.');
+}
+
+app.use(session({
+    store: new pgSession({
+        pool: db.pool,
+        tableName: 'session'
+    }),
+    secret: process.env.SESSION_SECRET || 'fallback_secret_DO_NOT_USE_IN_PRODUCTION',
+    resave: false,
+    saveUninitialized: false,
+    rolling: true, // refreshes the cookie's expiry on every request, so an
+                    // active user never gets logged out mid-use — only
+                    // 30 days of total inactivity does that.
+    cookie: {
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        secure: true,     // Render always serves this over HTTPS; requires trust proxy above to work correctly.
+        httpOnly: true,   // blocks any client-side JS (including injected/XSS) from reading the cookie.
+        sameSite: 'lax'   // blocks cross-site requests from using the cookie, while still allowing the Discord OAuth redirect back to this site.
+    }
+}));
+
+// Discord access tokens expire (~7 days). Previously nothing refreshed
+// them, so after expiry every Discord API call (guilds/channels/roles)
+// silently started failing — the session cookie stayed "logged in" but the
+// data behind it was stale/broken, which is what looked like the site
+// losing sync with the real server. This refreshes proactively before
+// that happens.
+async function refreshDiscordToken(req) {
+    if (!req.session.refreshToken) return false;
+    try {
+        const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+            client_id: process.env.DISCORD_CLIENT_ID,
+            client_secret: process.env.DISCORD_CLIENT_SECRET,
+            grant_type: 'refresh_token',
+            refresh_token: req.session.refreshToken,
+        }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+        req.session.token = tokenResponse.data.access_token;
+        req.session.refreshToken = tokenResponse.data.refresh_token;
+        req.session.tokenExpiresAt = Date.now() + tokenResponse.data.expires_in * 1000;
+        return true;
+    } catch (err) {
+        console.error('❌ Failed to refresh Discord token:', err.response?.data || err.message);
+        return false;
+    }
+}
+
+const checkAuth = async (req, res, next) => {
+    if (!req.session.user || !req.session.token) return res.redirect('/');
+
+    // Refresh a minute before actual expiry, not after — avoids a request
+    // failing partway through with a now-dead token.
+    const expiresAt = req.session.tokenExpiresAt || 0;
+    if (Date.now() > expiresAt - 60_000) {
+        const refreshed = await refreshDiscordToken(req);
+        if (!refreshed) {
+            // Refresh token is also dead/revoked — nothing left to do but
+            // have them log in again for real, cleanly, rather than limping
+            // along with broken data.
+            return req.session.destroy(() => res.redirect('/'));
         }
-        body { font-family: 'Rajdhani', sans-serif; background-color: #05070a; color: #e8fbff; }
-        .fui-brand { font-family: 'Orbitron', sans-serif; letter-spacing: 0.08em; }
-        .fui-tracked { letter-spacing: 0.14em; }
+    }
 
-        .fui-panel {
-            background: linear-gradient(160deg, rgba(10,15,22,0.9), rgba(5,7,10,0.95));
-            border: 1px solid var(--fui-line);
-            clip-path: polygon(0 16px, 16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
-            position: relative;
+    next();
+};
+
+// NEW: lets settings forms auto-save on change (via fetch, marked with this
+// header client-side) instead of requiring a separate "click Save to
+// confirm" step, while still working as a normal full-page form submit if
+// JS is off. Only used for pure settings routes — anything that also
+// triggers a real Discord side effect (posting a panel message, creating a
+// channel) stays a deliberate, explicit button click instead.
+function respondSaved(req, res, redirectPath) {
+    if (req.get('X-Requested-With') === 'fetch') {
+        return res.json({ ok: true });
+    }
+    res.redirect(redirectPath);
+}
+
+// --- ROUTES ---
+
+app.get('/', (req, res) => {
+    const lang = req.session.siteLang || 'en';
+    res.render('index', {
+        lang,
+        t: (key, vars) => t(lang, key, vars),
+        loggedIn: !!(req.session.user && req.session.token),
+        user: req.session.user || null,
+        pageTitle: 'Projeckt V: Astra'
+    });
+});
+
+app.get('/lang/:lang', (req, res) => {
+    req.session.siteLang = normalizeLanguage(req.params.lang);
+    res.redirect(req.get('Referer') || '/');
+});
+
+// Guild-context twin of /lang/:lang. The homepage/select-server toggle above
+// is a session-only preference (no guild picked yet, nothing to save it to).
+// Once a guild is selected, the SAME top-bar EN/PT-BR toggle instead writes
+// straight to that guild's guild_settings.language — the identical field the
+// Configuration page's Language dropdown saves to — so both controls always
+// agree and clicking either one actually does something.
+app.get('/lang-guild/:lang', checkAuth, async (req, res) => {
+    const guildId = req.session.selectedGuildId;
+    if (!guildId) return res.redirect('/select-server');
+
+    const lang = normalizeLanguage(req.params.lang);
+    try {
+        await db.query(
+            `INSERT INTO guild_settings (guild_id, language) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET language = $2`,
+            [guildId, lang]
+        );
+        const guild = client.guilds.cache.get(guildId);
+        if (guild) await configCommand.logAction(guild, `🌐 ${req.session.user.username} changed Astra's language to ${lang === 'pt-br' ? 'Português (Brasil)' : 'English'} from the website.`);
+    } catch (err) {
+        console.error('❌ Error updating guild language from nav toggle:', err);
+    }
+    res.redirect(req.get('Referer') || '/dashboard');
+});
+
+app.get('/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.clearCookie('connect.sid');
+        res.redirect('/');
+    });
+});
+
+app.get('/login', (req, res) => {
+    res.redirect(`https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`);
+});
+
+app.get('/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.send('Error.');
+    try {
+        const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
+            client_id: process.env.DISCORD_CLIENT_ID,
+            client_secret: process.env.DISCORD_CLIENT_SECRET,
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: process.env.REDIRECT_URI,
+        }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+
+        req.session.token = tokenResponse.data.access_token;
+        req.session.refreshToken = tokenResponse.data.refresh_token;
+        req.session.tokenExpiresAt = Date.now() + tokenResponse.data.expires_in * 1000;
+        const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${req.session.token}` } });
+        req.session.user = userResponse.data;
+        res.redirect('/select-server');
+    } catch (error) { res.send('Auth failed.'); }
+});
+
+// Permissions requested for the bot invite link: View Channels, Send
+// Messages, Embed Links, Read Message History, Manage Messages, Manage
+// Channels, Manage Roles, Kick Members — everything Astra's features
+// actually use. Adjust via Discord's own permission calculator if you want
+// to change this later.
+const BOT_INVITE_PERMISSIONS = '268528658';
+
+app.get('/select-server', checkAuth, async (req, res) => {
+    try {
+        const [userGuildsResp, botGuildsResp] = await Promise.all([
+            axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } }),
+            axios.get('https://discord.com/api/v10/users/@me/guilds', { headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` } })
+        ]);
+
+        const botGuildIds = new Set(botGuildsResp.data.map(g => g.id));
+        const adminGuilds = userGuildsResp.data.filter(g => (BigInt(g.permissions) & 8n) === 8n);
+
+        // NEW: split into servers Astra is actually in vs. ones she isn't —
+        // this is what was missing before. The old version showed every
+        // server you administer, bot or no bot, which meant picking one
+        // Astra hadn't been invited to just produced a confusing empty
+        // dashboard with no explanation.
+        const guildsWithBot = adminGuilds.filter(g => botGuildIds.has(g.id));
+        const guildsWithoutBot = adminGuilds.filter(g => !botGuildIds.has(g.id));
+
+        const siteLang = req.session.siteLang || 'en';
+        res.render('select_server', {
+            user: req.session.user,
+            guildsWithBot,
+            guildsWithoutBot,
+            clientId: process.env.DISCORD_CLIENT_ID,
+            botInvitePermissions: BOT_INVITE_PERMISSIONS,
+            currentLang: siteLang,
+            t: (key, vars) => t(siteLang, key, vars),
+            pageTitle: 'Projeckt V: Astra — Select Server'
+        });
+    } catch (err) {
+        console.error('❌ Error fetching guilds:', err);
+        res.status(500).send("Error fetching servers.");
+    }
+});
+
+app.post('/select-server', checkAuth, async (req, res) => {
+    // SECURITY FIX: this used to trust req.body.guild_id outright. A crafted
+    // POST with a different guild_id would have let someone manage a server
+    // they have no actual Administrator permission on — anyone who could
+    // reach this endpoint (not just legitimate admins) could point it at any
+    // server Astra is in. Now it re-checks against Discord's own record of
+    // which servers this authenticated user actually administers, the same
+    // way the GET route already filters the list they see.
+    try {
+        const [guildsResp, botGuildsResp] = await Promise.all([
+            axios.get('https://discord.com/api/users/@me/guilds', { headers: { Authorization: `Bearer ${req.session.token}` } }),
+            axios.get('https://discord.com/api/v10/users/@me/guilds', { headers: { Authorization: `Bot ${process.env.DISCORD_TOKEN}` } })
+        ]);
+        const adminGuildIds = new Set(
+            guildsResp.data.filter(g => (BigInt(g.permissions) & 8n) === 8n).map(g => g.id)
+        );
+        const botGuildIds = new Set(botGuildsResp.data.map(g => g.id));
+
+        if (!adminGuildIds.has(req.body.guild_id)) {
+            return res.status(403).send('You do not have Administrator permission on that server.');
         }
-        .fui-corners::before, .fui-corners::after {
-            content: ''; position: absolute; width: 16px; height: 16px;
-            border-color: var(--fui-cyan); pointer-events: none; opacity: 0.85;
+        if (!botGuildIds.has(req.body.guild_id)) {
+            return res.status(400).send('Astra isn\'t in that server yet — invite her first from the server selection page.');
         }
-        .fui-corners::before { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
-        .fui-corners::after { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
 
-        .fui-btn {
-            font-family: 'Rajdhani', sans-serif;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
-            border: 1px solid var(--fui-line);
-            transition: all 0.15s ease;
+        req.session.selectedGuildId = req.body.guild_id;
+
+        // Brand-new servers (no verification set up yet) land on the
+        // onboarding page instead of the full dashboard.
+        const { rows } = await db.query('SELECT verify_channel_id, member_role_id FROM guild_settings WHERE guild_id = $1', [req.body.guild_id]);
+        const settings = rows[0];
+        const isConfigured = settings && settings.verify_channel_id && settings.member_role_id;
+        res.redirect(isConfigured ? '/dashboard' : '/onboarding');
+    } catch (err) {
+        console.error('❌ Error validating guild selection:', err);
+        res.status(500).send('Could not verify your permissions for that server.');
+    }
+});
+
+app.get('/onboarding', checkAuth, async (req, res) => {
+    const guildId = req.session.selectedGuildId;
+    if (!guildId) return res.redirect('/select-server');
+
+    try {
+        const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+        const settings = rows[0] || { guild_id: guildId };
+        res.render('onboarding', {
+            user: req.session.user, settings,
+            currentLang: settings.language || 'en',
+            guildLangContext: true,
+            t: (key, vars) => t(settings.language || 'en', key, vars),
+            pageTitle: 'Projeckt V: Astra — Get Started'
+        });
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// UNIFIED /dashboard — Verification, Anti-Scam, Auto-Kick, Tickets, Artists,
+// and Admin Roles are now tabs on this one page instead of /dashboard and
+// /tickets being two separate pages. Fetches everything every tab needs up
+// front since switching tabs is pure client-side show/hide, no reload.
+app.get('/dashboard', checkAuth, async (req, res) => {
+    const guildId = req.session.selectedGuildId;
+    if (!guildId) return res.redirect('/select-server');
+
+    try {
+        const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
+        const settings = rows[0] || { guild_id: guildId };
+        const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
+
+        let channels = [], categories = [], roles = [], memberCount = null;
+        try {
+            const [c, r, g] = await Promise.all([
+                axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
+                axios.get(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers }),
+                axios.get(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, { headers })
+            ]);
+            channels = c.data.filter(ch => ch.type === 0);
+            categories = c.data.filter(ch => ch.type === 4);
+            roles = r.data.filter(role => role.name !== '@everyone');
+            memberCount = g.data.approximate_member_count ?? null;
+        } catch (e) { console.error("Discord API fetch failed"); }
+
+        const { rows: adminRoleRows } = await db.query('SELECT role_id FROM guild_admin_roles WHERE guild_id = $1', [guildId]);
+        const adminRoles = adminRoleRows.map(r => roles.find(role => role.id === r.role_id)).filter(Boolean);
+
+        const { rows: artists } = await db.query('SELECT * FROM artists WHERE guild_id = $1', [guildId]);
+        const { rows: pricingRows } = await db.query('SELECT * FROM artist_pricing WHERE guild_id = $1', [guildId]);
+        const pricingByArtist = {};
+        for (const row of pricingRows) {
+            if (!pricingByArtist[row.user_id]) pricingByArtist[row.user_id] = [];
+            pricingByArtist[row.user_id].push(row);
         }
-        .fui-btn:hover { border-color: var(--fui-cyan); box-shadow: 0 0 20px -2px rgba(34,229,255,0.55), inset 0 0 14px -4px rgba(34,229,255,0.3); }
-        .fui-btn-solid { background: rgba(34,229,255,0.1); border-color: var(--fui-cyan); color: var(--fui-cyan); }
-        .fui-btn-solid:hover { background: rgba(34,229,255,0.18); }
+        const artistDetails = await Promise.all(artists.map(async (artist) => {
+            try {
+                const u = await axios.get(`https://discord.com/api/v10/users/${artist.user_id}`, { headers });
+                return { ...artist, username: u.data.username, pricing: pricingByArtist[artist.user_id] || [] };
+            } catch (e) {
+                return { ...artist, username: `Unknown (${artist.user_id})`, pricing: pricingByArtist[artist.user_id] || [] };
+            }
+        }));
+        const artistCount = artistDetails.length;
 
-        .fui-grid-bg {
-            background-image:
-                linear-gradient(rgba(34,229,255,0.04) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(34,229,255,0.04) 1px, transparent 1px);
-            background-size: 42px 42px;
+        const editingId = req.query.edit || null;
+        const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
+
+        res.render('dashboard', {
+            user: req.session.user, settings, channels, categories, roles, adminRoles, artistCount, memberCount,
+            artists: artistDetails, editingArtist,
+            pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
+            currentLang: settings.language || 'en',
+            guildLangContext: true,
+            t: (key, vars) => t(settings.language || 'en', key, vars),
+            activeTab: req.query.tab || (editingArtist ? 'tickets' : 'verification'),
+            success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Dashboard'
+        });
+    } catch (err) { console.error(err); res.status(500).send("DB Error."); }
+});
+
+// Old /tickets URL now redirects into the Tickets tab of the unified page,
+// so any existing links/bookmarks still land somewhere sensible.
+app.get('/tickets', checkAuth, (req, res) => {
+    const query = new URLSearchParams(req.query);
+    query.set('tab', 'tickets');
+    res.redirect(`/dashboard?${query.toString()}`);
+});
+
+app.post('/api/update-verification', checkAuth, async (req, res) => {
+    const { guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                verify_channel_id = $2, rules_channel_id = NULLIF($3, ''), rules_role_id = NULLIF($4, ''),
+                verify_role_id = NULLIF($5, ''), member_role_id = $6, log_channel_id = NULLIF($7, ''),
+                joinleave_log_enabled = $8
+        `, [guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled === 'on']);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated verification settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/update-language', checkAuth, async (req, res) => {
+    const { guild_id, language } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const lang = normalizeLanguage(language);
+    try {
+        await db.query(
+            `INSERT INTO guild_settings (guild_id, language) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET language = $2`,
+            [guild_id, lang]
+        );
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `🌐 ${req.session.user.username} changed Astra's language to ${lang === 'pt-br' ? 'Português (Brasil)' : 'English'} from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// FIX: this is the actual fix for "setup via the site doesn't do anything" —
+// saving settings alone never posted the button panel to Discord. This
+// explicitly does what /config verification does on Discord, using the
+// settings already saved in the database. Requires Save Configuration to
+// have been clicked first.
+app.post('/api/send-verification-panel', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const guild = client.guilds.cache.get(guild_id);
+    if (!guild) return res.status(400).send('Astra is not in that server.');
+
+    try {
+        const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guild_id]);
+        const settings = rows[0];
+        if (!settings || !settings.verify_channel_id || !settings.member_role_id) {
+            return res.redirect('/dashboard?status=error&reason=incomplete');
         }
-        .fui-scanline {
-            position: fixed; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(34,229,255,0.5), transparent);
-            animation: fui-sweep 9s linear infinite; pointer-events: none; z-index: 0;
+        await configCommand.postVerificationPanel(guild, settings);
+        res.redirect('/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error posting verification panel from site:', err);
+        res.status(500).send('Failed to post the panel — check Astra has permission to send messages in that channel.');
+    }
+});
+
+app.post('/api/update-antiscam', checkAuth, async (req, res) => {
+    const { guild_id, antiscam_enabled, antiscam_action, antiscam_min_age_hours, antiscam_require_no_avatar } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, antiscam_enabled, antiscam_action, antiscam_min_age_hours, antiscam_require_no_avatar)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                antiscam_enabled = $2, antiscam_action = $3, antiscam_min_age_hours = $4, antiscam_require_no_avatar = $5
+        `, [guild_id, antiscam_enabled === 'on', antiscam_action || 'log', parseInt(antiscam_min_age_hours, 10) || 24, antiscam_require_no_avatar === 'on']);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated anti-scam settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/update-autokick', checkAuth, async (req, res) => {
+    const { guild_id, auto_kick_enabled, auto_kick_days } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, auto_kick_enabled, auto_kick_days)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id) DO UPDATE SET auto_kick_enabled = $2, auto_kick_days = $3
+        `, [guild_id, auto_kick_enabled === 'on', parseInt(auto_kick_days, 10) || 2]);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated auto-kick settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/admins/add', checkAuth, async (req, res) => {
+    const { guild_id, role_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    if (!role_id) return res.redirect('/dashboard?status=success');
+
+    try {
+        await db.query(`INSERT INTO guild_admin_roles (guild_id, role_id) VALUES ($1, $2) ON CONFLICT (guild_id, role_id) DO NOTHING`, [guild_id, role_id]);
+        res.redirect('/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.post('/api/admins/remove', checkAuth, async (req, res) => {
+    const { guild_id, role_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query('DELETE FROM guild_admin_roles WHERE guild_id = $1 AND role_id = $2', [guild_id, role_id]);
+        res.redirect('/dashboard?status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// NEW: /tickets — admin-only ticket system config + artist management,
+// mirroring /config tickets and /artist on Discord. Same checkAuth gate as
+// /dashboard; there's no separate "is this Discord user actually an admin
+// of this specific guild" check here beyond what select-server already
+// filtered on (guilds where they hold Administrator), matching the rest of
+// this dashboard's existing trust model.
+app.post('/api/tickets/config', checkAuth, async (req, res) => {
+    const { guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                ticket_channel_id = $2, ticket_category_id = $3,
+                log_channel_id = COALESCE(NULLIF($4, ''), guild_settings.log_channel_id),
+                artist_setup_category_id = NULLIF($5, '')
+        `, [guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id]);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated ticket settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?tab=tickets&status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// FIX: same issue as verification — saving ticket config never actually
+// posted the "Open a Ticket" button to Discord. This does that explicitly.
+app.post('/api/send-ticket-panel', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const guild = client.guilds.cache.get(guild_id);
+    if (!guild) return res.status(400).send('Astra is not in that server.');
+
+    try {
+        const { rows } = await db.query('SELECT ticket_channel_id FROM guild_settings WHERE guild_id = $1', [guild_id]);
+        const ticketChannelId = rows[0]?.ticket_channel_id;
+        if (!ticketChannelId) return res.redirect('/dashboard?tab=tickets&status=error&reason=incomplete');
+
+        const ticketChannel = await guild.channels.fetch(ticketChannelId).catch(() => null);
+        if (!ticketChannel) return res.status(400).send('Ticket channel not found — check it still exists.');
+
+        await configCommand.postTicketPanel(ticketChannel);
+        res.redirect('/dashboard?tab=tickets&status=success');
+    } catch (err) {
+        console.error('❌ Error posting ticket panel from site:', err);
+        res.status(500).send('Failed to post the panel — check Astra has permission to send messages in that channel.');
+    }
+});
+
+app.post('/api/artists/add', checkAuth, async (req, res) => {
+    const { guild_id, user_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    if (!/^\d{15,25}$/.test(user_id || '')) return res.status(400).send('Invalid Discord User ID.');
+
+    try {
+        await db.query(`INSERT INTO artists (guild_id, user_id) VALUES ($1, $2) ON CONFLICT (guild_id, user_id) DO NOTHING`, [guild_id, user_id]);
+
+        // Best-effort: also create their private setup channel, same as
+        // the /artist add Discord command does. This works even though
+        // we're in an Express route because `client` (the discord.js
+        // client, declared further down this file) is fully initialized
+        // by the time any real request reaches here.
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) {
+            await ticketsCommand.ensureArtistSetupChannel(guild, user_id).catch(err => console.error('❌ Error creating setup channel from site:', err));
         }
-        @keyframes fui-sweep { 0% { top: 0%; } 100% { top: 100%; } }
-    </style>
-</head>
-<body class="min-h-screen antialiased relative overflow-x-hidden">
 
-    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10 fui-grid-bg">
-        <div class="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-cyan-500/10 rounded-full blur-[120px]"></div>
-        <div class="absolute top-1/2 -right-32 w-[26rem] h-[26rem] bg-fuchsia-600/10 rounded-full blur-[120px]"></div>
-        <div class="absolute -bottom-32 left-1/3 w-[24rem] h-[24rem] bg-cyan-500/5 rounded-full blur-[120px]"></div>
-    </div>
-    <div class="fui-scanline"></div>
+        res.redirect('/dashboard?tab=tickets&status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
 
-    <!-- TOP BAR -->
-    <div class="flex items-center justify-between px-5 sm:px-8 py-5 max-w-6xl mx-auto relative z-10">
-        <div class="leading-none">
-            <div class="fui-brand text-base sm:text-lg font-extrabold text-cyan-300 fui-tracked">PROJECKT V</div>
-            <div class="fui-tracked text-[10px] text-slate-500">: ASTRA</div>
-        </div>
+app.post('/api/artists/create-setup-channel', checkAuth, async (req, res) => {
+    const { guild_id, user_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">
-                <a href="/lang/en" class="px-2.5 py-1 transition fui-tracked <%= lang === 'en' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-cyan-300' %>">EN</a>
-                <a href="/lang/pt-br" class="px-2.5 py-1 transition fui-tracked <%= lang === 'pt-br' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-cyan-300' %>">PT-BR</a>
-            </div>
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return res.status(500).send('Astra isn\'t connected to that server right now.');
+        await ticketsCommand.ensureArtistSetupChannel(guild, user_id);
+        res.redirect('/dashboard?tab=tickets&status=success');
+    } catch (err) {
+        console.error('❌ Error creating setup channel:', err);
+        res.status(500).send('Could not create the setup channel — make sure an Artist Setup Category is configured and Astra has Manage Channels permission.');
+    }
+});
 
-            <% if (loggedIn) { %>
-                <div class="relative">
-                    <button id="astra-user-menu-btn" class="flex items-center gap-2 bg-white/5 hover:bg-cyan-500/10 border border-cyan-500/20 hover:border-cyan-400/50 pl-1.5 pr-3 py-1.5 transition">
-                        <% if (user.avatar) { %>
-                            <% const avatarExt = user.avatar.startsWith('a_') ? 'gif' : 'png'; %>
-                            <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.<%= avatarExt %>" class="w-6 h-6 rounded-full" alt=""
-                                onerror="this.replaceWith(Object.assign(document.createElement('div'), {className: 'w-6 h-6 bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-xs font-bold text-cyan-300', textContent: '<%= user.username.charAt(0).toUpperCase() %>'}))">
-                        <% } else { %>
-                            <div class="w-6 h-6 bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-xs font-bold text-cyan-300"><%= user.username.charAt(0).toUpperCase() %></div>
-                        <% } %>
-                        <span class="text-sm font-medium text-slate-200 hidden sm:inline"><%= t('site.home.greeting', { username: user.username }) %></span>
-                        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    <div id="astra-user-menu" class="hidden absolute right-0 mt-2 w-44 bg-black border border-cyan-500/25 shadow-[0_0_24px_-6px_rgba(34,229,255,0.4)] overflow-hidden z-50">
-                        <a href="/select-server" class="block px-4 py-2.5 text-sm text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-300 transition fui-tracked uppercase text-xs"><%= t('site.home.go_to_dashboard') %></a>
-                        <a href="/logout" class="block px-4 py-2.5 text-sm text-fuchsia-400 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs"><%= t('site.home.logout') %></a>
-                    </div>
-                </div>
-            <% } else { %>
-                <a href="/login" class="fui-btn fui-btn-solid text-sm font-semibold py-2 px-4">
-                    <%= t('site.home.login_button') %>
-                </a>
-            <% } %>
-        </div>
-    </div>
+app.post('/api/artists/remove', checkAuth, async (req, res) => {
+    const { guild_id, user_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
-    <!-- HERO -->
-    <div class="max-w-3xl mx-auto px-5 sm:px-8 pt-14 pb-20 text-center relative z-10">
-        <div class="fui-tracked text-xs text-cyan-500/70 mb-5">// SERVER SECURITY &amp; COMMISSION SYSTEM</div>
-        <h1 class="fui-brand text-4xl sm:text-6xl font-black text-cyan-300 tracking-tight mb-2" style="text-shadow: 0 0 30px rgba(34,229,255,0.35);">
-            PROJECKT V
-        </h1>
-        <div class="fui-tracked text-lg sm:text-xl text-slate-500 mb-6">: ASTRA</div>
-        <p class="text-lg text-slate-300 mb-3"><%= t('site.home.subtitle') %></p>
-        <p class="text-slate-400 leading-relaxed max-w-xl mx-auto mb-10"><%= t('site.home.tagline') %></p>
+    try {
+        await db.query('DELETE FROM artists WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
+        await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
+        res.redirect('/dashboard?tab=tickets&status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
 
-        <% if (!loggedIn) { %>
-            <a href="/login" class="fui-btn fui-btn-solid inline-flex items-center gap-2 font-semibold py-3 px-8">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>
-                <%= t('site.home.login_button') %>
-            </a>
-        <% } else { %>
-            <a href="/select-server" class="fui-btn fui-btn-solid inline-flex items-center gap-2 font-semibold py-3 px-8">
-                <%= t('site.home.go_to_dashboard') %>
-            </a>
-        <% } %>
-    </div>
+app.post('/api/artists/panel', checkAuth, async (req, res) => {
+    const { guild_id, user_id, tos_text, wontdo_text, askme_text } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
-    <!-- FEATURES -->
-    <div class="max-w-4xl mx-auto px-5 sm:px-8 pb-24 grid grid-cols-1 sm:grid-cols-3 gap-5 relative z-10">
-        <div class="fui-panel fui-corners p-6 text-center">
-            <div class="w-8 h-8 mx-auto mb-4 border-2 border-cyan-400 rotate-45"></div>
-            <h3 class="fui-tracked text-xs uppercase text-cyan-300 mb-2"><%= t('site.home.feature_verification') %></h3>
-            <p class="text-sm text-slate-400"><%= t('site.home.feature_verification_desc') %></p>
-        </div>
-        <div class="fui-panel fui-corners p-6 text-center">
-            <div class="w-8 h-8 mx-auto mb-4 border-2 border-fuchsia-400" style="clip-path: polygon(50% 0, 100% 100%, 0 100%);"></div>
-            <h3 class="fui-tracked text-xs uppercase text-cyan-300 mb-2"><%= t('site.home.feature_antiscam') %></h3>
-            <p class="text-sm text-slate-400"><%= t('site.home.feature_antiscam_desc') %></p>
-        </div>
-        <div class="fui-panel fui-corners p-6 text-center">
-            <div class="w-8 h-8 mx-auto mb-4 border-2 border-cyan-400 rounded-full"></div>
-            <h3 class="fui-tracked text-xs uppercase text-cyan-300 mb-2"><%= t('site.home.feature_tickets') %></h3>
-            <p class="text-sm text-slate-400"><%= t('site.home.feature_tickets_desc') %></p>
-        </div>
-    </div>
+    const pricingCategories = ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'];
 
-    <script>
-        (function () {
-            const btn = document.getElementById('astra-user-menu-btn');
-            const menu = document.getElementById('astra-user-menu');
-            if (!btn || !menu) return;
+    try {
+        await db.query(
+            `UPDATE artists SET tos_text = NULLIF($1, ''), wontdo_text = NULLIF($2, ''), askme_text = NULLIF($3, '') WHERE guild_id = $4 AND user_id = $5`,
+            [tos_text, wontdo_text, askme_text, guild_id, user_id]
+        );
 
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                menu.classList.toggle('hidden');
-            });
-            document.addEventListener('click', () => menu.classList.add('hidden'));
-        })();
-    </script>
+        for (let i = 0; i < pricingCategories.length; i++) {
+            const category = pricingCategories[i];
+            const price = req.body[`price_${i}`];
+            if (!price) continue;
+            await db.query(
+                `INSERT INTO artist_pricing (guild_id, user_id, category, price, sort_order) VALUES ($1, $2, $3, $4, $5)
+                 ON CONFLICT (guild_id, user_id, category) DO UPDATE SET price = EXCLUDED.price`,
+                [guild_id, user_id, category, price, i]
+            );
+        }
 
-</body>
-</html>
+        res.redirect('/dashboard?tab=tickets&status=success');
+    } catch (err) { res.status(500).send("DB Error."); }
+});
+
+app.listen(PORT, () => console.log(`🌐 Dashboard on ${PORT}`));
+
+// --- BOT ---
+
+const client = new Client({
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
+    partials: [Partials.Message, Partials.Channel, Partials.User]
+});
+
+client.once('ready', async () => {
+    try {
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+        await rest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
+        console.log('🧹 Global commands cleared.');
+
+        const commands = [
+            configCommand.data.toJSON(),
+            helpCommand.data.toJSON(),
+            helpCommand.aboutData.toJSON(),
+            helpCommand.quickstartData.toJSON(),
+            ticketsCommand.artistData.toJSON(),
+            ticketsCommand.panelData.toJSON(),
+            ticketsCommand.ticketsOverviewData.toJSON()
+        ];
+
+        for (const [guildId, guild] of client.guilds.cache) {
+            try {
+                const result = await rest.put(
+                    Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, guildId),
+                    { body: commands }
+                );
+                console.log(`✅ Synced to guild ${guild.name} (${guildId}):`, result.map(c => c.name));
+            } catch (guildErr) {
+                console.error(`❌ Failed to sync commands to guild ${guildId}:`, guildErr.message);
+            }
+        }
+        console.log('🔄 Command sync pass complete.');
+    } catch (error) {
+        console.error('❌ Error synchronizing commands:', error);
+    }
+
+    console.log(`🚀 Astra online.`);
+});
+
+// NEW: cleans up the tickets table the moment a ticket channel is deleted
+// directly (dragged to trash, cleaned up by hand) instead of via the Close
+// Ticket button — without this, that user would appear to have a
+// permanently "open" ticket and get blocked from opening a new one.
+client.on('channelDelete', async (channel) => {
+    if (!channel.guild) return;
+    try {
+        await db.query('DELETE FROM tickets WHERE channel_id = $1', [channel.id]);
+    } catch (err) {
+        console.error('❌ Error cleaning up ticket row on channel delete:', err);
+    }
+});
+
+// NEW: nudges brand-new members toward the rules/verify channel right away.
+// This is the "instantly popped as a suggestion" behavior — since a bot
+// can't force-open a channel on someone's client, a short-lived welcome
+// message pointing them at it (posted in that channel, so it also shows up
+// as unread for them) is the practical equivalent.
+client.on('guildMemberAdd', async (member) => {
+    const kicked = await configCommand.checkScamSignals(member);
+    if (!kicked) await configCommand.handleNewMember(member);
+    await logMemberEvent(member.guild, 'join', member);
+});
+
+client.on('guildMemberRemove', async (member) => {
+    await logMemberEvent(member.guild, 'leave', member);
+});
+
+// NEW: join/leave logging, toggleable via /config verification
+// joinleave_logs, shared with the same log_channel_id used everywhere else.
+async function logMemberEvent(guild, type, member) {
+    try {
+        const { rows } = await db.query('SELECT log_channel_id, joinleave_log_enabled FROM guild_settings WHERE guild_id = $1', [guild.id]);
+        const settings = rows[0];
+        if (!settings || !settings.log_channel_id || settings.joinleave_log_enabled === false) return;
+
+        const logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
+        if (!logChannel) return;
+
+        const memberCount = guild.memberCount;
+        if (type === 'join') {
+            const accountAgeDays = Math.round((Date.now() - member.user.createdTimestamp) / (1000 * 60 * 60 * 24));
+            await logChannel.send(`📥 **${member.user.tag}** joined (account age: ${accountAgeDays}d) — now **${memberCount}** members.`).catch(() => {});
+        } else {
+            await logChannel.send(`📤 **${member.user.tag}** left — now **${memberCount}** members.`).catch(() => {});
+        }
+    } catch (err) {
+        console.error('❌ Error logging member event:', err);
+    }
+}
+
+// NEW: Chat B moderation — deletes anything that isn't "!verify" in the
+// configured verify channel (dual-role mode only) and warns the sender.
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.guild) return;
+    await configCommand.executeMessage(message);
+});
+
+// NEW: auto-kick sweep for members who never finished verification.
+// Runs once shortly after startup, then every hour. Bot needs the
+// "Kick Members" permission, and the GuildMembers privileged intent must be
+// enabled for this application in the Discord Developer Portal (it already
+// is, since GatewayIntentBits.GuildMembers is set above) — just flagging it
+// in case this bot is ever moved to a fresh application.
+setTimeout(() => configCommand.runAutoKickSweep(client), 60_000);
+setInterval(() => configCommand.runAutoKickSweep(client), 60 * 60 * 1000);
+
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.guild) return;
+
+    if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === 'config') {
+            await configCommand.executeSlash(interaction);
+        } else if (interaction.commandName === 'help') {
+            await helpCommand.executeSlash(interaction);
+        } else if (interaction.commandName === 'about') {
+            await helpCommand.executeSlashAbout(interaction);
+        } else if (interaction.commandName === 'quickstart') {
+            await helpCommand.executeSlashQuickstart(interaction);
+        } else if (interaction.commandName === 'artist') {
+            await ticketsCommand.executeSlashArtist(interaction);
+        } else if (interaction.commandName === 'panel') {
+            await ticketsCommand.executeSlashPanel(interaction);
+        } else if (interaction.commandName === 'tickets') {
+            await ticketsCommand.executeSlashTicketsOverview(interaction);
+        }
+    } else if (interaction.isButton()) {
+        if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {
+            await ticketsCommand.handleButton(interaction);
+        } else {
+            await configCommand.handleButton(interaction);
+        }
+    } else if (interaction.isStringSelectMenu()) {
+        if (interaction.customId === 'astra_ticket_artist_select') {
+            await ticketsCommand.handleSelectMenu(interaction);
+        } else {
+            await configCommand.handleMenu(interaction);
+        }
+    } else if (interaction.isModalSubmit()) {
+        if (interaction.customId.startsWith('astra_panel_modal_')) {
+            await ticketsCommand.handleModalSubmit(interaction);
+        }
+    }
+});
+
+client.login(process.env.DISCORD_TOKEN);

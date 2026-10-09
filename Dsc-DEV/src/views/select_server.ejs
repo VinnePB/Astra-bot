@@ -2,8 +2,8 @@
 
 <div class="max-w-4xl mx-auto">
     <header class="mb-10 text-center sm:text-left">
-        <h1 class="fui-brand text-2xl md:text-3xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);">SELECT A SERVER</h1>
-        <p class="text-slate-400 mt-2 text-sm md:text-base">Choose which server you want to manage with Astra, <%= user.username %>.</p>
+        <h1 class="fui-brand text-2xl md:text-3xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);"><%= t('site.selectserver.title').toUpperCase() %></h1>
+        <p class="text-slate-400 mt-2 text-sm md:text-base"><%= t('site.selectserver.subtitle', { username: user.username }) %></p>
     </header>
 
     <!-- ACTIVE SERVERS -->
@@ -13,12 +13,12 @@
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                 <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
             </span>
-            Astra is active here
+            <%= t('site.selectserver.active_heading') %>
         </h2>
 
         <% if (guildsWithBot.length === 0) { %>
             <div class="fui-panel fui-corners p-8 text-center text-slate-500 text-sm mt-4">
-                Astra isn't active in any server you administer yet — invite her to one below to get started.
+                <%= t('site.selectserver.no_active_servers') %>
             </div>
         <% } else { %>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -35,7 +35,7 @@
                             </div>
                             <div class="text-left overflow-hidden flex-1">
                                 <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
-                                <span class="text-xs text-cyan-400 font-medium fui-tracked uppercase">Active</span>
+                                <span class="text-xs text-cyan-400 font-medium fui-tracked uppercase"><%= t('site.selectserver.active_badge') %></span>
                             </div>
                             <span class="text-slate-600 group-hover:text-cyan-400 transition text-xl">→</span>
                         </button>
@@ -48,7 +48,7 @@
     <!-- NEEDS INVITE -->
     <% if (guildsWithoutBot.length > 0) { %>
         <section>
-            <h2 class="fui-section-title" style="color: #94a3b8;">You administer these too, but Astra isn't here yet</h2>
+            <h2 class="fui-section-title" style="color: #94a3b8;"><%= t('site.selectserver.needs_invite_heading') %></h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <% guildsWithoutBot.forEach(guild => { %>
                     <div class="fui-panel fui-corners flex items-center gap-4 p-4" style="opacity: 0.85;">
@@ -61,12 +61,12 @@
                         </div>
                         <div class="flex-1 overflow-hidden">
                             <h3 class="font-semibold text-slate-300 truncate"><%= guild.name %></h3>
-                            <span class="text-xs text-slate-500">Not added</span>
+                            <span class="text-xs text-slate-500"><%= t('site.selectserver.not_added_badge') %></span>
                         </div>
                         <a href="https://discord.com/api/oauth2/authorize?client_id=<%= clientId %>&permissions=<%= botInvitePermissions %>&scope=bot%20applications.commands&guild_id=<%= guild.id %>&disable_guild_select=true"
                             target="_blank" rel="noopener"
                             class="fui-btn text-xs py-2 px-4 text-cyan-300 border-cyan-500/30 whitespace-nowrap">
-                            + Invite
+                            <%= t('site.selectserver.invite_button') %>
                         </a>
                     </div>
                 <% }) %>
