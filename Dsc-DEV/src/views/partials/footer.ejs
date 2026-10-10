@@ -1,4 +1,4 @@
-        </main>
+</main>
 
     <script>
         // Nav popup — click toggles it open/closed (the reliable baseline for
@@ -53,7 +53,18 @@
                         headers: { 'X-Requested-With': 'fetch' },
                         body: new FormData(form)
                     });
-                    if (res.ok) showSaved();
+                    if (res.ok) {
+                        // A form marked data-autosave-reload (currently just the
+                        // Language selector) changes what language the REST of
+                        // the page renders in — a fetch-based save alone can't
+                        // show that, so this one does a real reload instead of
+                        // just a toast, same as if you'd clicked a normal button.
+                        if (form.hasAttribute('data-autosave-reload')) {
+                            window.location.reload();
+                        } else {
+                            showSaved();
+                        }
+                    }
                 } catch (err) {
                     console.error('Autosave failed:', err);
                 }
