@@ -160,5 +160,36 @@
   "dashboard.admins.none": "Apenas Administradores reais podem configurar a Astra por enquanto.",
   "dashboard.admins.remove_button": "Remover",
   "dashboard.admins.select_role": "Selecione um cargo...",
-  "dashboard.admins.add_button": "Adicionar"
+  "dashboard.admins.add_button": "Adicionar",
+
+  "onboarding.title": "Ajuda & Configuração",
+  "onboarding.subtitle": "Como cada parte da Astra funciona, e onde configurar cada uma. Olá, {username}.",
+  "onboarding.go_to_configuration": "Ir direto para a Configuração →",
+
+  "onboarding.status.configured": "Configurado",
+  "onboarding.status.not_set_up": "Não configurado",
+  "onboarding.status.enabled": "Ativado",
+  "onboarding.status.optional": "Opcional",
+
+  "onboarding.verification.title": "Verificação",
+  "onboarding.verification.desc": "Mantém bots e desconhecidos de fora até provarem que são reais. Escolha um canal + cargo para um único botão de Verificar, ou vá além com um portão em duas etapas — um canal de regras onde clicam em \"Concordo\", depois um canal de verificação onde digitam {command}. De qualquer forma, um cargo final é o que realmente libera o resto do seu servidor.",
+  "onboarding.verification.review_button": "Revisar Verificação",
+  "onboarding.verification.configure_button": "Configurar Verificação",
+
+  "onboarding.antiscam.title": "Anti-Golpe",
+  "onboarding.antiscam.desc": "Detecta o padrão clássico de conta-golpe descartável: uma conta do Discord recém-criada, sem avatar, entrando no seu servidor. Você escolhe se a Astra apenas registra para revisão, ou expulsa automaticamente.",
+  "onboarding.antiscam.configure_button": "Configurar Anti-Golpe",
+
+  "onboarding.autokick.title": "Auto-Kick",
+  "onboarding.autokick.desc": "Para membros que nunca terminam a verificação. Depois de um período de tolerância que você define (em dias), quem ainda não verificou é removido automaticamente. Bots, o dono do servidor e os Admins da Astra nunca são afetados por isso.",
+  "onboarding.autokick.configure_button": "Configurar Auto-Kick",
+
+  "onboarding.tickets.title": "Tickets de Comissão",
+  "onboarding.tickets.desc": "Um membro clica em \"Abrir um Ticket\", escolhe um artista, e recebe um canal privado já com os Termos de Serviço, lista de Não Farei e preços daquele artista. Registre artistas aqui ou no Discord com {addCommand} — cada um pode personalizar seu próprio painel com {panelCommand}.",
+  "onboarding.tickets.review_button": "Revisar Tickets",
+  "onboarding.tickets.configure_button": "Configurar Tickets",
+
+  "onboarding.admins.title": "Cargos de Admin",
+  "onboarding.admins.desc": "Por padrão, apenas Administradores reais do servidor podem configurar a Astra. Se quiser que um cargo de Moderador (ou similar) também a gerencie — sem dar permissão total de Administrador — conceda acesso a esse cargo aqui.",
+  "onboarding.admins.manage_button": "Gerenciar Cargos de Admin"
 }

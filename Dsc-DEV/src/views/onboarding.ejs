@@ -2,8 +2,8 @@
 
 <div class="max-w-3xl mx-auto">
     <div class="mb-8 md:mb-10 text-center sm:text-left">
-        <h1 class="fui-brand text-2xl md:text-3xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);">HELP &amp; SETUP</h1>
-        <p class="text-slate-400 mt-2 text-sm md:text-base">How each part of Astra works, and where to configure it. Hi, <%= user.username %>.</p>
+        <h1 class="fui-brand text-2xl md:text-3xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);"><%= t('onboarding.title').toUpperCase() %></h1>
+        <p class="text-slate-400 mt-2 text-sm md:text-base"><%= t('onboarding.subtitle', { username: user.username }) %></p>
     </div>
 
     <div class="space-y-5">
@@ -12,57 +12,57 @@
         <% const verificationDone = !!(settings.verify_channel_id && settings.member_role_id); %>
         <div class="fui-panel fui-corners p-5 md:p-7">
             <div class="flex items-start justify-between gap-4 mb-2">
-                <h3 class="fui-section-title" style="margin-bottom:0;">Verification</h3>
-                <span class="fui-badge <%= verificationDone ? 'text-cyan-300 border-cyan-500/40' : 'text-amber-400 border-amber-500/40' %>"><%= verificationDone ? 'Configured' : 'Not set up' %></span>
+                <h3 class="fui-section-title" style="margin-bottom:0;"><%= t('onboarding.verification.title') %></h3>
+                <span class="fui-badge <%= verificationDone ? 'text-cyan-300 border-cyan-500/40' : 'text-amber-400 border-amber-500/40' %>"><%= verificationDone ? t('onboarding.status.configured') : t('onboarding.status.not_set_up') %></span>
             </div>
-            <p class="text-slate-400 text-sm mb-5 mt-3">Keeps bots and randoms out until they prove they're real. Pick a channel + role for a single Verify button, or go further with a two-step gate — a rules channel they click "I Agree" in, then a verify channel where they type <code class="text-cyan-400">!verify</code>. Either way, a final role is what actually unlocks the rest of your server.</p>
-            <a href="/dashboard?tab=verification" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= verificationDone ? 'Review Verification' : 'Configure Verification' %></a>
+            <p class="text-slate-400 text-sm mb-5 mt-3"><%- t('onboarding.verification.desc', { command: '<code class="text-cyan-400">!verify</code>' }) %></p>
+            <a href="/dashboard?tab=verification" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= verificationDone ? t('onboarding.verification.review_button') : t('onboarding.verification.configure_button') %></a>
         </div>
 
         <!-- ANTI-SCAM -->
         <% const antiscamDone = !!settings.antiscam_enabled; %>
         <div class="fui-panel fui-corners p-5 md:p-7">
             <div class="flex items-start justify-between gap-4 mb-2">
-                <h3 class="fui-section-title" style="margin-bottom:0;">Anti-Scam</h3>
-                <span class="fui-badge <%= antiscamDone ? 'text-cyan-300 border-cyan-500/40' : 'text-slate-500 border-slate-700' %>"><%= antiscamDone ? 'Enabled' : 'Optional' %></span>
+                <h3 class="fui-section-title" style="margin-bottom:0;"><%= t('onboarding.antiscam.title') %></h3>
+                <span class="fui-badge <%= antiscamDone ? 'text-cyan-300 border-cyan-500/40' : 'text-slate-500 border-slate-700' %>"><%= antiscamDone ? t('onboarding.status.enabled') : t('onboarding.status.optional') %></span>
             </div>
-            <p class="text-slate-400 text-sm mb-5 mt-3">Catches the classic throwaway-scam-account pattern: a brand-new Discord account with no avatar joining your server. You choose whether Astra just logs it for review, or kicks automatically.</p>
-            <a href="/dashboard?tab=antiscam" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30">Configure Anti-Scam</a>
+            <p class="text-slate-400 text-sm mb-5 mt-3"><%= t('onboarding.antiscam.desc') %></p>
+            <a href="/dashboard?tab=antiscam" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= t('onboarding.antiscam.configure_button') %></a>
         </div>
 
         <!-- AUTO-KICK -->
         <% const autokickDone = !!settings.auto_kick_enabled; %>
         <div class="fui-panel fui-corners p-5 md:p-7">
             <div class="flex items-start justify-between gap-4 mb-2">
-                <h3 class="fui-section-title" style="margin-bottom:0;">Auto-Kick</h3>
-                <span class="fui-badge <%= autokickDone ? 'text-cyan-300 border-cyan-500/40' : 'text-slate-500 border-slate-700' %>"><%= autokickDone ? 'Enabled' : 'Optional' %></span>
+                <h3 class="fui-section-title" style="margin-bottom:0;"><%= t('onboarding.autokick.title') %></h3>
+                <span class="fui-badge <%= autokickDone ? 'text-cyan-300 border-cyan-500/40' : 'text-slate-500 border-slate-700' %>"><%= autokickDone ? t('onboarding.status.enabled') : t('onboarding.status.optional') %></span>
             </div>
-            <p class="text-slate-400 text-sm mb-5 mt-3">For members who never finish verification. After a grace period you set (in days), anyone still unverified gets removed automatically. Bots, the server owner, and Astra Admins are never touched by this.</p>
-            <a href="/dashboard?tab=autokick" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30">Configure Auto-Kick</a>
+            <p class="text-slate-400 text-sm mb-5 mt-3"><%= t('onboarding.autokick.desc') %></p>
+            <a href="/dashboard?tab=autokick" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= t('onboarding.autokick.configure_button') %></a>
         </div>
 
         <!-- TICKETS -->
         <% const ticketsDone = !!(settings.ticket_channel_id && settings.ticket_category_id); %>
         <div class="fui-panel fui-corners p-5 md:p-7">
             <div class="flex items-start justify-between gap-4 mb-2">
-                <h3 class="fui-section-title" style="margin-bottom:0;">Commission Tickets</h3>
-                <span class="fui-badge <%= ticketsDone ? 'text-cyan-300 border-cyan-500/40' : 'text-slate-500 border-slate-700' %>"><%= ticketsDone ? 'Configured' : 'Optional' %></span>
+                <h3 class="fui-section-title" style="margin-bottom:0;"><%= t('onboarding.tickets.title') %></h3>
+                <span class="fui-badge <%= ticketsDone ? 'text-cyan-300 border-cyan-500/40' : 'text-slate-500 border-slate-700' %>"><%= ticketsDone ? t('onboarding.status.configured') : t('onboarding.status.optional') %></span>
             </div>
-            <p class="text-slate-400 text-sm mb-5 mt-3">A member clicks "Open a Ticket," picks an artist, and gets a private channel with that artist's own Terms of Service, Won't-Do list, and pricing already posted. Register artists here or on Discord with <code class="text-cyan-400">/artist add</code> — each one can customize their own panel with <code class="text-cyan-400">/panel</code>.</p>
-            <a href="/dashboard?tab=tickets" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= ticketsDone ? 'Review Tickets' : 'Configure Tickets' %></a>
+            <p class="text-slate-400 text-sm mb-5 mt-3"><%- t('onboarding.tickets.desc', { addCommand: '<code class="text-cyan-400">/artist add</code>', panelCommand: '<code class="text-cyan-400">/panel</code>' }) %></p>
+            <a href="/dashboard?tab=tickets" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= ticketsDone ? t('onboarding.tickets.review_button') : t('onboarding.tickets.configure_button') %></a>
         </div>
 
         <!-- ADMIN ROLES -->
         <div class="fui-panel fui-corners p-5 md:p-7">
-            <h3 class="fui-section-title">Admin Roles</h3>
-            <p class="text-slate-400 text-sm mb-5 mt-3">By default only real server Administrators can configure Astra. If you want a Moderator role (or similar) to manage her too — without handing out full Administrator — grant that role access here.</p>
-            <a href="/dashboard?tab=admins" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30">Manage Admin Roles</a>
+            <h3 class="fui-section-title"><%= t('onboarding.admins.title') %></h3>
+            <p class="text-slate-400 text-sm mb-5 mt-3"><%= t('onboarding.admins.desc') %></p>
+            <a href="/dashboard?tab=admins" class="fui-btn inline-block py-2.5 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= t('onboarding.admins.manage_button') %></a>
         </div>
 
     </div>
 
     <div class="mt-8 text-center">
-        <a href="/dashboard" class="text-sm text-slate-500 hover:text-cyan-300 transition fui-tracked uppercase">Go straight to Configuration →</a>
+        <a href="/dashboard" class="text-sm text-slate-500 hover:text-cyan-300 transition fui-tracked uppercase"><%= t('onboarding.go_to_configuration') %></a>
     </div>
 </div>
 

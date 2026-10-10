@@ -160,5 +160,36 @@
   "dashboard.admins.none": "Only real Administrators can configure Astra right now.",
   "dashboard.admins.remove_button": "Remove",
   "dashboard.admins.select_role": "Select a role...",
-  "dashboard.admins.add_button": "Add"
+  "dashboard.admins.add_button": "Add",
+
+  "onboarding.title": "Help & Setup",
+  "onboarding.subtitle": "How each part of Astra works, and where to configure it. Hi, {username}.",
+  "onboarding.go_to_configuration": "Go straight to Configuration →",
+
+  "onboarding.status.configured": "Configured",
+  "onboarding.status.not_set_up": "Not set up",
+  "onboarding.status.enabled": "Enabled",
+  "onboarding.status.optional": "Optional",
+
+  "onboarding.verification.title": "Verification",
+  "onboarding.verification.desc": "Keeps bots and randoms out until they prove they're real. Pick a channel + role for a single Verify button, or go further with a two-step gate — a rules channel they click \"I Agree\" in, then a verify channel where they type {command}. Either way, a final role is what actually unlocks the rest of your server.",
+  "onboarding.verification.review_button": "Review Verification",
+  "onboarding.verification.configure_button": "Configure Verification",
+
+  "onboarding.antiscam.title": "Anti-Scam",
+  "onboarding.antiscam.desc": "Catches the classic throwaway-scam-account pattern: a brand-new Discord account with no avatar joining your server. You choose whether Astra just logs it for review, or kicks automatically.",
+  "onboarding.antiscam.configure_button": "Configure Anti-Scam",
+
+  "onboarding.autokick.title": "Auto-Kick",
+  "onboarding.autokick.desc": "For members who never finish verification. After a grace period you set (in days), anyone still unverified gets removed automatically. Bots, the server owner, and Astra Admins are never touched by this.",
+  "onboarding.autokick.configure_button": "Configure Auto-Kick",
+
+  "onboarding.tickets.title": "Commission Tickets",
+  "onboarding.tickets.desc": "A member clicks \"Open a Ticket,\" picks an artist, and gets a private channel with that artist's own Terms of Service, Won't-Do list, and pricing already posted. Register artists here or on Discord with {addCommand} — each one can customize their own panel with {panelCommand}.",
+  "onboarding.tickets.review_button": "Review Tickets",
+  "onboarding.tickets.configure_button": "Configure Tickets",
+
+  "onboarding.admins.title": "Admin Roles",
+  "onboarding.admins.desc": "By default only real server Administrators can configure Astra. If you want a Moderator role (or similar) to manage her too — without handing out full Administrator — grant that role access here.",
+  "onboarding.admins.manage_button": "Manage Admin Roles"
 }
