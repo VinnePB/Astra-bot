@@ -286,6 +286,37 @@
                             <textarea name="askme_text" rows="2" class="fui-input" placeholder="<%= t('dashboard.tickets.askme_placeholder') %>"><%= editingArtist.askme_text || '' %></textarea>
                         </div>
                         <div>
+                            <label class="fui-label"><%= t('dashboard.tickets.banner_label') %> <span class="normal-case text-slate-600"><%= t('dashboard.tickets.banner_hint') %></span></label>
+                            <input type="text" name="banner_url" value="<%= editingArtist.banner_url || '' %>" placeholder="https://example.com/your-banner.png" class="fui-input">
+                        </div>
+                        <div>
+                            <label class="fui-label mb-3"><%= t('dashboard.tickets.links_label') %> <span class="normal-case text-slate-600"><%= t('dashboard.tickets.links_hint') %></span></label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1"><%= t('dashboard.tickets.link_portfolio_label') %></label>
+                                    <input type="text" name="link_portfolio" value="<%= editingArtist.link_portfolio || '' %>" placeholder="https://..." class="fui-input">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1"><%= t('dashboard.tickets.link_twitter_label') %></label>
+                                    <input type="text" name="link_twitter" value="<%= editingArtist.link_twitter || '' %>" placeholder="https://..." class="fui-input">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-500 mb-1"><%= t('dashboard.tickets.link_instagram_label') %></label>
+                                    <input type="text" name="link_instagram" value="<%= editingArtist.link_instagram || '' %>" placeholder="https://..." class="fui-input">
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1"><%= t('dashboard.tickets.link_other_label') %></label>
+                                        <input type="text" name="link_other_label" value="<%= editingArtist.link_other_label || '' %>" placeholder="<%= t('dashboard.tickets.link_other_label_placeholder') %>" maxlength="30" class="fui-input">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-slate-500 mb-1"><%= t('dashboard.tickets.link_other_url_label') %></label>
+                                        <input type="text" name="link_other" value="<%= editingArtist.link_other || '' %>" placeholder="https://..." class="fui-input">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
                             <label class="fui-label mb-3"><%= t('dashboard.tickets.pricing_label') %></label>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <% pricingCategories.forEach((category, i) => {

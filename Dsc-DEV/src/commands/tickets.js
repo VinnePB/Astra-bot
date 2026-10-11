@@ -34,8 +34,50 @@ async function ensureArtistRow(guildId, userId) {
 }
 
 async function getArtistProfile(guildId, userId) {
-    const { rows } = await db.query('SELECT tos_text, wontdo_text, askme_text FROM artists WHERE guild_id = $1 AND user_id = $2', [guildId, userId]);
-    return rows[0] || { tos_text: null, wontdo_text: null, askme_text: null };
+    const { rows } = await db.query(
+        `SELECT tos_text, wontdo_text, askme_text, banner_url,
+                link_portfolio, link_twitter, link_instagram, link_other, link_other_label
+         FROM artists WHERE guild_id = $1 AND user_id = $2`,
+        [guildId, userId]
+    );
+    return rows[0] || {
+        tos_text: null, wontdo_text: null, askme_text: null, banner_url: null,
+        link_portfolio: null, link_twitter: null, link_instagram: null, link_other: null, link_other_label: null
+    };
+}
+
+// Only accepts http(s) URLs — Discord's Link-style buttons and embed
+// image/URL fields reject anything else anyway, but checking here lets us
+// give a clear error instead of a cryptic Discord API rejection.
+function isValidUrl(str) {
+    try {
+        const u = new URL(str);
+        return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+// Up to 4 Link-style buttons (Portfolio, Twitter/X, Instagram, and a
+// free-label "Other" slot), built from whichever of an artist's link
+// fields are actually set. Returns null if none are set, so callers can
+// skip adding an empty row.
+function buildArtistLinkRow(profile) {
+    const buttons = [];
+    if (profile.link_portfolio) {
+        buttons.push(new ButtonBuilder().setLabel('Portfolio').setEmoji('🔗').setStyle(ButtonStyle.Link).setURL(profile.link_portfolio));
+    }
+    if (profile.link_twitter) {
+        buttons.push(new ButtonBuilder().setLabel('Twitter / X').setEmoji('🐦').setStyle(ButtonStyle.Link).setURL(profile.link_twitter));
+    }
+    if (profile.link_instagram) {
+        buttons.push(new ButtonBuilder().setLabel('Instagram').setEmoji('📸').setStyle(ButtonStyle.Link).setURL(profile.link_instagram));
+    }
+    if (profile.link_other) {
+        buttons.push(new ButtonBuilder().setLabel((profile.link_other_label || 'More').slice(0, 80)).setEmoji('🔗').setStyle(ButtonStyle.Link).setURL(profile.link_other));
+    }
+    if (buttons.length === 0) return null;
+    return new ActionRowBuilder().addComponents(buttons);
 }
 
 async function getArtistPricing(guildId, userId) {
@@ -78,7 +120,7 @@ async function getArtistList(guild) {    const artistMap = new Map();
 
 function buildPanelEmbed(artistMember, profile, pricing) {
     const pricingLines = pricing.map(p => `**${p.category}:** ${p.price}`).join('\n');
-    return new EmbedBuilder()
+    const embed = new EmbedBuilder()
         .setTitle(`🎨 Commission Info — ${artistMember.displayName}`)
         .setThumbnail(artistMember.displayAvatarURL())
         .addFields(
@@ -89,6 +131,8 @@ function buildPanelEmbed(artistMember, profile, pricing) {
         )
         .setColor('#2b2d31')
         .setFooter({ text: 'Astra' });
+    if (profile.banner_url) embed.setImage(profile.banner_url);
+    return embed;
 }
 
 // Creates (or recreates, if the channel was deleted) an artist's private
@@ -138,9 +182,11 @@ async function ensureArtistSetupChannel(guild, userId) {
     const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('astra_panel_edit_tos').setLabel('Edit ToS').setEmoji('📜').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('astra_panel_edit_wontdo').setLabel('Edit Won\'t Do').setEmoji('🚫').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('astra_panel_edit_askme').setLabel('Edit Ask Me').setEmoji('🙋').setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId('astra_panel_edit_askme').setLabel('Edit Ask Me').setEmoji('🙋').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('astra_panel_edit_banner').setLabel('Edit Banner').setEmoji('🖼️').setStyle(ButtonStyle.Secondary)
     );
     const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('astra_panel_edit_links').setLabel('Edit Links').setEmoji('🔗').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('astra_panel_edit_pricing').setLabel('Edit Pricing').setEmoji('💰').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('astra_panel_preview').setLabel('Preview').setEmoji('👀').setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId('astra_panel_reset').setLabel('Reset All').setEmoji('♻️').setStyle(ButtonStyle.Danger)
@@ -404,6 +450,35 @@ module.exports = {
                 .addStringOption(o => o.setName('amount').setDescription('e.g. $25, 2000 JPY, "Not offered"').setRequired(true))
                 .addUserOption(o => o.setName('artist').setDescription('(Admins only) edit another artist\'s panel').setRequired(false)))
         .addSubcommand(sub =>
+            sub.setName('set-banner')
+                .setDescription('Set a banner image shown on your panel')
+                .addStringOption(o => o.setName('url').setDescription('Direct image URL (https://...)').setRequired(true))
+                .addUserOption(o => o.setName('artist').setDescription('(Admins only) edit another artist\'s panel').setRequired(false)))
+        .addSubcommand(sub =>
+            sub.setName('set-link')
+                .setDescription('Set one of your panel\'s social/portfolio link buttons')
+                .addStringOption(o => o.setName('platform').setDescription('Which link slot to set').setRequired(true)
+                    .addChoices(
+                        { name: 'Portfolio / Website', value: 'portfolio' },
+                        { name: 'Twitter / X', value: 'twitter' },
+                        { name: 'Instagram', value: 'instagram' },
+                        { name: 'Other', value: 'other' }
+                    ))
+                .addStringOption(o => o.setName('url').setDescription('Link URL (https://...)').setRequired(true))
+                .addStringOption(o => o.setName('label').setDescription('Button label — only used for "Other"').setRequired(false))
+                .addUserOption(o => o.setName('artist').setDescription('(Admins only) edit another artist\'s panel').setRequired(false)))
+        .addSubcommand(sub =>
+            sub.setName('remove-link')
+                .setDescription('Remove one of your panel\'s link buttons')
+                .addStringOption(o => o.setName('platform').setDescription('Which link slot to clear').setRequired(true)
+                    .addChoices(
+                        { name: 'Portfolio / Website', value: 'portfolio' },
+                        { name: 'Twitter / X', value: 'twitter' },
+                        { name: 'Instagram', value: 'instagram' },
+                        { name: 'Other', value: 'other' }
+                    ))
+                .addUserOption(o => o.setName('artist').setDescription('(Admins only) edit another artist\'s panel').setRequired(false)))
+        .addSubcommand(sub =>
             sub.setName('reset')
                 .setDescription('Reset part of your panel back to the default template')
                 .addStringOption(o => o.setName('what').setDescription('What to reset').setRequired(true)
@@ -412,6 +487,8 @@ module.exports = {
                         { name: 'Won\'t Do list', value: 'wontdo' },
                         { name: 'Ask Me About', value: 'askme' },
                         { name: 'Pricing', value: 'pricing' },
+                        { name: 'Banner Image', value: 'banner' },
+                        { name: 'Links', value: 'links' },
                         { name: 'Everything', value: 'all' }
                     ))
                 .addUserOption(o => o.setName('artist').setDescription('(Admins only) reset another artist\'s panel').setRequired(false)))
@@ -444,7 +521,8 @@ module.exports = {
             if (!artistMember) return interaction.reply({ content: '❌ Could not find that member in this server.', ephemeral: true });
             const profile = await getArtistProfile(guildId, artistUser.id);
             const pricing = await getArtistPricing(guildId, artistUser.id);
-            return interaction.reply({ embeds: [buildPanelEmbed(artistMember, profile, pricing)], ephemeral: true });
+            const linkRow = buildArtistLinkRow(profile);
+            return interaction.reply({ embeds: [buildPanelEmbed(artistMember, profile, pricing)], components: linkRow ? [linkRow] : [], ephemeral: true });
         }
 
         try {
@@ -484,6 +562,45 @@ module.exports = {
                 return interaction.reply({ content: `✅ ${category} price set to "${amount}" for ${artistUser}.`, ephemeral: true });
             }
 
+            if (sub === 'set-banner') {
+                const url = interaction.options.getString('url');
+                if (!isValidUrl(url)) {
+                    return interaction.reply({ content: '❌ That doesn\'t look like a valid URL — it needs to start with http:// or https://.', ephemeral: true });
+                }
+                await db.query('UPDATE artists SET banner_url = $1 WHERE guild_id = $2 AND user_id = $3', [url, guildId, artistUser.id]);
+                await logAction(interaction.guild, `🎨 ${interaction.user} updated ${artistUser}'s panel banner.`);
+                return interaction.reply({ content: `✅ Banner image updated for ${artistUser}.`, ephemeral: true });
+            }
+
+            if (sub === 'set-link') {
+                const platform = interaction.options.getString('platform');
+                const url = interaction.options.getString('url');
+                const label = interaction.options.getString('label');
+                if (!isValidUrl(url)) {
+                    return interaction.reply({ content: '❌ That doesn\'t look like a valid URL — it needs to start with http:// or https://.', ephemeral: true });
+                }
+                if (platform === 'other') {
+                    await db.query('UPDATE artists SET link_other = $1, link_other_label = $2 WHERE guild_id = $3 AND user_id = $4', [url, (label || 'More').slice(0, 30), guildId, artistUser.id]);
+                } else {
+                    const column = { portfolio: 'link_portfolio', twitter: 'link_twitter', instagram: 'link_instagram' }[platform];
+                    await db.query(`UPDATE artists SET ${column} = $1 WHERE guild_id = $2 AND user_id = $3`, [url, guildId, artistUser.id]);
+                }
+                await logAction(interaction.guild, `🎨 ${interaction.user} updated ${artistUser}'s ${platform} link.`);
+                return interaction.reply({ content: `✅ ${platform} link updated for ${artistUser}.`, ephemeral: true });
+            }
+
+            if (sub === 'remove-link') {
+                const platform = interaction.options.getString('platform');
+                if (platform === 'other') {
+                    await db.query('UPDATE artists SET link_other = NULL, link_other_label = NULL WHERE guild_id = $1 AND user_id = $2', [guildId, artistUser.id]);
+                } else {
+                    const column = { portfolio: 'link_portfolio', twitter: 'link_twitter', instagram: 'link_instagram' }[platform];
+                    await db.query(`UPDATE artists SET ${column} = NULL WHERE guild_id = $1 AND user_id = $2`, [guildId, artistUser.id]);
+                }
+                await logAction(interaction.guild, `🎨 ${interaction.user} removed ${artistUser}'s ${platform} link.`);
+                return interaction.reply({ content: `✅ ${platform} link removed for ${artistUser}.`, ephemeral: true });
+            }
+
             if (sub === 'reset') {
                 const what = interaction.options.getString('what');
                 if (what === 'tos' || what === 'all') {
@@ -497,6 +614,12 @@ module.exports = {
                 }
                 if (what === 'pricing' || what === 'all') {
                     await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guildId, artistUser.id]);
+                }
+                if (what === 'banner' || what === 'all') {
+                    await db.query('UPDATE artists SET banner_url = NULL WHERE guild_id = $1 AND user_id = $2', [guildId, artistUser.id]);
+                }
+                if (what === 'links' || what === 'all') {
+                    await db.query('UPDATE artists SET link_portfolio = NULL, link_twitter = NULL, link_instagram = NULL, link_other = NULL, link_other_label = NULL WHERE guild_id = $1 AND user_id = $2', [guildId, artistUser.id]);
                 }
                 return interaction.reply({ content: `✅ Reset (${what}) for ${artistUser}.`, ephemeral: true });
             }
@@ -604,16 +727,53 @@ module.exports = {
                 return interaction.showModal(buildPricingModal(pricing));
             }
 
+            if (interaction.customId === 'astra_panel_edit_banner') {
+                const modal = new ModalBuilder().setCustomId('astra_panel_modal_banner').setTitle('Edit Panel Banner');
+                const input = new TextInputBuilder().setCustomId('url').setLabel('Banner Image URL')
+                    .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(500)
+                    .setValue(artistRow?.banner_url || '').setPlaceholder('https://example.com/your-banner.png');
+                modal.addComponents(new ActionRowBuilder().addComponents(input));
+                return interaction.showModal(modal);
+            }
+
+            if (interaction.customId === 'astra_panel_edit_links') {
+                const modal = new ModalBuilder().setCustomId('astra_panel_modal_links').setTitle('Edit Panel Links');
+                const portfolioInput = new TextInputBuilder().setCustomId('portfolio').setLabel('Portfolio / Website URL')
+                    .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setValue(artistRow?.link_portfolio || '');
+                const twitterInput = new TextInputBuilder().setCustomId('twitter').setLabel('Twitter / X URL')
+                    .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setValue(artistRow?.link_twitter || '');
+                const instagramInput = new TextInputBuilder().setCustomId('instagram').setLabel('Instagram URL')
+                    .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setValue(artistRow?.link_instagram || '');
+                const otherLabelInput = new TextInputBuilder().setCustomId('other_label').setLabel('Other Link — Button Label')
+                    .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(30).setValue(artistRow?.link_other_label || '').setPlaceholder('e.g. Ko-fi, Vgen');
+                const otherUrlInput = new TextInputBuilder().setCustomId('other_url').setLabel('Other Link — URL')
+                    .setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(300).setValue(artistRow?.link_other || '');
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(portfolioInput),
+                    new ActionRowBuilder().addComponents(twitterInput),
+                    new ActionRowBuilder().addComponents(instagramInput),
+                    new ActionRowBuilder().addComponents(otherLabelInput),
+                    new ActionRowBuilder().addComponents(otherUrlInput)
+                );
+                return interaction.showModal(modal);
+            }
+
             if (interaction.customId === 'astra_panel_preview') {
                 const member = await interaction.guild.members.fetch(artistId).catch(() => null);
                 if (!member) return interaction.reply({ content: '❌ Could not find your member profile.', ephemeral: true });
                 const profile = await getArtistProfile(guildId, artistId);
                 const pricing = await getArtistPricing(guildId, artistId);
-                return interaction.reply({ embeds: [buildPanelEmbed(member, profile, pricing)], ephemeral: true });
+                const linkRow = buildArtistLinkRow(profile);
+                return interaction.reply({ embeds: [buildPanelEmbed(member, profile, pricing)], components: linkRow ? [linkRow] : [], ephemeral: true });
             }
 
             if (interaction.customId === 'astra_panel_reset') {
-                await db.query('UPDATE artists SET tos_text = NULL, wontdo_text = NULL, askme_text = NULL WHERE guild_id = $1 AND user_id = $2', [guildId, artistId]);
+                await db.query(
+                    `UPDATE artists SET tos_text = NULL, wontdo_text = NULL, askme_text = NULL, banner_url = NULL,
+                        link_portfolio = NULL, link_twitter = NULL, link_instagram = NULL, link_other = NULL, link_other_label = NULL
+                     WHERE guild_id = $1 AND user_id = $2`,
+                    [guildId, artistId]
+                );
                 await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guildId, artistId]);
                 return interaction.reply({ content: '♻️ Your panel has been reset to Astra\'s defaults.', ephemeral: true });
             }
@@ -671,6 +831,7 @@ module.exports = {
 
             const profile = await getArtistProfile(guild.id, artistId);
             const pricing = await getArtistPricing(guild.id, artistId);
+            const linkRow = buildArtistLinkRow(profile);
             const closeRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('astra_ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
             );
@@ -678,7 +839,7 @@ module.exports = {
             await ticketChannel.send({
                 content: t(lang, 'tickets.welcome', { user: interaction.user.toString(), artist: artistMember.toString() }),
                 embeds: [buildPanelEmbed(artistMember, profile, pricing)],
-                components: [closeRow]
+                components: linkRow ? [linkRow, closeRow] : [closeRow]
             });
 
             if (settings.log_channel_id) {
@@ -717,6 +878,35 @@ module.exports = {
                 const text = interaction.fields.getTextInputValue('text').trim();
                 await db.query('UPDATE artists SET askme_text = $1 WHERE guild_id = $2 AND user_id = $3', [text || null, guildId, artistId]);
                 return interaction.reply({ content: '✅ Ask-me text updated.', ephemeral: true });
+            }
+
+            if (interaction.customId === 'astra_panel_modal_banner') {
+                const url = interaction.fields.getTextInputValue('url').trim();
+                if (url && !isValidUrl(url)) {
+                    return interaction.reply({ content: '❌ That doesn\'t look like a valid URL — it needs to start with http:// or https://. Nothing was saved.', ephemeral: true });
+                }
+                await db.query('UPDATE artists SET banner_url = $1 WHERE guild_id = $2 AND user_id = $3', [url || null, guildId, artistId]);
+                return interaction.reply({ content: '✅ Banner updated.', ephemeral: true });
+            }
+
+            if (interaction.customId === 'astra_panel_modal_links') {
+                const portfolio = interaction.fields.getTextInputValue('portfolio').trim();
+                const twitter = interaction.fields.getTextInputValue('twitter').trim();
+                const instagram = interaction.fields.getTextInputValue('instagram').trim();
+                const otherLabel = interaction.fields.getTextInputValue('other_label').trim();
+                const otherUrl = interaction.fields.getTextInputValue('other_url').trim();
+
+                const invalid = [portfolio, twitter, instagram, otherUrl].some(u => u && !isValidUrl(u));
+                if (invalid) {
+                    return interaction.reply({ content: '❌ One or more links don\'t look like valid URLs (need to start with http:// or https://). Nothing was saved — try again.', ephemeral: true });
+                }
+
+                await db.query(
+                    `UPDATE artists SET link_portfolio = $1, link_twitter = $2, link_instagram = $3, link_other = $4, link_other_label = $5
+                     WHERE guild_id = $6 AND user_id = $7`,
+                    [portfolio || null, twitter || null, instagram || null, otherUrl || null, otherUrl ? (otherLabel || 'More') : null, guildId, artistId]
+                );
+                return interaction.reply({ content: '✅ Links updated.', ephemeral: true });
             }
 
             if (interaction.customId === 'astra_panel_modal_pricing') {

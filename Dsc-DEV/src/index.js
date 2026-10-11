@@ -575,16 +575,52 @@ app.post('/api/artists/remove', checkAuth, async (req, res) => {
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
+// Same http(s)-only check used on the Discord side (commands/tickets.js
+// isValidUrl) — kept as a small local copy rather than exported, since it's
+// a one-liner and this is the only route on this side that needs it.
+function isValidUrl(str) {
+    try {
+        const u = new URL(str);
+        return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
 app.post('/api/artists/panel', checkAuth, async (req, res) => {
-    const { guild_id, user_id, tos_text, wontdo_text, askme_text } = req.body;
+    const {
+        guild_id, user_id, tos_text, wontdo_text, askme_text, banner_url,
+        link_portfolio, link_twitter, link_instagram, link_other, link_other_label
+    } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
 
     const pricingCategories = ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'];
 
+    // Any URL field left blank clears that field (NULLIF below); any URL
+    // field that's non-blank must actually look like a URL, or the whole
+    // save is rejected rather than silently storing something that'll
+    // break the Discord embed/button later.
+    const urlFields = { banner_url, link_portfolio, link_twitter, link_instagram, link_other };
+    for (const [field, value] of Object.entries(urlFields)) {
+        if (value && !isValidUrl(value)) {
+            return res.status(400).send(`"${field}" doesn't look like a valid URL — it needs to start with http:// or https://.`);
+        }
+    }
+
     try {
         await db.query(
-            `UPDATE artists SET tos_text = NULLIF($1, ''), wontdo_text = NULLIF($2, ''), askme_text = NULLIF($3, '') WHERE guild_id = $4 AND user_id = $5`,
-            [tos_text, wontdo_text, askme_text, guild_id, user_id]
+            `UPDATE artists SET
+                tos_text = NULLIF($1, ''), wontdo_text = NULLIF($2, ''), askme_text = NULLIF($3, ''),
+                banner_url = NULLIF($4, ''), link_portfolio = NULLIF($5, ''), link_twitter = NULLIF($6, ''),
+                link_instagram = NULLIF($7, ''), link_other = NULLIF($8, ''),
+                link_other_label = NULLIF($9, '')
+             WHERE guild_id = $10 AND user_id = $11`,
+            [
+                tos_text, wontdo_text, askme_text, banner_url,
+                link_portfolio, link_twitter, link_instagram, link_other,
+                link_other ? (link_other_label || 'More') : '',
+                guild_id, user_id
+            ]
         );
 
         for (let i = 0; i < pricingCategories.length; i++) {

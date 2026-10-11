@@ -102,6 +102,19 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS setup_channel_id VARCHAR(30);
             `);
 
+            // NEW: panel banner image + up to 4 social/portfolio link
+            // buttons (Portfolio, Twitter/X, Instagram, and one free-label
+            // "Other" slot) — see commands/tickets.js buildArtistLinkRow().
+            await client.query(`
+                ALTER TABLE artists
+                ADD COLUMN IF NOT EXISTS banner_url TEXT,
+                ADD COLUMN IF NOT EXISTS link_portfolio TEXT,
+                ADD COLUMN IF NOT EXISTS link_twitter TEXT,
+                ADD COLUMN IF NOT EXISTS link_instagram TEXT,
+                ADD COLUMN IF NOT EXISTS link_other TEXT,
+                ADD COLUMN IF NOT EXISTS link_other_label VARCHAR(30);
+            `);
+
             // NEW: per-server language, used by i18n.js for member-facing
             // bot messages. Defaults to English; /config language switches
             // a server to Portuguese (Brazil).
