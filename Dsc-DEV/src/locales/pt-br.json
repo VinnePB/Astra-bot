@@ -85,6 +85,7 @@
   "dashboard.autosave_note": "// AS MUDANÇAS SALVAM AUTOMATICAMENTE",
 
   "dashboard.tab.verification": "Verificação",
+  "dashboard.tab.welcome": "Boas-vindas",
   "dashboard.tab.antiscam": "Anti-Golpe",
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
@@ -113,6 +114,21 @@
   "dashboard.verification.log_channel_none": "Nenhum selecionado",
   "dashboard.verification.post_panel_button": "Postar / Atualizar Painel no Discord",
   "dashboard.verification.post_panel_hint": "As configurações acima salvam automaticamente — clique aqui sempre que quiser (re)enviar a(s) mensagem(ns) com botão para seus canais.",
+
+  "dashboard.welcome.title": "Mensagens de Boas-vindas",
+  "dashboard.welcome.desc": "Publica uma mensagem pública em um canal à sua escolha sempre que alguém entrar — separado do aviso de verificação e do log administrativo de entradas/saídas.",
+  "dashboard.welcome.enable_label": "Ativar Mensagens de Boas-vindas",
+  "dashboard.welcome.channel_label": "Canal de Boas-vindas",
+  "dashboard.welcome.card_label": "Publicar como embed estilizado (com avatar)",
+  "dashboard.welcome.message_label": "Mensagem",
+  "dashboard.welcome.placeholders_hint": "— use {user}, {username}, {server}, {membercount}",
+
+  "dashboard.leave.title": "Mensagens de Saída",
+  "dashboard.leave.desc": "Publica uma mensagem quando alguém sai do servidor.",
+  "dashboard.leave.enable_label": "Ativar Mensagens de Saída",
+  "dashboard.leave.channel_label": "Canal de Saída",
+  "dashboard.leave.message_label": "Mensagem",
+  "dashboard.leave.placeholders_hint": "— use {username}, {server}, {membercount}",
 
   "dashboard.antiscam.title": "Proteção Anti-Golpe",
   "dashboard.antiscam.desc": "Sinalize ou expulse automaticamente contas recém-criadas ao entrar — a assinatura clássica de contas-golpe.",

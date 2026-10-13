@@ -454,6 +454,72 @@ app.post('/api/update-autokick', checkAuth, async (req, res) => {
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
+// NEW: public welcome/leave messages — see commands/config.js
+// sendWelcomeMessage/sendLeaveMessage and /config welcome|leave on Discord.
+app.post('/api/update-welcome', checkAuth, async (req, res) => {
+    const { guild_id, welcome_enabled, welcome_channel_id, welcome_message, welcome_card_enabled } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    if (welcome_enabled === 'on' && !welcome_channel_id) {
+        return res.status(400).send('Pick a welcome channel before enabling welcome messages.');
+    }
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, welcome_enabled, welcome_channel_id, welcome_message, welcome_card_enabled)
+            VALUES ($1, $2, NULLIF($3, ''), $4, $5)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                welcome_enabled = $2,
+                welcome_channel_id = NULLIF($3, ''),
+                welcome_message = $4,
+                welcome_card_enabled = $5
+        `, [
+            guild_id, welcome_enabled === 'on', welcome_channel_id,
+            (welcome_message && welcome_message.trim()) || 'Welcome {user} to **{server}**! You\'re member #{membercount}.',
+            welcome_card_enabled === 'on'
+        ]);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated welcome message settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error saving welcome settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
+app.post('/api/update-leave', checkAuth, async (req, res) => {
+    const { guild_id, leave_enabled, leave_channel_id, leave_message } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    if (leave_enabled === 'on' && !leave_channel_id) {
+        return res.status(400).send('Pick a leave channel before enabling leave messages.');
+    }
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, leave_enabled, leave_channel_id, leave_message)
+            VALUES ($1, $2, NULLIF($3, ''), $4)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                leave_enabled = $2,
+                leave_channel_id = NULLIF($3, ''),
+                leave_message = $4
+        `, [
+            guild_id, leave_enabled === 'on', leave_channel_id,
+            (leave_message && leave_message.trim()) || '**{username}** has left the server. We\'re now at {membercount} members.'
+        ]);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated leave message settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error saving leave settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
 app.post('/api/admins/add', checkAuth, async (req, res) => {
     const { guild_id, role_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -703,11 +769,18 @@ client.on('channelDelete', async (channel) => {
 // as unread for them) is the practical equivalent.
 client.on('guildMemberAdd', async (member) => {
     const kicked = await configCommand.checkScamSignals(member);
-    if (!kicked) await configCommand.handleNewMember(member);
+    if (!kicked) {
+        await configCommand.handleNewMember(member);
+        // NEW: public welcome message (separate feature from the nudge
+        // above and from the admin-only log below) — see /config welcome.
+        await configCommand.sendWelcomeMessage(member);
+    }
     await logMemberEvent(member.guild, 'join', member);
 });
 
 client.on('guildMemberRemove', async (member) => {
+    // NEW: public leave message — see /config leave.
+    await configCommand.sendLeaveMessage(member);
     await logMemberEvent(member.guild, 'leave', member);
 });
 

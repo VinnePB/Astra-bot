@@ -8,6 +8,35 @@ async function getSettings(guildId) {
     return rows[0] || null;
 }
 
+// Welcome/leave message templates support {user} (mention), {username},
+// {server}, and {membercount} placeholders. Admin-authored free text — not
+// something we translate, since it's the server's own voice, not Astra's UI.
+function fillTemplate(template, vars) {
+    return String(template)
+        .replace(/\{user\}/g, vars.user)
+        .replace(/\{username\}/g, vars.username)
+        .replace(/\{server\}/g, vars.server)
+        .replace(/\{membercount\}/g, vars.membercount);
+}
+
+// Unified audit trail — every meaningful admin action and notable automatic
+// action (kicks, scam flags, ticket open/close, verification completions)
+// posts here if a log channel is configured. Deliberately NOT wired into
+// every micro-step (e.g. "user clicked I Agree") — that would flood an
+// active server's log channel. Configured the same way as everything
+// else: log_channel_id on guild_settings, set via /config verification,
+// /config tickets, or the website.
+async function logAction(guild, message) {
+    try {
+        const settings = await getSettings(guild.id);
+        if (!settings || !settings.log_channel_id) return;
+        const logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
+        if (logChannel) await logChannel.send(message).catch(() => {});
+    } catch (err) {
+        console.error('❌ Error posting to Astra log channel:', err);
+    }
+}
+
 // Grants member_role_id if (and only if) the member holds both configured
 // prerequisite roles. Returns true if the final role is now granted
 // (either just now, or already held).
@@ -26,6 +55,8 @@ async function checkAndGrantFinalRole(member, settings) {
 }
 
 module.exports = {
+    logAction,
+
     // --- SLASH COMMAND DATA (/config) ---
     // No setDefaultMemberPermissions — Astra-authorized roles may lack real
     // Administrator permission, and Discord hides restricted commands from
@@ -175,6 +206,44 @@ module.exports = {
         )
         .addSubcommand(subcommand =>
             subcommand
+                .setName('welcome')
+                .setDescription('Configure the public welcome message posted when someone joins')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Turn public welcome messages on or off')
+                        .setRequired(true))
+                .addChannelOption(option =>
+                    option.setName('channel')
+                        .setDescription('Channel to post welcome messages in (required the first time you enable this)')
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('message')
+                        .setDescription('Use {user}, {username}, {server}, {membercount}. \\n for a new line. Optional.')
+                        .setRequired(false))
+                .addBooleanOption(option =>
+                    option.setName('card')
+                        .setDescription('Post as a styled embed with the member\'s avatar (default: on). Off = plain text.')
+                        .setRequired(false))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
+                .setName('leave')
+                .setDescription('Configure the message posted when someone leaves')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Turn leave messages on or off')
+                        .setRequired(true))
+                .addChannelOption(option =>
+                    option.setName('channel')
+                        .setDescription('Channel to post leave messages in (required the first time you enable this)')
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('message')
+                        .setDescription('Use {username}, {server}, {membercount}. \\n for a new line. Optional.')
+                        .setRequired(false))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('language')
                 .setDescription('Set the language Astra uses for member-facing messages in this server')
                 .addStringOption(option =>
@@ -215,6 +284,96 @@ module.exports = {
         if (sub === 'tickets') {
             return this.handleTicketsSubcommand(interaction);
         }
+
+        if (sub === 'welcome') {
+            return this.handleWelcomeSubcommand(interaction);
+        }
+
+        if (sub === 'leave') {
+            return this.handleLeaveSubcommand(interaction);
+        }
+    },
+
+    async handleWelcomeSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const guildId = interaction.guild.id;
+        const enabled = interaction.options.getBoolean('enabled');
+        const channel = interaction.options.getChannel('channel');
+        const messageRaw = interaction.options.getString('message');
+        const message = messageRaw ? messageRaw.replace(/\\n/g, '\n') : null;
+        const card = interaction.options.getBoolean('card');
+
+        try {
+            const existing = await getSettings(guildId);
+            const channelId = channel ? channel.id : (existing ? existing.welcome_channel_id : null);
+
+            if (enabled && !channelId) {
+                return interaction.reply({ content: '❌ Pick a `channel` the first time you enable welcome messages.', ephemeral: true });
+            }
+
+            await db.query(`
+                INSERT INTO guild_settings (guild_id, welcome_enabled, welcome_channel_id, welcome_message, welcome_card_enabled)
+                VALUES ($1, $2, $3, COALESCE($4, 'Welcome {user} to **{server}**! You''re member #{membercount}.'), COALESCE($5, TRUE))
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    welcome_enabled = EXCLUDED.welcome_enabled,
+                    welcome_channel_id = COALESCE($3, guild_settings.welcome_channel_id),
+                    welcome_message = COALESCE($4, guild_settings.welcome_message),
+                    welcome_card_enabled = COALESCE($5, guild_settings.welcome_card_enabled);
+            `, [guildId, enabled, channelId, message, card]);
+
+            await logAction(interaction.guild, `⚙️ ${interaction.user} ${enabled ? 'enabled' : 'disabled'} public welcome messages${channel ? ` in ${channel}` : ''}.`);
+
+            if (!enabled) {
+                return interaction.reply({ content: '✅ Public welcome messages turned off.', ephemeral: true });
+            }
+            return interaction.reply({ content: `✅ Welcome messages enabled in <#${channelId}>.`, ephemeral: true });
+        } catch (error) {
+            console.error('❌ Error saving welcome settings:', error);
+            return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
+        }
+    },
+
+    async handleLeaveSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const guildId = interaction.guild.id;
+        const enabled = interaction.options.getBoolean('enabled');
+        const channel = interaction.options.getChannel('channel');
+        const messageRaw = interaction.options.getString('message');
+        const message = messageRaw ? messageRaw.replace(/\\n/g, '\n') : null;
+
+        try {
+            const existing = await getSettings(guildId);
+            const channelId = channel ? channel.id : (existing ? existing.leave_channel_id : null);
+
+            if (enabled && !channelId) {
+                return interaction.reply({ content: '❌ Pick a `channel` the first time you enable leave messages.', ephemeral: true });
+            }
+
+            await db.query(`
+                INSERT INTO guild_settings (guild_id, leave_enabled, leave_channel_id, leave_message)
+                VALUES ($1, $2, $3, COALESCE($4, '**{username}** has left the server. We''re now at {membercount} members.'))
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    leave_enabled = EXCLUDED.leave_enabled,
+                    leave_channel_id = COALESCE($3, guild_settings.leave_channel_id),
+                    leave_message = COALESCE($4, guild_settings.leave_message);
+            `, [guildId, enabled, channelId, message]);
+
+            await logAction(interaction.guild, `⚙️ ${interaction.user} ${enabled ? 'enabled' : 'disabled'} leave messages${channel ? ` in ${channel}` : ''}.`);
+
+            if (!enabled) {
+                return interaction.reply({ content: '✅ Leave messages turned off.', ephemeral: true });
+            }
+            return interaction.reply({ content: `✅ Leave messages enabled in <#${channelId}>.`, ephemeral: true });
+        } catch (error) {
+            console.error('❌ Error saving leave settings:', error);
+            return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
+        }
     },
 
     async handleTicketsSubcommand(interaction) {
@@ -242,6 +401,7 @@ module.exports = {
             `, [guildId, ticketChannel.id, ticketCategory.id, logChannel ? logChannel.id : null, artistSetupCategory ? artistSetupCategory.id : null]);
 
             const result = await module.exports.postTicketPanel(ticketChannel);
+            await logAction(interaction.guild, `⚙️ ${interaction.user} updated ticket settings (panel: ${ticketChannel}, category: ${ticketCategory}).`);
 
             await interaction.editReply({
                 content: `${result.message}\n📁 New tickets will be created under: ${ticketCategory}\n\nNow register artists with \`/artist add\` or \`/config artist-roles add\`, then have them run \`/panel\` to set up their ToS, won't-do list, and pricing.`
@@ -284,6 +444,7 @@ module.exports = {
                      ON CONFLICT (guild_id, role_id) DO NOTHING`,
                     [guildId, role.id, interaction.user.id]
                 );
+                await logAction(interaction.guild, `⚙️ ${interaction.user} gave ${role} automatic artist status.`);
                 return interaction.reply({ content: `✅ Anyone with ${role} can now self-manage a commission panel via \`/panel\`.`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error adding artist role:', error);
@@ -295,6 +456,7 @@ module.exports = {
             const role = interaction.options.getRole('role');
             try {
                 await db.query('DELETE FROM guild_artist_roles WHERE guild_id = $1 AND role_id = $2', [guildId, role.id]);
+                await logAction(interaction.guild, `⚙️ ${interaction.user} revoked automatic artist status from ${role}.`);
                 return interaction.reply({ content: `✅ ${role} no longer grants automatic artist status.`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error removing artist role:', error);
@@ -344,11 +506,13 @@ module.exports = {
             `, [guildId, enabled, action, minAgeHours, requireNoAvatar]);
 
             if (!enabled) {
+                await logAction(interaction.guild, `⚙️ ${interaction.user} turned off anti-scam checks.`);
                 return interaction.reply({ content: '✅ Anti-scam checks turned off.', ephemeral: true });
             }
 
             const avatarNote = requireNoAvatar ? ', with no custom avatar,' : '';
             const actionNote = action === 'kick' ? 'kicked automatically' : 'flagged in your log channel for review';
+            await logAction(interaction.guild, `⚙️ ${interaction.user} enabled anti-scam checks (accounts under ${minAgeHours}h${avatarNote} will be ${actionNote}).`);
             return interaction.reply({
                 content: `✅ Anti-scam checks enabled. Accounts younger than ${minAgeHours}h${avatarNote} will be ${actionNote}.`,
                 ephemeral: true
@@ -371,6 +535,7 @@ module.exports = {
                 [interaction.guild.id, language]
             );
             const label = language === 'pt-br' ? 'Português (Brasil)' : 'English';
+            await logAction(interaction.guild, `🌐 ${interaction.user} changed Astra's language to ${label}.`);
             return interaction.reply({ content: `✅ Astra will now use **${label}** for member-facing messages in this server.`, ephemeral: true });
         } catch (error) {
             console.error('❌ Error saving language:', error);
@@ -462,6 +627,7 @@ module.exports = {
                 replyContent += `\n⏱️ Auto-kick enabled — members without ${memberRole} after ${autoKickDays} day(s) will be removed (bots and admins are exempt).`;
             }
 
+            await logAction(interaction.guild, `⚙️ ${interaction.user} updated verification settings (final role: ${memberRole}).`);
             await interaction.editReply({ content: replyContent });
 
         } catch (error) {
@@ -477,6 +643,7 @@ module.exports = {
     // anything to Discord, which is what made "setup via the site" feel
     // broken even though the data was technically saved correctly.
     async postVerificationPanel(guild, settings) {
+        const lang = settings.language || 'en';
         const verifyChannel = await guild.channels.fetch(settings.verify_channel_id).catch(() => null);
         if (!verifyChannel) return { ok: false, message: '❌ Could not find the verify channel — check it still exists.' };
 
@@ -488,21 +655,21 @@ module.exports = {
             if (!rulesChannel) return { ok: false, message: '❌ Could not find the rules channel — check it still exists.' };
 
             const rulesEmbed = new EmbedBuilder()
-                .setTitle('📜 Rules Acknowledgement')
-                .setDescription('By clicking below, you confirm you\'ve read and agree to follow the rules above.')
+                .setTitle(t(lang, 'panel.rules_title'))
+                .setDescription(t(lang, 'panel.rules_description'))
                 .setColor('#2b2d31')
-                .setFooter({ text: 'Astra — Step 1 of 2' });
+                .setFooter({ text: t(lang, 'panel.step1_footer') });
 
             const rulesRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('astra_rules_accept').setLabel('I Agree').setStyle(ButtonStyle.Secondary)
+                new ButtonBuilder().setCustomId('astra_rules_accept').setLabel(t(lang, 'panel.i_agree')).setStyle(ButtonStyle.Secondary)
             );
             await rulesChannel.send({ embeds: [rulesEmbed], components: [rulesRow] });
 
             const verifyInstructions = new EmbedBuilder()
                 .setTitle(title)
-                .setDescription(`${description}\n\nType \`!verify\` in this channel to complete step 2. Anything else you type here will be removed.`)
+                .setDescription(`${description}\n\n${t(lang, 'panel.step2_instructions')}`)
                 .setColor('#2b2d31')
-                .setFooter({ text: 'Astra — Step 2 of 2' });
+                .setFooter({ text: t(lang, 'panel.step2_footer') });
             await verifyChannel.send({ embeds: [verifyInstructions] });
 
             return { ok: true, message: `✅ **Verification panels posted!**\n📜 Chat A (button) sent to: ${rulesChannel}\n💬 Chat B (types \`!verify\`) sent to: ${verifyChannel}` };
@@ -515,7 +682,7 @@ module.exports = {
             .setFooter({ text: 'Astra' });
 
         const verifyRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('member_verify_button').setLabel('Verify').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('member_verify_button').setLabel(t(lang, 'panel.verify_button')).setStyle(ButtonStyle.Success)
         );
         await verifyChannel.send({ embeds: [verifyEmbed], components: [verifyRow] });
 
@@ -544,6 +711,7 @@ module.exports = {
                      ON CONFLICT (guild_id, role_id) DO NOTHING`,
                     [guildId, role.id, interaction.user.id]
                 );
+                await logAction(interaction.guild, `🔐 ${interaction.user} granted ${role} permission to configure Astra.`);
                 return interaction.reply({ content: `✅ ${role} can now configure Astra (\`/config verification\`).`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error adding admin role:', error);
@@ -555,6 +723,7 @@ module.exports = {
             const role = interaction.options.getRole('role');
             try {
                 await db.query('DELETE FROM guild_admin_roles WHERE guild_id = $1 AND role_id = $2', [guildId, role.id]);
+                await logAction(interaction.guild, `🔐 ${interaction.user} revoked ${role}'s permission to configure Astra.`);
                 return interaction.reply({ content: `✅ ${role} can no longer configure Astra.`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error removing admin role:', error);
@@ -839,6 +1008,77 @@ module.exports = {
             setTimeout(() => welcome.delete().catch(() => {}), 30_000);
         } catch (error) {
             console.error('❌ Error sending welcome ping:', error);
+        }
+    },
+
+    // --- PUBLIC WELCOME MESSAGE ---
+    // Called from index.js on guildMemberAdd, alongside (not instead of)
+    // handleNewMember's rules/verify nudge and checkScamSignals. This is the
+    // member-facing "Loritta-style" welcome post — a permanent message in a
+    // dedicated channel the admin picks via /config welcome or the website,
+    // separate from the verification flow entirely.
+    async sendWelcomeMessage(member) {
+        try {
+            const settings = await getSettings(member.guild.id);
+            if (!settings || !settings.welcome_enabled || !settings.welcome_channel_id) return;
+
+            const channel = await member.guild.channels.fetch(settings.welcome_channel_id).catch(() => null);
+            if (!channel || !channel.isTextBased()) return;
+
+            const template = settings.welcome_message || 'Welcome {user} to **{server}**! You\'re member #{membercount}.';
+            const text = fillTemplate(template, {
+                user: member.toString(),
+                username: member.user.username,
+                server: member.guild.name,
+                membercount: member.guild.memberCount
+            });
+
+            if (settings.welcome_card_enabled === false) {
+                await channel.send(text);
+                return;
+            }
+
+            const embed = new EmbedBuilder()
+                .setDescription(text)
+                .setColor('#57F287')
+                .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
+                .setFooter({ text: `Member #${member.guild.memberCount}` })
+                .setTimestamp();
+            await channel.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('❌ Error sending welcome message:', error);
+        }
+    },
+
+    // --- PUBLIC LEAVE MESSAGE ---
+    // Called from index.js on guildMemberRemove. Same deal as above but for
+    // departures — separate from the admin-only joinleave_log_enabled log.
+    async sendLeaveMessage(member) {
+        try {
+            const settings = await getSettings(member.guild.id);
+            if (!settings || !settings.leave_enabled || !settings.leave_channel_id) return;
+
+            const channel = await member.guild.channels.fetch(settings.leave_channel_id).catch(() => null);
+            if (!channel || !channel.isTextBased()) return;
+
+            const user = member.user;
+            const template = settings.leave_message || '**{username}** has left the server. We\'re now at {membercount} members.';
+            const text = fillTemplate(template, {
+                user: user ? user.toString() : 'Someone',
+                username: user ? user.username : 'Someone',
+                server: member.guild.name,
+                membercount: member.guild.memberCount
+            });
+
+            const embed = new EmbedBuilder()
+                .setDescription(text)
+                .setColor('#ED4245')
+                .setTimestamp();
+            if (user) embed.setThumbnail(user.displayAvatarURL({ dynamic: true, size: 256 }));
+
+            await channel.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('❌ Error sending leave message:', error);
         }
     }
 };

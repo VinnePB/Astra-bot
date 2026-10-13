@@ -85,6 +85,7 @@
   "dashboard.autosave_note": "// CHANGES SAVE AUTOMATICALLY",
 
   "dashboard.tab.verification": "Verification",
+  "dashboard.tab.welcome": "Welcome",
   "dashboard.tab.antiscam": "Anti-Scam",
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
@@ -113,6 +114,21 @@
   "dashboard.verification.log_channel_none": "None selected",
   "dashboard.verification.post_panel_button": "Post / Update Panel in Discord",
   "dashboard.verification.post_panel_hint": "Settings save automatically above — click this whenever you want to (re)send the button message(s) to your channels.",
+
+  "dashboard.welcome.title": "Welcome Messages",
+  "dashboard.welcome.desc": "Post a public message in a channel of your choice whenever someone joins — separate from the verification nudge and the admin-only join/leave log.",
+  "dashboard.welcome.enable_label": "Enable Welcome Messages",
+  "dashboard.welcome.channel_label": "Welcome Channel",
+  "dashboard.welcome.card_label": "Post as a styled embed (with avatar)",
+  "dashboard.welcome.message_label": "Message",
+  "dashboard.welcome.placeholders_hint": "— use {user}, {username}, {server}, {membercount}",
+
+  "dashboard.leave.title": "Leave Messages",
+  "dashboard.leave.desc": "Post a message when someone leaves the server.",
+  "dashboard.leave.enable_label": "Enable Leave Messages",
+  "dashboard.leave.channel_label": "Leave Channel",
+  "dashboard.leave.message_label": "Message",
+  "dashboard.leave.placeholders_hint": "— use {username}, {server}, {membercount}",
 
   "dashboard.antiscam.title": "Anti-Scam Protection",
   "dashboard.antiscam.desc": "Flag or auto-kick brand-new accounts on join — the classic scam-bot signature.",

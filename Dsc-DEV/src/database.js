@@ -131,6 +131,24 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS joinleave_log_enabled BOOLEAN DEFAULT TRUE;
             `);
 
+            // NEW: public-facing welcome/leave messages — distinct from the
+            // existing admin-only joinleave_log_enabled log and the
+            // temporary handleNewMember() nudge. These are member-visible
+            // embeds posted to a channel the admin picks, with an
+            // admin-authored message template supporting {user}/{username}/
+            // {server}/{membercount} placeholders (see index.js
+            // buildMemberMessage()).
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS welcome_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS welcome_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS welcome_message TEXT DEFAULT 'Welcome {user} to **{server}**! You''re member #{membercount}.',
+                ADD COLUMN IF NOT EXISTS welcome_card_enabled BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS leave_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS leave_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS leave_message TEXT DEFAULT '**{username}** has left the server. We''re now at {membercount} members.';
+            `);
+
             // Per-artist pricing sheet: one row per category (Headshot, Bust,
             // Full Body, etc.) with a free-text price value.
             await client.query(`
