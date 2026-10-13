@@ -86,6 +86,7 @@
 
   "dashboard.tab.verification": "Verificação",
   "dashboard.tab.welcome": "Boas-vindas",
+  "dashboard.tab.leveling": "Níveis",
   "dashboard.tab.antiscam": "Anti-Golpe",
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
@@ -129,6 +130,19 @@
   "dashboard.leave.channel_label": "Canal de Saída",
   "dashboard.leave.message_label": "Mensagem",
   "dashboard.leave.placeholders_hint": "— use {username}, {server}, {membercount}",
+
+  "dashboard.leveling.title": "XP e Níveis",
+  "dashboard.leveling.desc": "Membros ganham XP conversando e sobem de nível com o tempo — use /rank e /leaderboard no Discord para ver o progresso.",
+  "dashboard.leveling.enable_label": "Ativar Sistema de Níveis",
+  "dashboard.leveling.channel_label": "Anúncios de Level-Up",
+  "dashboard.leveling.channel_hint": "(deixe em branco para anunciar no mesmo canal onde a pessoa subiu de nível)",
+  "dashboard.leveling.channel_same": "Mesmo canal da mensagem",
+  "dashboard.leveling.cooldown_label": "Cooldown de XP (segundos)",
+  "dashboard.leveling.xp_min_label": "XP Mínimo por Mensagem",
+  "dashboard.leveling.xp_max_label": "XP Máximo por Mensagem",
+  "dashboard.leveling.message_label": "Mensagem de Level-Up",
+  "dashboard.leveling.placeholders_hint": "— use {user}, {username}, {level}, {xp}",
+  "dashboard.leveling.roles_hint": "// GERENCIE CARGOS DE RECOMPENSA POR NÍVEL COM /config level-roles NO DISCORD",
 
   "dashboard.antiscam.title": "Proteção Anti-Golpe",
   "dashboard.antiscam.desc": "Sinalize ou expulse automaticamente contas recém-criadas ao entrar — a assinatura clássica de contas-golpe.",

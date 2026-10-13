@@ -86,6 +86,7 @@
 
   "dashboard.tab.verification": "Verification",
   "dashboard.tab.welcome": "Welcome",
+  "dashboard.tab.leveling": "Leveling",
   "dashboard.tab.antiscam": "Anti-Scam",
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
@@ -129,6 +130,19 @@
   "dashboard.leave.channel_label": "Leave Channel",
   "dashboard.leave.message_label": "Message",
   "dashboard.leave.placeholders_hint": "— use {username}, {server}, {membercount}",
+
+  "dashboard.leveling.title": "XP & Leveling",
+  "dashboard.leveling.desc": "Members earn XP from chatting and level up over time — use /rank and /leaderboard on Discord to check progress.",
+  "dashboard.leveling.enable_label": "Enable Leveling System",
+  "dashboard.leveling.channel_label": "Level-Up Announcements",
+  "dashboard.leveling.channel_hint": "(leave unset to announce in whatever channel someone leveled up in)",
+  "dashboard.leveling.channel_same": "Same channel as the message",
+  "dashboard.leveling.cooldown_label": "XP Cooldown (seconds)",
+  "dashboard.leveling.xp_min_label": "Min XP per Message",
+  "dashboard.leveling.xp_max_label": "Max XP per Message",
+  "dashboard.leveling.message_label": "Level-Up Message",
+  "dashboard.leveling.placeholders_hint": "— use {user}, {username}, {level}, {xp}",
+  "dashboard.leveling.roles_hint": "// MANAGE LEVEL-UP ROLE REWARDS VIA /config level-roles ON DISCORD",
 
   "dashboard.antiscam.title": "Anti-Scam Protection",
   "dashboard.antiscam.desc": "Flag or auto-kick brand-new accounts on join — the classic scam-bot signature.",

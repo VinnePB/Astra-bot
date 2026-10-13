@@ -244,6 +244,58 @@ module.exports = {
         )
         .addSubcommand(subcommand =>
             subcommand
+                .setName('leveling')
+                .setDescription('Configure the XP/leveling system')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Turn the leveling system on or off')
+                        .setRequired(true))
+                .addChannelOption(option =>
+                    option.setName('channel')
+                        .setDescription('Channel for level-up announcements (leave unset to announce in whatever channel someone leveled up in)')
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('message')
+                        .setDescription('Use {user}, {username}, {level}, {xp}. \\n for a new line. Optional.')
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('cooldown_seconds')
+                        .setDescription('Minimum seconds between XP awards per member (default: 60)')
+                        .setMinValue(5)
+                        .setMaxValue(3600)
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('xp_min')
+                        .setDescription('Minimum XP awarded per eligible message (default: 15)')
+                        .setMinValue(1)
+                        .setMaxValue(1000)
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('xp_max')
+                        .setDescription('Maximum XP awarded per eligible message (default: 25)')
+                        .setMinValue(1)
+                        .setMaxValue(1000)
+                        .setRequired(false))
+        )
+        .addSubcommandGroup(group =>
+            group
+                .setName('level-roles')
+                .setDescription('Manage milestone roles granted when a member reaches a given level')
+                .addSubcommand(sub =>
+                    sub.setName('add')
+                        .setDescription('Grant a role automatically once a member reaches this level')
+                        .addIntegerOption(option => option.setName('level').setDescription('Level required').setMinValue(1).setMaxValue(1000).setRequired(true))
+                        .addRoleOption(option => option.setName('role').setDescription('Role to grant').setRequired(true)))
+                .addSubcommand(sub =>
+                    sub.setName('remove')
+                        .setDescription('Remove a level\'s role reward')
+                        .addIntegerOption(option => option.setName('level').setDescription('Level to remove').setMinValue(1).setMaxValue(1000).setRequired(true)))
+                .addSubcommand(sub =>
+                    sub.setName('list')
+                        .setDescription('List all configured level-role rewards'))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('language')
                 .setDescription('Set the language Astra uses for member-facing messages in this server')
                 .addStringOption(option =>
@@ -267,6 +319,14 @@ module.exports = {
 
         if (group === 'artist-roles') {
             return this.handleArtistRolesSubcommand(interaction, sub);
+        }
+
+        if (group === 'level-roles') {
+            return this.handleLevelRolesSubcommand(interaction, sub);
+        }
+
+        if (sub === 'leveling') {
+            return this.handleLevelingSubcommand(interaction);
         }
 
         if (sub === 'language') {
@@ -333,6 +393,96 @@ module.exports = {
         } catch (error) {
             console.error('❌ Error saving welcome settings:', error);
             return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
+        }
+    },
+
+    async handleLevelingSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const guildId = interaction.guild.id;
+        const enabled = interaction.options.getBoolean('enabled');
+        const channel = interaction.options.getChannel('channel');
+        const messageRaw = interaction.options.getString('message');
+        const message = messageRaw ? messageRaw.replace(/\\n/g, '\n') : null;
+        const cooldown = interaction.options.getInteger('cooldown_seconds');
+        const xpMin = interaction.options.getInteger('xp_min');
+        const xpMax = interaction.options.getInteger('xp_max');
+
+        if (xpMin && xpMax && xpMin > xpMax) {
+            return interaction.reply({ content: '❌ `xp_min` can\'t be greater than `xp_max`.', ephemeral: true });
+        }
+
+        try {
+            await db.query(`
+                INSERT INTO guild_settings (guild_id, leveling_enabled, levelup_channel_id, levelup_message, xp_cooldown_seconds, xp_min, xp_max)
+                VALUES ($1, $2, $3, COALESCE($4, '🎉 {user} just reached **Level {level}**!'), COALESCE($5, 60), COALESCE($6, 15), COALESCE($7, 25))
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    leveling_enabled = EXCLUDED.leveling_enabled,
+                    levelup_channel_id = COALESCE($3, guild_settings.levelup_channel_id),
+                    levelup_message = COALESCE($4, guild_settings.levelup_message),
+                    xp_cooldown_seconds = COALESCE($5, guild_settings.xp_cooldown_seconds),
+                    xp_min = COALESCE($6, guild_settings.xp_min),
+                    xp_max = COALESCE($7, guild_settings.xp_max);
+            `, [guildId, enabled, channel ? channel.id : null, message, cooldown, xpMin, xpMax]);
+
+            await logAction(interaction.guild, `⚙️ ${interaction.user} ${enabled ? 'enabled' : 'disabled'} the leveling system.`);
+            return interaction.reply({ content: `✅ Leveling system ${enabled ? 'enabled' : 'disabled'}.`, ephemeral: true });
+        } catch (error) {
+            console.error('❌ Error saving leveling settings:', error);
+            return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
+        }
+    },
+
+    async handleLevelRolesSubcommand(interaction, sub) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const guildId = interaction.guild.id;
+
+        if (sub === 'add') {
+            const level = interaction.options.getInteger('level');
+            const role = interaction.options.getRole('role');
+            try {
+                await db.query(
+                    `INSERT INTO guild_level_roles (guild_id, level, role_id) VALUES ($1, $2, $3)
+                     ON CONFLICT (guild_id, level) DO UPDATE SET role_id = $3`,
+                    [guildId, level, role.id]
+                );
+                await logAction(interaction.guild, `⚙️ ${interaction.user} set ${role} as the reward for reaching level ${level}.`);
+                return interaction.reply({ content: `✅ Members who reach **Level ${level}** will now automatically get ${role}.`, ephemeral: true });
+            } catch (error) {
+                console.error('❌ Error adding level role:', error);
+                return interaction.reply({ content: '❌ Database error while saving the role reward.', ephemeral: true });
+            }
+        }
+
+        if (sub === 'remove') {
+            const level = interaction.options.getInteger('level');
+            try {
+                await db.query('DELETE FROM guild_level_roles WHERE guild_id = $1 AND level = $2', [guildId, level]);
+                await logAction(interaction.guild, `⚙️ ${interaction.user} removed the role reward for level ${level}.`);
+                return interaction.reply({ content: `✅ Level ${level} no longer grants a role automatically.`, ephemeral: true });
+            } catch (error) {
+                console.error('❌ Error removing level role:', error);
+                return interaction.reply({ content: '❌ Database error while removing the role reward.', ephemeral: true });
+            }
+        }
+
+        if (sub === 'list') {
+            try {
+                const { rows } = await db.query('SELECT level, role_id FROM guild_level_roles WHERE guild_id = $1 ORDER BY level ASC', [guildId]);
+                if (rows.length === 0) {
+                    return interaction.reply({ content: 'No level-role rewards configured yet.', ephemeral: true });
+                }
+                const list = rows.map(r => `Level ${r.level} → <@&${r.role_id}>`).join('\n');
+                return interaction.reply({ content: `**Level-role rewards:**\n${list}`, ephemeral: true });
+            } catch (error) {
+                console.error('❌ Error listing level roles:', error);
+                return interaction.reply({ content: '❌ Database error while listing role rewards.', ephemeral: true });
+            }
         }
     },
 

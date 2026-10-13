@@ -38,6 +38,7 @@
     <div class="border-b border-cyan-500/15 flex overflow-x-auto">
         <button class="fui-tab-btn" data-tab="verification"><%= t('dashboard.tab.verification') %></button>
         <button class="fui-tab-btn" data-tab="welcome"><%= t('dashboard.tab.welcome') %></button>
+        <button class="fui-tab-btn" data-tab="leveling"><%= t('dashboard.tab.leveling') %></button>
         <button class="fui-tab-btn" data-tab="antiscam"><%= t('dashboard.tab.antiscam') %></button>
         <button class="fui-tab-btn" data-tab="autokick"><%= t('dashboard.tab.autokick') %></button>
         <button class="fui-tab-btn" data-tab="tickets"><%= t('dashboard.tab.tickets') %></button>
@@ -194,6 +195,51 @@
                     <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.autosave_note') %></p>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- LEVELING TAB -->
+    <div class="fui-tab-panel" data-tab-content="leveling">
+        <div class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title"><%= t('dashboard.leveling.title') %></h2>
+            <p class="text-sm text-slate-500 mb-6"><%= t('dashboard.leveling.desc') %></p>
+
+            <form action="/api/update-leveling" method="POST" class="space-y-6" data-autosave>
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <div class="flex items-center justify-between p-4 bg-black/40 border border-cyan-500/10">
+                    <label class="font-medium text-white text-sm"><%= t('dashboard.leveling.enable_label') %></label>
+                    <input type="checkbox" name="leveling_enabled" <%= settings.leveling_enabled ? 'checked' : '' %> class="w-6 h-6 accent-cyan-500 cursor-pointer">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.leveling.channel_label') %> <span class="normal-case text-slate-600"><%= t('dashboard.leveling.channel_hint') %></span></label>
+                        <select name="levelup_channel_id" class="fui-input">
+                            <option value="" <%= !settings.levelup_channel_id ? 'selected' : '' %>><%= t('dashboard.leveling.channel_same') %></option>
+                            <% channels.forEach(channel => { %>
+                                <option value="<%= channel.id %>" <%= settings.levelup_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.leveling.cooldown_label') %></label>
+                        <input type="number" name="xp_cooldown_seconds" min="5" max="3600" value="<%= settings.xp_cooldown_seconds || 60 %>" class="fui-input">
+                    </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.leveling.xp_min_label') %></label>
+                        <input type="number" name="xp_min" min="1" max="1000" value="<%= settings.xp_min || 15 %>" class="fui-input">
+                    </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.leveling.xp_max_label') %></label>
+                        <input type="number" name="xp_max" min="1" max="1000" value="<%= settings.xp_max || 25 %>" class="fui-input">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="fui-label"><%= t('dashboard.leveling.message_label') %> <span class="normal-case text-slate-600"><%= t('dashboard.leveling.placeholders_hint') %></span></label>
+                        <textarea name="levelup_message" rows="2" class="fui-input" placeholder="🎉 {user} just reached **Level {level}**!"><%= settings.levelup_message || '' %></textarea>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.leveling.roles_hint') %></p>
+                <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.autosave_note') %></p>
+            </form>
         </div>
     </div>
 

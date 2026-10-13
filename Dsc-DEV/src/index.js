@@ -11,6 +11,7 @@ const { t, normalizeLanguage } = require('./i18n');
 const configCommand = require('./commands/config');
 const helpCommand = require('./commands/help');
 const ticketsCommand = require('./commands/tickets');
+const levelingCommand = require('./commands/leveling');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -520,6 +521,46 @@ app.post('/api/update-leave', checkAuth, async (req, res) => {
     }
 });
 
+// NEW: XP/leveling system — see commands/leveling.js. Milestone role
+// rewards (guild_level_roles) are Discord-only for now (/config level-roles),
+// same as admin/artist roles — not exposed on the website yet.
+app.post('/api/update-leveling', checkAuth, async (req, res) => {
+    const { guild_id, leveling_enabled, levelup_channel_id, levelup_message, xp_cooldown_seconds, xp_min, xp_max } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const minXp = parseInt(xp_min, 10) || 15;
+    const maxXp = parseInt(xp_max, 10) || 25;
+    if (minXp > maxXp) {
+        return res.status(400).send('"Min XP" can\'t be greater than "Max XP".');
+    }
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, leveling_enabled, levelup_channel_id, levelup_message, xp_cooldown_seconds, xp_min, xp_max)
+            VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                leveling_enabled = $2,
+                levelup_channel_id = NULLIF($3, ''),
+                levelup_message = $4,
+                xp_cooldown_seconds = $5,
+                xp_min = $6,
+                xp_max = $7
+        `, [
+            guild_id, leveling_enabled === 'on', levelup_channel_id,
+            (levelup_message && levelup_message.trim()) || '🎉 {user} just reached **Level {level}**!',
+            parseInt(xp_cooldown_seconds, 10) || 60, minXp, maxXp
+        ]);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated leveling settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error saving leveling settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
 app.post('/api/admins/add', checkAuth, async (req, res) => {
     const { guild_id, role_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -727,7 +768,9 @@ client.once('ready', async () => {
             helpCommand.quickstartData.toJSON(),
             ticketsCommand.artistData.toJSON(),
             ticketsCommand.panelData.toJSON(),
-            ticketsCommand.ticketsOverviewData.toJSON()
+            ticketsCommand.ticketsOverviewData.toJSON(),
+            levelingCommand.data.toJSON(),
+            levelingCommand.leaderboardData.toJSON()
         ];
 
         for (const [guildId, guild] of client.guilds.cache) {
@@ -812,6 +855,9 @@ async function logMemberEvent(guild, type, member) {
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
     await configCommand.executeMessage(message);
+    // NEW: XP/leveling — see commands/leveling.js. Independent of the
+    // verify-channel moderation above; runs on every eligible message.
+    await levelingCommand.handleMessageXp(message);
 });
 
 // NEW: auto-kick sweep for members who never finished verification.
@@ -841,6 +887,10 @@ client.on('interactionCreate', async (interaction) => {
             await ticketsCommand.executeSlashPanel(interaction);
         } else if (interaction.commandName === 'tickets') {
             await ticketsCommand.executeSlashTicketsOverview(interaction);
+        } else if (interaction.commandName === 'rank') {
+            await levelingCommand.executeSlashRank(interaction);
+        } else if (interaction.commandName === 'leaderboard') {
+            await levelingCommand.executeSlashLeaderboard(interaction);
         }
     } else if (interaction.isButton()) {
         if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {

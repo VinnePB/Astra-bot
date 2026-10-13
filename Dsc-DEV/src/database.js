@@ -149,6 +149,49 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS leave_message TEXT DEFAULT '**{username}** has left the server. We''re now at {membercount} members.';
             `);
 
+            // NEW: leveling / XP system — see commands/leveling.js.
+            // xp_min/xp_max is the random XP range awarded per eligible
+            // message; xp_cooldown_seconds throttles how often a single
+            // member can earn XP (prevents spam-farming levels).
+            // levelup_channel_id = NULL means "announce in the channel the
+            // message was sent in" rather than a fixed channel.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS leveling_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS levelup_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS levelup_message TEXT DEFAULT '🎉 {user} just reached **Level {level}**!',
+                ADD COLUMN IF NOT EXISTS xp_cooldown_seconds INTEGER DEFAULT 60,
+                ADD COLUMN IF NOT EXISTS xp_min INTEGER DEFAULT 15,
+                ADD COLUMN IF NOT EXISTS xp_max INTEGER DEFAULT 25;
+            `);
+
+            // Per-member running XP total + cached level (level is derived
+            // from xp via commands/leveling.js's calculateLevel(), recomputed
+            // and stored here on every XP gain so leaderboard/rank queries
+            // don't need to recompute it for every row).
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS user_levels (
+                    guild_id VARCHAR(30) NOT NULL,
+                    user_id VARCHAR(30) NOT NULL,
+                    xp BIGINT NOT NULL DEFAULT 0,
+                    level INTEGER NOT NULL DEFAULT 0,
+                    last_xp_at TIMESTAMP,
+                    PRIMARY KEY (guild_id, user_id)
+                );
+            `);
+
+            // Milestone role rewards: reaching `level` grants `role_id`.
+            // Cumulative — a member keeps every milestone role they've
+            // already earned, not just the latest one.
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS guild_level_roles (
+                    guild_id VARCHAR(30) NOT NULL,
+                    level INTEGER NOT NULL,
+                    role_id VARCHAR(30) NOT NULL,
+                    PRIMARY KEY (guild_id, level)
+                );
+            `);
+
             // Per-artist pricing sheet: one row per category (Headshot, Bust,
             // Full Body, etc.) with a free-text price value.
             await client.query(`
