@@ -201,6 +201,35 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS mention_replies_enabled BOOLEAN DEFAULT TRUE;
             `);
 
+            // NEW: economy / currency system — see commands/economy.js.
+            // currency_name/currency_symbol are purely cosmetic (shown in
+            // /balance, /daily, /pay, /richest). daily_min/daily_max is the
+            // random base payout from /daily; daily_streak_bonus is added
+            // per consecutive day claimed (capped in code, not here) to
+            // reward not missing a day. No shop/gambling yet — intentionally
+            // scoped down, same as the rest of the "feel alive" features.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS economy_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS currency_name VARCHAR(30) DEFAULT 'Coins',
+                ADD COLUMN IF NOT EXISTS currency_symbol VARCHAR(10) DEFAULT '🪙',
+                ADD COLUMN IF NOT EXISTS daily_min INTEGER DEFAULT 50,
+                ADD COLUMN IF NOT EXISTS daily_max INTEGER DEFAULT 150,
+                ADD COLUMN IF NOT EXISTS daily_streak_bonus INTEGER DEFAULT 10;
+            `);
+
+            // Per-member balance + daily-claim streak tracking.
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS user_economy (
+                    guild_id VARCHAR(30) NOT NULL,
+                    user_id VARCHAR(30) NOT NULL,
+                    balance BIGINT NOT NULL DEFAULT 0,
+                    daily_streak INTEGER NOT NULL DEFAULT 0,
+                    last_daily_at TIMESTAMP,
+                    PRIMARY KEY (guild_id, user_id)
+                );
+            `);
+
             // Per-artist pricing sheet: one row per category (Headshot, Bust,
             // Full Body, etc.) with a free-text price value.
             await client.query(`

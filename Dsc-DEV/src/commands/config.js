@@ -305,6 +305,41 @@ module.exports = {
         )
         .addSubcommand(subcommand =>
             subcommand
+                .setName('economy')
+                .setDescription('Configure the currency/economy system')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Turn the economy system on or off')
+                        .setRequired(true))
+                .addStringOption(option =>
+                    option.setName('currency_name')
+                        .setDescription('What to call the currency (default: Coins)')
+                        .setRequired(false))
+                .addStringOption(option =>
+                    option.setName('currency_symbol')
+                        .setDescription('An emoji or short symbol for the currency (default: 🪙)')
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('daily_min')
+                        .setDescription('Minimum /daily payout (default: 50)')
+                        .setMinValue(1)
+                        .setMaxValue(1000000)
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('daily_max')
+                        .setDescription('Maximum /daily payout (default: 150)')
+                        .setMinValue(1)
+                        .setMaxValue(1000000)
+                        .setRequired(false))
+                .addIntegerOption(option =>
+                    option.setName('daily_streak_bonus')
+                        .setDescription('Extra payout per consecutive day claimed, capped at 10 days (default: 10)')
+                        .setMinValue(0)
+                        .setMaxValue(100000)
+                        .setRequired(false))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('language')
                 .setDescription('Set the language Astra uses for member-facing messages in this server')
                 .addStringOption(option =>
@@ -340,6 +375,10 @@ module.exports = {
 
         if (sub === 'fun') {
             return this.handleFunSubcommand(interaction);
+        }
+
+        if (sub === 'economy') {
+            return this.handleEconomySubcommand(interaction);
         }
 
         if (sub === 'language') {
@@ -516,6 +555,44 @@ module.exports = {
             return interaction.reply({ content: `✅ Astra will ${enabled ? 'now' : 'no longer'} reply when @mentioned or called by name.`, ephemeral: true });
         } catch (error) {
             console.error('❌ Error saving fun settings:', error);
+            return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
+        }
+    },
+
+    async handleEconomySubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const guildId = interaction.guild.id;
+        const enabled = interaction.options.getBoolean('enabled');
+        const currencyName = interaction.options.getString('currency_name');
+        const currencySymbol = interaction.options.getString('currency_symbol');
+        const dailyMin = interaction.options.getInteger('daily_min');
+        const dailyMax = interaction.options.getInteger('daily_max');
+        const streakBonus = interaction.options.getInteger('daily_streak_bonus');
+
+        if (dailyMin && dailyMax && dailyMin > dailyMax) {
+            return interaction.reply({ content: '❌ `daily_min` can\'t be greater than `daily_max`.', ephemeral: true });
+        }
+
+        try {
+            await db.query(`
+                INSERT INTO guild_settings (guild_id, economy_enabled, currency_name, currency_symbol, daily_min, daily_max, daily_streak_bonus)
+                VALUES ($1, $2, COALESCE($3, 'Coins'), COALESCE($4, '🪙'), COALESCE($5, 50), COALESCE($6, 150), COALESCE($7, 10))
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    economy_enabled = EXCLUDED.economy_enabled,
+                    currency_name = COALESCE($3, guild_settings.currency_name),
+                    currency_symbol = COALESCE($4, guild_settings.currency_symbol),
+                    daily_min = COALESCE($5, guild_settings.daily_min),
+                    daily_max = COALESCE($6, guild_settings.daily_max),
+                    daily_streak_bonus = COALESCE($7, guild_settings.daily_streak_bonus);
+            `, [guildId, enabled, currencyName, currencySymbol, dailyMin, dailyMax, streakBonus]);
+
+            await logAction(interaction.guild, `⚙️ ${interaction.user} ${enabled ? 'enabled' : 'disabled'} the economy system.`);
+            return interaction.reply({ content: `✅ Economy system ${enabled ? 'enabled' : 'disabled'}.`, ephemeral: true });
+        } catch (error) {
+            console.error('❌ Error saving economy settings:', error);
             return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
         }
     },

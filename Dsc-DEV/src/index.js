@@ -13,6 +13,7 @@ const helpCommand = require('./commands/help');
 const ticketsCommand = require('./commands/tickets');
 const levelingCommand = require('./commands/leveling');
 const funCommand = require('./commands/fun');
+const economyCommand = require('./commands/economy');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -585,6 +586,48 @@ app.post('/api/update-fun', checkAuth, async (req, res) => {
     }
 });
 
+// NEW: economy/currency system — see commands/economy.js. No shop/gambling
+// yet, just the toggle + cosmetic/payout settings; balances themselves
+// aren't editable from the website (that's intentional — avoids a "give
+// myself coins" exploit via the dashboard).
+app.post('/api/update-economy', checkAuth, async (req, res) => {
+    const { guild_id, economy_enabled, currency_name, currency_symbol, daily_min, daily_max, daily_streak_bonus } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const minDaily = parseInt(daily_min, 10) || 50;
+    const maxDaily = parseInt(daily_max, 10) || 150;
+    if (minDaily > maxDaily) {
+        return res.status(400).send('"Min Daily" can\'t be greater than "Max Daily".');
+    }
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, economy_enabled, currency_name, currency_symbol, daily_min, daily_max, daily_streak_bonus)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                economy_enabled = $2,
+                currency_name = $3,
+                currency_symbol = $4,
+                daily_min = $5,
+                daily_max = $6,
+                daily_streak_bonus = $7
+        `, [
+            guild_id, economy_enabled === 'on',
+            (currency_name && currency_name.trim()) || 'Coins',
+            (currency_symbol && currency_symbol.trim()) || '🪙',
+            minDaily, maxDaily, parseInt(daily_streak_bonus, 10) || 10
+        ]);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated economy settings from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error saving economy settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
 app.post('/api/admins/add', checkAuth, async (req, res) => {
     const { guild_id, role_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -794,7 +837,11 @@ client.once('ready', async () => {
             ticketsCommand.panelData.toJSON(),
             ticketsCommand.ticketsOverviewData.toJSON(),
             levelingCommand.data.toJSON(),
-            levelingCommand.leaderboardData.toJSON()
+            levelingCommand.leaderboardData.toJSON(),
+            economyCommand.data.toJSON(),
+            economyCommand.dailyData.toJSON(),
+            economyCommand.payData.toJSON(),
+            economyCommand.richestData.toJSON()
         ];
 
         for (const [guildId, guild] of client.guilds.cache) {
@@ -917,6 +964,14 @@ client.on('interactionCreate', async (interaction) => {
             await levelingCommand.executeSlashRank(interaction);
         } else if (interaction.commandName === 'leaderboard') {
             await levelingCommand.executeSlashLeaderboard(interaction);
+        } else if (interaction.commandName === 'balance') {
+            await economyCommand.executeSlashBalance(interaction);
+        } else if (interaction.commandName === 'daily') {
+            await economyCommand.executeSlashDaily(interaction);
+        } else if (interaction.commandName === 'pay') {
+            await economyCommand.executeSlashPay(interaction);
+        } else if (interaction.commandName === 'richest') {
+            await economyCommand.executeSlashRichest(interaction);
         }
     } else if (interaction.isButton()) {
         if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {

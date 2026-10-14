@@ -40,6 +40,7 @@
         <button class="fui-tab-btn" data-tab="welcome"><%= t('dashboard.tab.welcome') %></button>
         <button class="fui-tab-btn" data-tab="leveling"><%= t('dashboard.tab.leveling') %></button>
         <button class="fui-tab-btn" data-tab="fun"><%= t('dashboard.tab.fun') %></button>
+        <button class="fui-tab-btn" data-tab="economy"><%= t('dashboard.tab.economy') %></button>
         <button class="fui-tab-btn" data-tab="antiscam"><%= t('dashboard.tab.antiscam') %></button>
         <button class="fui-tab-btn" data-tab="autokick"><%= t('dashboard.tab.autokick') %></button>
         <button class="fui-tab-btn" data-tab="tickets"><%= t('dashboard.tab.tickets') %></button>
@@ -256,6 +257,46 @@
                     <label class="font-medium text-white text-sm"><%= t('dashboard.fun.enable_label') %></label>
                     <input type="checkbox" name="mention_replies_enabled" <%= settings.mention_replies_enabled !== false ? 'checked' : '' %> class="w-6 h-6 accent-cyan-500 cursor-pointer">
                 </div>
+                <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.autosave_note') %></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- ECONOMY TAB -->
+    <div class="fui-tab-panel" data-tab-content="economy">
+        <div class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title"><%= t('dashboard.economy.title') %></h2>
+            <p class="text-sm text-slate-500 mb-6"><%= t('dashboard.economy.desc') %></p>
+
+            <form action="/api/update-economy" method="POST" class="space-y-6" data-autosave>
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <div class="flex items-center justify-between p-4 bg-black/40 border border-cyan-500/10">
+                    <label class="font-medium text-white text-sm"><%= t('dashboard.economy.enable_label') %></label>
+                    <input type="checkbox" name="economy_enabled" <%= settings.economy_enabled ? 'checked' : '' %> class="w-6 h-6 accent-cyan-500 cursor-pointer">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.economy.currency_name_label') %></label>
+                        <input type="text" name="currency_name" maxlength="30" value="<%= settings.currency_name || 'Coins' %>" class="fui-input">
+                    </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.economy.currency_symbol_label') %></label>
+                        <input type="text" name="currency_symbol" maxlength="10" value="<%= settings.currency_symbol || '🪙' %>" class="fui-input">
+                    </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.economy.daily_min_label') %></label>
+                        <input type="number" name="daily_min" min="1" value="<%= settings.daily_min || 50 %>" class="fui-input">
+                    </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.economy.daily_max_label') %></label>
+                        <input type="number" name="daily_max" min="1" value="<%= settings.daily_max || 150 %>" class="fui-input">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="fui-label"><%= t('dashboard.economy.streak_bonus_label') %> <span class="normal-case text-slate-600"><%= t('dashboard.economy.streak_bonus_hint') %></span></label>
+                        <input type="number" name="daily_streak_bonus" min="0" value="<%= settings.daily_streak_bonus || 10 %>" class="fui-input sm:w-72">
+                    </div>
+                </div>
+                <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.economy.commands_hint') %></p>
                 <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.autosave_note') %></p>
             </form>
         </div>
