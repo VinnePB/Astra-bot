@@ -53,7 +53,7 @@
             <h2 class="fui-section-title"><%= t('dashboard.verification.title') %></h2>
             <p class="text-sm text-slate-500 mb-6"><%= t('dashboard.verification.desc') %></p>
 
-            <form action="/api/update-language" method="POST" class="mb-6" data-autosave data-autosave-reload>
+            <form action="/api/update-language" method="POST" class="mb-6" data-autosave>
                 <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
                 <label class="fui-label"><%= t('dashboard.language.label') %> <span class="normal-case text-slate-600"><%= t('dashboard.language.hint') %></span></label>
                 <select name="language" class="fui-input sm:w-72">

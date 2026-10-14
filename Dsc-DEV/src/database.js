@@ -123,6 +123,19 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS language VARCHAR(5) DEFAULT 'en';
             `);
 
+            // NEW: site_language — the language the DASHBOARD/ONBOARDING PAGES
+            // render in, kept separate from `language` above (what Astra
+            // actually SAYS to members on Discord). These used to be the same
+            // column, which meant switching the site's display language also
+            // silently changed what Astra said in verification/ticket/etc.
+            // messages, and vice versa — two different things that happened
+            // to share one setting. Backfilled once from the existing
+            // `language` value so no one's current site display flips on
+            // them; new guild rows default to English like everything else.
+            await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS site_language VARCHAR(5);`);
+            await client.query(`UPDATE guild_settings SET site_language = language WHERE site_language IS NULL;`);
+            await client.query(`ALTER TABLE guild_settings ALTER COLUMN site_language SET DEFAULT 'en';`);
+
             // NEW: category for artists' private setup channels, and a
             // toggle for join/leave logging (shared log_channel_id).
             await client.query(`

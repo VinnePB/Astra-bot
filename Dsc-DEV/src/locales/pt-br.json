@@ -95,7 +95,7 @@
   "dashboard.tab.admins": "Cargos de Admin",
 
   "dashboard.language.label": "Idioma da Astra",
-  "dashboard.language.hint": "(mensagens para os membros: verificação, tickets, logs)",
+  "dashboard.language.hint": "(o que a Astra fala pros membros — não é o idioma desta página, esse é o botão EN/PT-BR lá em cima)",
   "dashboard.language.option_en": "Inglês",
   "dashboard.language.option_ptbr": "Português (Brasil)",
 

@@ -156,13 +156,15 @@
             </div>
         </div>
 
-        <% /* Guild-context pages (Dashboard, Onboarding) point this at
-              /lang-guild/:lang, which writes guild_settings.language — the
-              same field the Configuration page's Language dropdown saves
-              to, so both controls always show the same state. Pages with
-              no guild picked yet (Select a Server) use the session-only
-              /lang/:lang toggle instead. Either way the active language is
-              now highlighted, so it's never ambiguous which one is on. */ %>
+        <% /* This toggle controls ONLY the site's own display language, not
+              what Astra says to members (that's the separate "Astra's
+              Language" dropdown on the Configuration page, writing to
+              guild_settings.language). Guild-context pages (Dashboard,
+              Onboarding) point this at /lang-guild/:lang, which writes
+              guild_settings.site_language. Pages with no guild picked yet
+              (Select a Server) use the session-only /lang/:lang toggle
+              instead. Either way the active language is highlighted, so
+              it's never ambiguous which one is on. */ %>
         <% const navCurLang = typeof currentLang !== 'undefined' ? currentLang : 'en'; %>
         <% const navLangBase = (typeof guildLangContext !== 'undefined' && guildLangContext) ? '/lang-guild/' : '/lang/'; %>
         <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">

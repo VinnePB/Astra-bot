@@ -95,7 +95,7 @@
   "dashboard.tab.admins": "Admin Roles",
 
   "dashboard.language.label": "Astra's Language",
-  "dashboard.language.hint": "(member-facing messages: verification, tickets, logs)",
+  "dashboard.language.hint": "(what Astra says to members — not this page's language, that's the EN/PT-BR switch up top)",
   "dashboard.language.option_en": "English",
   "dashboard.language.option_ptbr": "Português (Brasil)",
 

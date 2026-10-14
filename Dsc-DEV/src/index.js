@@ -133,10 +133,13 @@ app.get('/lang/:lang', (req, res) => {
 
 // Guild-context twin of /lang/:lang. The homepage/select-server toggle above
 // is a session-only preference (no guild picked yet, nothing to save it to).
-// Once a guild is selected, the SAME top-bar EN/PT-BR toggle instead writes
-// straight to that guild's guild_settings.language — the identical field the
-// Configuration page's Language dropdown saves to — so both controls always
-// agree and clicking either one actually does something.
+// Once a guild is selected, this SAME top-bar EN/PT-BR toggle instead writes
+// to that guild's guild_settings.site_language — just the DASHBOARD/
+// ONBOARDING PAGES' own display language. It's deliberately separate from
+// guild_settings.language (what Astra actually says to members on Discord,
+// changed via the Configuration page's Language dropdown or /config
+// language) — those used to be the same field, which meant flipping one
+// silently flipped the other too.
 app.get('/lang-guild/:lang', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
     if (!guildId) return res.redirect('/select-server');
@@ -144,13 +147,13 @@ app.get('/lang-guild/:lang', checkAuth, async (req, res) => {
     const lang = normalizeLanguage(req.params.lang);
     try {
         await db.query(
-            `INSERT INTO guild_settings (guild_id, language) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET language = $2`,
+            `INSERT INTO guild_settings (guild_id, site_language) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET site_language = $2`,
             [guildId, lang]
         );
         const guild = client.guilds.cache.get(guildId);
-        if (guild) await configCommand.logAction(guild, `🌐 ${req.session.user.username} changed Astra's language to ${lang === 'pt-br' ? 'Português (Brasil)' : 'English'} from the website.`);
+        if (guild) await configCommand.logAction(guild, `🌐 ${req.session.user.username} changed the dashboard's display language to ${lang === 'pt-br' ? 'Português (Brasil)' : 'English'} (this does not affect what Astra says to members).`);
     } catch (err) {
-        console.error('❌ Error updating guild language from nav toggle:', err);
+        console.error('❌ Error updating site language from nav toggle:', err);
     }
     res.redirect(req.get('Referer') || '/dashboard');
 });
@@ -277,9 +280,9 @@ app.get('/onboarding', checkAuth, async (req, res) => {
         const settings = rows[0] || { guild_id: guildId };
         res.render('onboarding', {
             user: req.session.user, settings,
-            currentLang: settings.language || 'en',
+            currentLang: settings.site_language || 'en',
             guildLangContext: true,
-            t: (key, vars) => t(settings.language || 'en', key, vars),
+            t: (key, vars) => t(settings.site_language || 'en', key, vars),
             pageTitle: 'Projeckt V: Astra — Get Started'
         });
     } catch (err) { res.status(500).send("DB Error."); }
@@ -338,9 +341,9 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             user: req.session.user, settings, channels, categories, roles, adminRoles, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
-            currentLang: settings.language || 'en',
+            currentLang: settings.site_language || 'en',
             guildLangContext: true,
-            t: (key, vars) => t(settings.language || 'en', key, vars),
+            t: (key, vars) => t(settings.site_language || 'en', key, vars),
             activeTab: req.query.tab || (editingArtist ? 'tickets' : 'verification'),
             success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Dashboard'
         });
