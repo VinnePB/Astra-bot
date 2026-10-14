@@ -252,7 +252,7 @@ module.exports = {
                         .setRequired(true))
                 .addChannelOption(option =>
                     option.setName('channel')
-                        .setDescription('Channel for level-up announcements (leave unset to announce in whatever channel someone leveled up in)')
+                        .setDescription('Level-up channel (leave unset to announce in whatever channel they leveled up in)')
                         .setRequired(false))
                 .addStringOption(option =>
                     option.setName('message')
@@ -297,7 +297,7 @@ module.exports = {
         .addSubcommand(subcommand =>
             subcommand
                 .setName('fun')
-                .setDescription('Toggle Astra replying with a random line when @mentioned or called by name (no AI — just canned lines)')
+                .setDescription('Toggle Astra\'s random canned-line reply when @mentioned or called by name (no AI)')
                 .addBooleanOption(option =>
                     option.setName('enabled')
                         .setDescription('Turn mention/name replies on or off (default: on)')
