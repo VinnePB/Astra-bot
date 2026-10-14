@@ -87,6 +87,7 @@
   "dashboard.tab.verification": "Verificação",
   "dashboard.tab.welcome": "Boas-vindas",
   "dashboard.tab.leveling": "Níveis",
+  "dashboard.tab.fun": "Diversão",
   "dashboard.tab.antiscam": "Anti-Golpe",
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
@@ -143,6 +144,10 @@
   "dashboard.leveling.message_label": "Mensagem de Level-Up",
   "dashboard.leveling.placeholders_hint": "— use {user}, {username}, {level}, {xp}",
   "dashboard.leveling.roles_hint": "// GERENCIE CARGOS DE RECOMPENSA POR NÍVEL COM /config level-roles NO DISCORD",
+
+  "dashboard.fun.title": "Respostas por Menção",
+  "dashboard.fun.desc": "Quando alguém menciona @Astra ou fala o nome dela no chat, ela responde com uma linha aleatória e descontraída — sem IA, só um pouco de personalidade pré-escrita. Ativado por padrão.",
+  "dashboard.fun.enable_label": "Ativar Respostas por Menção/Nome",
 
   "dashboard.antiscam.title": "Proteção Anti-Golpe",
   "dashboard.antiscam.desc": "Sinalize ou expulse automaticamente contas recém-criadas ao entrar — a assinatura clássica de contas-golpe.",

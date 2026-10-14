@@ -296,6 +296,15 @@ module.exports = {
         )
         .addSubcommand(subcommand =>
             subcommand
+                .setName('fun')
+                .setDescription('Toggle Astra replying with a random line when @mentioned or called by name (no AI — just canned lines)')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Turn mention/name replies on or off (default: on)')
+                        .setRequired(true))
+        )
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('language')
                 .setDescription('Set the language Astra uses for member-facing messages in this server')
                 .addStringOption(option =>
@@ -327,6 +336,10 @@ module.exports = {
 
         if (sub === 'leveling') {
             return this.handleLevelingSubcommand(interaction);
+        }
+
+        if (sub === 'fun') {
+            return this.handleFunSubcommand(interaction);
         }
 
         if (sub === 'language') {
@@ -483,6 +496,27 @@ module.exports = {
                 console.error('❌ Error listing level roles:', error);
                 return interaction.reply({ content: '❌ Database error while listing role rewards.', ephemeral: true });
             }
+        }
+    },
+
+    async handleFunSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const enabled = interaction.options.getBoolean('enabled');
+
+        try {
+            await db.query(
+                `INSERT INTO guild_settings (guild_id, mention_replies_enabled) VALUES ($1, $2)
+                 ON CONFLICT (guild_id) DO UPDATE SET mention_replies_enabled = $2`,
+                [interaction.guild.id, enabled]
+            );
+            await logAction(interaction.guild, `⚙️ ${interaction.user} ${enabled ? 'enabled' : 'disabled'} Astra's mention/name replies.`);
+            return interaction.reply({ content: `✅ Astra will ${enabled ? 'now' : 'no longer'} reply when @mentioned or called by name.`, ephemeral: true });
+        } catch (error) {
+            console.error('❌ Error saving fun settings:', error);
+            return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
         }
     },
 

@@ -87,6 +87,7 @@
   "dashboard.tab.verification": "Verification",
   "dashboard.tab.welcome": "Welcome",
   "dashboard.tab.leveling": "Leveling",
+  "dashboard.tab.fun": "Fun",
   "dashboard.tab.antiscam": "Anti-Scam",
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
@@ -143,6 +144,10 @@
   "dashboard.leveling.message_label": "Level-Up Message",
   "dashboard.leveling.placeholders_hint": "— use {user}, {username}, {level}, {xp}",
   "dashboard.leveling.roles_hint": "// MANAGE LEVEL-UP ROLE REWARDS VIA /config level-roles ON DISCORD",
+
+  "dashboard.fun.title": "Mention Replies",
+  "dashboard.fun.desc": "When someone @mentions Astra or says her name in chat, she replies with a random, lighthearted line — no AI, just a bit of canned personality. On by default.",
+  "dashboard.fun.enable_label": "Enable Mention/Name Replies",
 
   "dashboard.antiscam.title": "Anti-Scam Protection",
   "dashboard.antiscam.desc": "Flag or auto-kick brand-new accounts on join — the classic scam-bot signature.",

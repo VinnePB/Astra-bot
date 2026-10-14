@@ -12,6 +12,7 @@ const configCommand = require('./commands/config');
 const helpCommand = require('./commands/help');
 const ticketsCommand = require('./commands/tickets');
 const levelingCommand = require('./commands/leveling');
+const funCommand = require('./commands/fun');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -561,6 +562,29 @@ app.post('/api/update-leveling', checkAuth, async (req, res) => {
     }
 });
 
+// NEW: toggle for the mention/name reply — see commands/fun.js. No channel
+// or message template to configure, just on/off.
+app.post('/api/update-fun', checkAuth, async (req, res) => {
+    const { guild_id, mention_replies_enabled } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(
+            `INSERT INTO guild_settings (guild_id, mention_replies_enabled) VALUES ($1, $2)
+             ON CONFLICT (guild_id) DO UPDATE SET mention_replies_enabled = $2`,
+            [guild_id, mention_replies_enabled === 'on']
+        );
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} ${mention_replies_enabled === 'on' ? 'enabled' : 'disabled'} mention/name replies from the website.`);
+
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error saving fun settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
 app.post('/api/admins/add', checkAuth, async (req, res) => {
     const { guild_id, role_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -858,6 +882,8 @@ client.on('messageCreate', async (message) => {
     // NEW: XP/leveling — see commands/leveling.js. Independent of the
     // verify-channel moderation above; runs on every eligible message.
     await levelingCommand.handleMessageXp(message);
+    // NEW: silly mention/name reply — see commands/fun.js. No AI involved.
+    await funCommand.handleMentionReply(message);
 });
 
 // NEW: auto-kick sweep for members who never finished verification.

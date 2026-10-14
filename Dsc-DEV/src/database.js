@@ -192,6 +192,15 @@ pool.connect()
                 );
             `);
 
+            // NEW: lightweight "personality" reply — see commands/fun.js.
+            // No AI/LLM involved, just a canned-line picker that fires when
+            // Astra is @mentioned or her name is said in chat. Defaults ON
+            // since it's zero-config and harmless; admins can turn it off.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS mention_replies_enabled BOOLEAN DEFAULT TRUE;
+            `);
+
             // Per-artist pricing sheet: one row per category (Headshot, Bust,
             // Full Body, etc.) with a free-text price value.
             await client.query(`
