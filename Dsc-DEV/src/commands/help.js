@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { isAstraAdmin, isServerAdministrator } = require('../permissions');
 const { t } = require('../i18n');
 const db = require('../database');
@@ -16,16 +16,66 @@ module.exports = {
         .setName('about')
         .setDescription('What Astra does, in plain terms'),
 
+    // Three pages behind buttons: what she does, a setup tutorial, and a
+    // member guide. One embed would blow past Discord's size limits.
+    buildAboutPage(client, lang, page) {
+        const embed = new EmbedBuilder()
+            .setAuthor({ name: '🛡️ Astra', iconURL: client.user.displayAvatarURL() })
+            .setColor('#5865F2')
+            .setFooter({ text: t(lang, 'about.footer'), iconURL: client.user.displayAvatarURL() });
+
+        if (page === 'setup') {
+            embed.setTitle(t(lang, 'about.setup_title')).setDescription(t(lang, 'about.setup_intro'));
+            for (let i = 1; i <= 7; i++) {
+                embed.addFields({ name: t(lang, `about.s${i}_title`), value: t(lang, `about.s${i}_body`) });
+            }
+        } else if (page === 'members') {
+            embed.setTitle(t(lang, 'about.m_title'));
+            for (let i = 1; i <= 4; i++) {
+                embed.addFields({ name: t(lang, `about.m${i}_title`), value: t(lang, `about.m${i}_body`) });
+            }
+        } else {
+            embed.setDescription(t(lang, 'about.description')).addFields(
+                { name: t(lang, 'about.f_safety_title'), value: t(lang, 'about.f_safety_body') },
+                { name: t(lang, 'about.f_art_title'), value: t(lang, 'about.f_art_body') },
+                { name: t(lang, 'about.f_community_title'), value: t(lang, 'about.f_community_body') },
+                { name: t(lang, 'about.f_fun_title'), value: t(lang, 'about.f_fun_body') }
+            );
+        }
+        return embed;
+    },
+
+    buildAboutRow(lang, current) {
+        const btn = (page, labelKey) => new ButtonBuilder()
+            .setCustomId(`astra_about_${page}`)
+            .setLabel(t(lang, labelKey))
+            .setStyle(page === current ? ButtonStyle.Primary : ButtonStyle.Secondary)
+            .setDisabled(page === current);
+        return new ActionRowBuilder().addComponents(
+            btn('overview', 'about.btn_overview'),
+            btn('setup', 'about.btn_setup'),
+            btn('members', 'about.btn_members')
+        );
+    },
+
     async executeSlashAbout(interaction) {
         const lang = await getGuildLanguage(interaction.guild.id);
+        return interaction.reply({
+            embeds: [this.buildAboutPage(interaction.client, lang, 'overview')],
+            components: [this.buildAboutRow(lang, 'overview')],
+            ephemeral: true
+        });
+    },
 
-        const embed = new EmbedBuilder()
-            .setAuthor({ name: '🛡️ Astra', iconURL: interaction.client.user.displayAvatarURL() })
-            .setColor('#5865F2')
-            .setDescription(t(lang, 'about.description'))
-            .setFooter({ text: t(lang, 'about.footer'), iconURL: interaction.client.user.displayAvatarURL() });
-
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+    // Page buttons on /about (customId astra_about_<page>).
+    async handleAboutButton(interaction) {
+        const page = interaction.customId.replace('astra_about_', '');
+        const safe = ['overview', 'setup', 'members'].includes(page) ? page : 'overview';
+        const lang = await getGuildLanguage(interaction.guild.id);
+        return interaction.update({
+            embeds: [this.buildAboutPage(interaction.client, lang, safe)],
+            components: [this.buildAboutRow(lang, safe)]
+        });
     },
 
     // --- /quickstart — numbered first-time setup walkthrough for admins.
@@ -54,7 +104,9 @@ module.exports = {
                 { name: t(lang, 'quickstart.step2_title'), value: t(lang, 'quickstart.step2_desc') },
                 { name: t(lang, 'quickstart.step3_title'), value: t(lang, 'quickstart.step3_desc') },
                 { name: t(lang, 'quickstart.step4_title'), value: t(lang, 'quickstart.step4_desc') },
-                { name: t(lang, 'quickstart.step5_title'), value: t(lang, 'quickstart.step5_desc') }
+                { name: t(lang, 'quickstart.step5_title'), value: t(lang, 'quickstart.step5_desc') },
+                { name: t(lang, 'quickstart.step6_title'), value: t(lang, 'quickstart.step6_desc') },
+                { name: t(lang, 'quickstart.step7_title'), value: t(lang, 'quickstart.step7_desc') }
             )
             .setFooter({ text: t(lang, 'quickstart.footer'), iconURL: interaction.client.user.displayAvatarURL() });
 

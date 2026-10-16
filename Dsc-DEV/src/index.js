@@ -1244,6 +1244,8 @@ client.on('interactionCreate', async (interaction) => {
     } else if (interaction.isButton()) {
         if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {
             await ticketsCommand.handleButton(interaction);
+        } else if (interaction.customId.startsWith('astra_about_')) {
+            await helpCommand.handleAboutButton(interaction);
         } else {
             await configCommand.handleButton(interaction);
         }
