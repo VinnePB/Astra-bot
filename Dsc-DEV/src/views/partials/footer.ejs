@@ -1,4 +1,4 @@
-</main>
+        </main>
 
     <script>
         // Nav popup — click toggles it open/closed (the reliable baseline for
@@ -51,7 +51,10 @@
                     const res = await fetch(form.action, {
                         method: 'POST',
                         headers: { 'X-Requested-With': 'fetch' },
-                        body: new FormData(form)
+                        // Sent as a normal urlencoded form (what express.urlencoded
+                        // reads). A raw FormData goes out as multipart, which the
+                        // server doesn't parse, so req.body would be empty.
+                        body: new URLSearchParams(new FormData(form))
                     });
                     if (res.ok) {
                         // A form marked data-autosave-reload (currently just the

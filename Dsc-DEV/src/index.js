@@ -30,6 +30,9 @@ app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
+// Express 5 leaves req.body undefined when nothing was parsed; routes destructure
+// it, so give them an empty object instead of a crash.
+app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
 
 if (!process.env.SESSION_SECRET) {
     console.warn('⚠️  SESSION_SECRET is not set — using an insecure fallback value that is visible in this codebase. ' +
