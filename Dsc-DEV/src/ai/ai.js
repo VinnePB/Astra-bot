@@ -31,6 +31,41 @@ const BUSY_PT = [
     "ocupada. pergunta de novo daqui a pouco.",
 ];
 
+// Asked a clear question but she didn't recognize it: point to /help instead
+// of a random canned line. "Off-topic" gets its own, playfully honest line.
+const CONFUSED_EN = [
+    "hm, I didn't get that one. `/help` shows everything I can do, or try asking another way.",
+    "that went over my tiny brain. try rephrasing, or check `/help`.",
+    "not sure what you mean. I'm good with commands, levels, economy, verification and tickets. `/help` has the full list.",
+];
+const CONFUSED_PT = [
+    "hm, essa eu não entendi. o `/help` mostra tudo que eu faço, ou tente perguntar de outro jeito.",
+    "isso passou por cima do meu cérebro pequeno. tente reformular, ou veja o `/help`.",
+    "não sei bem o que você quis dizer. eu entendo de comandos, níveis, economia, verificação e tickets. o `/help` tem a lista completa.",
+];
+const OFFTOPIC_EN = [
+    "that's outside my job, I only know this server. `/help` shows what I can do.",
+    "no idea, I was trained for this server only. ask me about commands, levels, economy or tickets.",
+    "I'd just make something up, and that's worse. I'm only good at this server's stuff, see `/help`.",
+];
+const OFFTOPIC_PT = [
+    "isso foge do meu trabalho, eu só conheço este servidor. o `/help` mostra o que eu faço.",
+    "sem ideia, fui treinada só pra este servidor. pergunte de comandos, níveis, economia ou tickets.",
+    "eu só ia inventar algo, e isso é pior. eu só sei das coisas deste servidor, veja o `/help`.",
+];
+
+const QUESTION_START = /^(what|how|where|why|when|who|which|can|could|do|does|is|are|will|should|o que|oque|como|onde|por que|porque|pq|quando|quem|qual|quais|posso|pode|tem|existe|d[aá]|e se)\b/i;
+function looksLikeQuestion(text) {
+    const words = text.trim().split(/\s+/).length;
+    return words >= 3 && (/\?\s*$/.test(text) || QUESTION_START.test(text.trim()));
+}
+
+// A display name that is safe to drop into a reply: no mentions, no markdown.
+function safeName(message) {
+    const raw = message.member?.displayName || message.author.username || '';
+    return raw.replace(/<[@#&!]+\d+>/g, '').replace(/[@#<>*_~`|\\\[\]()]/g, '').trim().slice(0, 32) || (message.author.username || '').slice(0, 32);
+}
+
 const NAME_REGEX = /\bastra\b/i;
 
 function pick(arr) {
@@ -50,10 +85,11 @@ function pickVaried(intent, locale, answers) {
 }
 
 // Fill {placeholders} with this server's real settings (see ai/corpus.js).
-function fillAnswer(text, settings, locale) {
+function fillAnswer(text, settings, locale, userName) {
     const pt = locale === 'pt';
     const mention = (id, fallbackEn, fallbackPt) => (id ? `<#${id}>` : (pt ? fallbackPt : fallbackEn));
     const values = {
+        user_name: userName || (pt ? 'amigo' : 'friend'),
         currency: settings.currency_name || (pt ? 'moedas' : 'coins'),
         economy_note: settings.economy_enabled
             ? ''
@@ -114,14 +150,25 @@ module.exports = {
                 return true;
             }
 
-            const result = await classifier.classify(text);
-            if (!result) return false; // unsure or off-topic -> fun.js
+            const result = await classifier.understand(text);
+
+            if (result.status !== 'hit') {
+                // Not a recognized topic. A real QUESTION still gets an answer
+                // (nudge to /help, or a polite "not my job"); chit-chat falls
+                // through to the normal fun.js line.
+                if (!looksLikeQuestion(text)) return false;
+                const pt = (result.locale || (settings.language === 'pt-br' ? 'pt' : 'en')) === 'pt';
+                const pool = result.status === 'offtopic' ? (pt ? OFFTOPIC_PT : OFFTOPIC_EN) : (pt ? CONFUSED_PT : CONFUSED_EN);
+                lastReply.set(key, { at: now, userId: message.author.id });
+                await message.reply({ content: pick(pool), allowedMentions: { repliedUser: false } }).catch(() => {});
+                return true;
+            }
 
             const answers = classifier.getCorpus()[result.intent]?.answers?.[result.locale];
             if (!answers || answers.length === 0) return false;
 
             lastReply.set(key, { at: now, userId: message.author.id });
-            const line = fillAnswer(pickVaried(result.intent, result.locale, answers), settings, result.locale);
+            const line = fillAnswer(pickVaried(result.intent, result.locale, answers), settings, result.locale, safeName(message));
             await message.reply({ content: line, allowedMentions: { repliedUser: false } }).catch(() => {});
             return true;
         } catch (err) {

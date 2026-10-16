@@ -13,6 +13,8 @@ const helpCommand = require('./commands/help');
 const ticketsCommand = require('./commands/tickets');
 const levelingCommand = require('./commands/leveling');
 const funCommand = require('./commands/fun');
+const aiCommand = require('./commands/ai');
+const playgroundCommand = require('./commands/playground');
 const economyCommand = require('./commands/economy');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
@@ -356,7 +358,15 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             guildLangContext: true,
             t: (key, vars) => t(settings.site_language || 'en', key, vars),
             activeTab: req.query.tab || (editingArtist ? 'tickets' : 'verification'),
-            success: req.query.status === 'success', pageTitle: 'Projeckt V: Astra — Dashboard'
+            success: req.query.status === 'success',
+            roleResult: {
+                made: parseInt(req.query.rolesmade, 10) || 0,
+                reused: parseInt(req.query.rolesreused, 10) || 0,
+                skipped: parseInt(req.query.rolesskipped, 10) || 0,
+                done: req.query.rolesmade !== undefined,
+                error: ['invalid', 'toomany', 'perm', 'limit', 'failed'].includes(req.query.roleerr) ? req.query.roleerr : null,
+            },
+            pageTitle: 'Projeckt V: Astra — Dashboard'
         });
     } catch (err) { console.error(err); res.status(500).send("DB Error."); }
 });
@@ -640,6 +650,79 @@ app.post('/api/level-roles/add', checkAuth, async (req, res) => {
     }
 });
 
+// Creates the cosmetic milestone roles for the server (e.g. Level 10, 20, 30...)
+// and registers each one as that level's reward, so nobody has to make the
+// roles by hand in Discord first. Colors fade from color_from to color_to.
+// Nothing is overwritten: levels that already have a reward are skipped, and a
+// role that already exists with the exact same name is reused, so submitting
+// twice never makes duplicates.
+const ROLE_BATCH_MAX = 15;
+function hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+    const n = parseInt(m ? m[1] : '99aab5', 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+app.post('/api/level-roles/create', checkAuth, async (req, res) => {
+    const { guild_id, levels, name_template, color_from, color_to, hoist } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    const back = (q) => res.redirect(`/dashboard?tab=leveling&${q}`);
+
+    const parsed = [...new Set(String(levels || '').split(/[\s,;]+/)
+        .map(x => parseInt(x, 10))
+        .filter(n => Number.isInteger(n) && n >= 1 && n <= 1000))].sort((a, b) => a - b);
+    if (parsed.length === 0) return back('roleerr=invalid');
+    if (parsed.length > ROLE_BATCH_MAX) return back('roleerr=toomany');
+
+    const guild = client.guilds.cache.get(guild_id);
+    const me = guild?.members.me;
+    if (!guild || !me) return back('roleerr=invalid');
+    if (!me.permissions.has('ManageRoles')) return back('roleerr=perm');
+
+    let template = String(name_template || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 80) || 'Level {level}';
+    if (!template.includes('{level}')) template += ' {level}';
+
+    try {
+        const { rows: existing } = await db.query('SELECT level FROM guild_level_roles WHERE guild_id = $1', [guild_id]);
+        const taken = new Set(existing.map(r => r.level));
+        const todo = parsed.filter(l => !taken.has(l));
+        const skipped = parsed.length - todo.length;
+
+        if (guild.roles.cache.size + todo.length > 250) return back('roleerr=limit');
+
+        const from = hexToRgb(color_from), to = hexToRgb(color_to || color_from);
+        let made = 0, reused = 0;
+        for (let i = 0; i < todo.length; i++) {
+            const lvl = todo[i];
+            const f = todo.length === 1 ? 0 : i / (todo.length - 1);
+            const rgb = from.map((c, k) => Math.round(c + (to[k] - c) * f));
+            const color = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+            const name = template.replace(/\{level\}/g, String(lvl)).slice(0, 100);
+
+            let role = guild.roles.cache.find(r => r.name === name && !r.managed && r.id !== guild.id);
+            if (role) {
+                reused++;
+            } else {
+                role = await guild.roles.create({
+                    name, color, hoist: hoist === 'on', mentionable: false, permissions: [],
+                    reason: `Level ${lvl} reward role, created from the Astra dashboard by ${req.session.user.username}`,
+                });
+                made++;
+            }
+            await db.query(
+                `INSERT INTO guild_level_roles (guild_id, level, role_id) VALUES ($1, $2, $3)
+                 ON CONFLICT (guild_id, level) DO UPDATE SET role_id = $3`,
+                [guild_id, lvl, role.id]
+            );
+        }
+
+        await configCommand.logAction(guild, `⚙️ ${req.session.user.username} created level reward roles from the website (levels ${todo.join(', ') || 'none new'}).`);
+        back(`rolesmade=${made}&rolesreused=${reused}&rolesskipped=${skipped}`);
+    } catch (err) {
+        console.error('❌ Error creating level roles:', err);
+        back('roleerr=failed');
+    }
+});
+
 app.post('/api/level-roles/remove', checkAuth, async (req, res) => {
     const { guild_id, level } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -677,6 +760,28 @@ app.post('/api/update-fun', checkAuth, async (req, res) => {
         respondSaved(req, res, '/dashboard?status=success');
     } catch (err) {
         console.error('❌ Error saving fun settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
+// Experimental smart replies toggle — see commands/ai.js. Default OFF.
+app.post('/api/update-ai', checkAuth, async (req, res) => {
+    const { guild_id, ai_enabled } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    try {
+        await db.query(
+            `INSERT INTO guild_settings (guild_id, ai_enabled) VALUES ($1, $2)
+             ON CONFLICT (guild_id) DO UPDATE SET ai_enabled = $2`,
+            [guild_id, ai_enabled === 'on']
+        );
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} ${ai_enabled === 'on' ? 'enabled' : 'disabled'} experimental smart replies from the website.`);
+
+        respondSaved(req, res, '/dashboard?tab=fun&status=success');
+    } catch (err) {
+        console.error('❌ Error saving AI settings:', err);
         res.status(500).send("DB Error.");
     }
 });
@@ -963,6 +1068,62 @@ client.once('ready', async () => {
 // directly (dragged to trash, cleaned up by hand) instead of via the Close
 // Ticket button — without this, that user would appear to have a
 // permanently "open" ticket and get blocked from opening a new one.
+// First-time introduction: when Astra is added to a server she says hello once,
+// in both languages (nobody has picked one yet), and points at the first steps.
+// Goes to the system channel, else the first text channel she can write in,
+// else the server owner's DMs. astra_welcomed stops it from repeating.
+client.on('guildCreate', async (guild) => {
+    try {
+        const { rows } = await db.query('SELECT astra_welcomed FROM guild_settings WHERE guild_id = $1', [guild.id]);
+        if (rows[0]?.astra_welcomed) return;
+
+        const { ChannelType, EmbedBuilder } = require('discord.js');
+        const me = guild.members.me || await guild.members.fetchMe();
+        const canWrite = (c) => c && c.type === ChannelType.GuildText &&
+            c.permissionsFor(me)?.has(['ViewChannel', 'SendMessages', 'EmbedLinks']);
+
+        let site = '';
+        try { site = new URL(process.env.REDIRECT_URI).origin; } catch (e) { /* no site link */ }
+
+        const missing = ['ManageRoles', 'ManageChannels', 'ManageMessages'].filter(p => !me.permissions.has(p));
+        const embed = new EmbedBuilder()
+            .setColor('#5865F2')
+            .setAuthor({ name: '🛡️ Astra', iconURL: guild.client.user.displayAvatarURL() })
+            .setDescription(t('en', 'joinintro.body', { site_line: site ? t('en', 'joinintro.site_line', { site }) : '' }) + '\n\n' + t('pt-br', 'joinintro.body', { site_line: site ? t('pt-br', 'joinintro.site_line', { site }) : '' }))
+            .setFooter({ text: t('en', 'joinintro.footer') + ' · ' + t('pt-br', 'joinintro.footer') });
+        if (missing.length) {
+            embed.addFields({ name: '⚠️', value: t('en', 'joinintro.perms', { perms: missing.join(', ') }) + '\n' + t('pt-br', 'joinintro.perms', { perms: missing.join(', ') }) });
+        }
+
+        let channel = guild.systemChannel;
+        if (!canWrite(channel)) {
+            channel = guild.channels.cache
+                .filter(canWrite)
+                .sort((a, b) => a.rawPosition - b.rawPosition)
+                .first();
+        }
+
+        let sent = false;
+        if (channel) {
+            sent = !!(await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null));
+        }
+        if (!sent) {
+            const owner = await guild.fetchOwner().catch(() => null);
+            sent = !!(owner && await owner.send({ embeds: [embed] }).catch(() => null));
+        }
+
+        if (sent) {
+            await db.query(
+                `INSERT INTO guild_settings (guild_id, astra_welcomed) VALUES ($1, TRUE)
+                 ON CONFLICT (guild_id) DO UPDATE SET astra_welcomed = TRUE`,
+                [guild.id]
+            );
+        }
+    } catch (err) {
+        console.error('❌ Error in guildCreate intro:', err);
+    }
+});
+
 client.on('channelDelete', async (channel) => {
     if (!channel.guild) return;
     try {
@@ -1025,8 +1186,18 @@ client.on('messageCreate', async (message) => {
     // NEW: XP/leveling — see commands/leveling.js. Independent of the
     // verify-channel moderation above; runs on every eligible message.
     await levelingCommand.handleMessageXp(message);
-    // NEW: silly mention/name reply — see commands/fun.js. No AI involved.
-    await funCommand.handleMentionReply(message);
+    // NEW: experimental smart replies (local intent classifier, off by
+    // default) — see commands/ai.js. If it handled the message, the canned
+    // fun.js reply below must NOT also fire; if it's off or unsure, fun.js
+    // answers like before.
+    // Owner-only Gemini playground (commands/playground.js) goes first: it only
+    // ever acts for ASTRA_OWNER_IDS in the one channel set with /config playground.
+    const aiHandled = (await playgroundCommand.handleMessage(message))
+        || (await aiCommand.handleMessage(message));
+    if (!aiHandled) {
+        // silly mention/name reply — see commands/fun.js. No AI involved.
+        await funCommand.handleMentionReply(message);
+    }
 });
 
 // NEW: auto-kick sweep for members who never finished verification.

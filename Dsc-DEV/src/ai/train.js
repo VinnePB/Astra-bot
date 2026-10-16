@@ -11,6 +11,7 @@ const { NlpManager } = require('node-nlp');
 const corpus = require('./corpus');
 const { validateCorpus, LOCALES } = require('./validate');
 const { MODEL_PATH } = require('./classifier');
+const { augmentCorpus } = require('./augment');
 
 (async () => {
     const problems = validateCorpus(corpus);
@@ -37,7 +38,13 @@ const { MODEL_PATH } = require('./classifier');
         }
     }
 
-    console.log(`Training on ${docs} utterances across ${Object.keys(corpus).length} intents...`);
+    // Extra phrases with chat slang, missing accents and typos (ai/augment.js).
+    const extra = augmentCorpus(corpus, LOCALES);
+    for (const { locale, text, intent } of extra) {
+        manager.addDocument(locale, text, intent);
+    }
+
+    console.log(`Training on ${docs} written utterances + ${extra.length} slang/typo variants across ${Object.keys(corpus).length} intents...`);
     await manager.train();
     manager.save(MODEL_PATH);
     console.log(`✅ Saved ${MODEL_PATH}`);

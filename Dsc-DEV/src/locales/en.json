@@ -7,7 +7,6 @@
   "verify.you_are_verified": "✅ You're verified! Enjoy the server.",
   "verify.go_to_verify_channel": "✅ Rules accepted. Now head to {channel} to finish verifying.",
   "verify.go_to_rules_channel": "✅ Step complete. Now head to {channel} and click **I Agree** to finish verifying.",
-
   "panel.rules_title": "📜 Rules Acknowledgement",
   "panel.rules_description": "By clicking below, you confirm you've read and agree to follow the rules above.",
   "panel.i_agree": "I Agree",
@@ -15,14 +14,12 @@
   "panel.step1_footer": "Astra — Step 1 of 2",
   "panel.step2_footer": "Astra — Step 2 of 2",
   "panel.step2_instructions": "Type `!verify` in this channel to complete step 2. Anything else you type here will be removed.",
-
   "tickets.choose_artist": "Who would you like to open a ticket with?",
   "tickets.no_artists": "No artists are currently taking tickets — check back later.",
   "tickets.already_open": "❌ You already have an open ticket: {channel}. Please use that one or close it before opening another.",
   "tickets.opening": "Opening your ticket with {artist}...",
   "tickets.welcome": "{user} — welcome! {artist} will be with you shortly.",
   "tickets.closing": "🔒 Closing this ticket in 5 seconds...",
-
   "help.title": "🤖 Astra — Commands",
   "help.everyone": "Everyone",
   "help.artists": "Artists",
@@ -49,14 +46,12 @@
   "help.admin_setup": "Setup (Astra Admins)",
   "help.admin_setup_body": "`/config verification` — Rules/verify channels, buttons, roles.\n`/config antiscam` — Flag or auto-kick likely scam accounts.\n`/config tickets` — Ticket panel, category, artist setup category.\n`/config artist-roles` — Roles that auto-count as artists.\n`/config language` — Switch Astra's language for this server.\n`/config logs` — Choose a separate channel for admin notices.\n`/artist add/remove/list` — Register individual artists.\n`/artist setup-channel` — (Re)create an artist's private setup channel.\n`/quickstart` — First-time setup walkthrough.",
   "help.admin_community": "Community (Astra Admins)",
-  "help.admin_community_body": "`/config welcome` — Welcome message, channel and card.\n`/config leave` — Goodbye message and channel.\n`/config leveling` — Turn XP on/off, level-up message, cooldown, XP range.\n`/config level-roles` — Roles granted at certain levels (add/remove/list).\n`/config economy` — Turn the economy on/off, currency name/symbol, daily reward.\n`/config fun` — Toggle Astra's replies to @mentions and her name.",
+  "help.admin_community_body": "`/config welcome` — Welcome message, channel and card.\n`/config leave` — Goodbye message and channel.\n`/config leveling` — Turn XP on/off, level-up message, cooldown, XP range.\n`/config level-roles` — Roles granted at certain levels (add/remove/list).\n`/config economy` — Turn the economy on/off, currency name/symbol, daily reward.\n`/config fun` — Toggle Astra's replies to @mentions and her name.\n`/config ai` — (Experimental) smart replies that answer questions.",
   "help.superadmin_body": "`/config admins add` — Grant a role Astra-admin access.\n`/config admins remove` — Revoke a role's Astra-admin access.\n`/config admins list` — See which roles currently have access.",
   "help.footer_admin": "Astra — everything above can also be configured on the web dashboard.",
   "help.footer_member": "Some commands are hidden — ask a server admin for access.",
-
   "about.description": "Astra handles three things for your server: **verification** (keep bots and randoms out until they prove they're real), **anti-scam protection** (catch brand-new throwaway accounts on join), and a **commission ticket system** (private channels between clients and artists, with custom terms and pricing). Everything's configurable from Discord or the web dashboard — new here? Try `/quickstart`.",
   "about.footer": "Made with care — run /quickstart to get set up, or /help for the full command list.",
-
   "quickstart.title": "🚀 Astra — Quickstart",
   "quickstart.intro": "A few minutes of setup and you're done. Run these roughly in order:",
   "quickstart.step1_title": "1️⃣ Check Astra's permissions",
@@ -70,7 +65,6 @@
   "quickstart.step5_title": "5️⃣ Prefer clicking over typing?",
   "quickstart.step5_desc": "Everything above can also be done from Astra's web dashboard — log in, pick this server, and the same settings are right there.",
   "quickstart.footer": "Run /help anytime to see every command.",
-
   "site.nav.get_started": "Get Started",
   "site.nav.help": "Help & Setup",
   "site.nav.configuration": "Configuration",
@@ -99,7 +93,6 @@
   "site.home.feature_verification_desc": "Single or two-step role gates, fully configurable per server.",
   "site.home.feature_antiscam_desc": "Flags or auto-kicks brand-new, avatar-less accounts on join.",
   "site.home.feature_tickets_desc": "Private commission channels per artist, with custom ToS & pricing.",
-
   "dashboard.title": "Configuration",
   "dashboard.subtitle": "Manage your server's security settings, tickets, and access.",
   "dashboard.saved_banner": "// Settings saved successfully.",
@@ -108,7 +101,6 @@
   "dashboard.stats.members": "Members",
   "dashboard.stats.artists": "Artists",
   "dashboard.autosave_note": "// CHANGES SAVE AUTOMATICALLY",
-
   "dashboard.tab.verification": "Verification",
   "dashboard.tab.welcome": "Welcome",
   "dashboard.tab.leveling": "Leveling",
@@ -118,12 +110,10 @@
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
   "dashboard.tab.admins": "Admin Roles",
-
   "dashboard.language.label": "Astra's Language",
   "dashboard.language.hint": "(what Astra says to members — not this page's language, that's the EN/PT-BR switch up top)",
   "dashboard.language.option_en": "English",
   "dashboard.language.option_ptbr": "Português (Brasil)",
-
   "dashboard.verification.title": "Verification Gate",
   "dashboard.verification.desc": "Set both a rules channel/role and a verify channel/role to require both before granting the final role. Leave the rules fields blank to use single-step verification instead.",
   "dashboard.verification.rules_channel_label": "Rules Channel",
@@ -145,7 +135,6 @@
   "dashboard.adminlog.none": "Same as the main log channel",
   "dashboard.verification.post_panel_button": "Post / Update Panel in Discord",
   "dashboard.verification.post_panel_hint": "Settings save automatically above — click this whenever you want to (re)send the button message(s) to your channels.",
-
   "dashboard.welcome.title": "Welcome Messages",
   "dashboard.welcome.desc": "Post a public message in a channel of your choice whenever someone joins — separate from the verification nudge and the admin-only join/leave log.",
   "dashboard.welcome.enable_label": "Enable Welcome Messages",
@@ -153,14 +142,12 @@
   "dashboard.welcome.card_label": "Post as a styled embed (with avatar)",
   "dashboard.welcome.message_label": "Message",
   "dashboard.welcome.placeholders_hint": "— use {user}, {username}, {server}, {membercount}",
-
   "dashboard.leave.title": "Leave Messages",
   "dashboard.leave.desc": "Post a message when someone leaves the server.",
   "dashboard.leave.enable_label": "Enable Leave Messages",
   "dashboard.leave.channel_label": "Leave Channel",
   "dashboard.leave.message_label": "Message",
   "dashboard.leave.placeholders_hint": "— use {username}, {server}, {membercount}",
-
   "dashboard.leveling.title": "XP & Leveling",
   "dashboard.leveling.desc": "Members earn XP from chatting and level up over time — use /rank and /leaderboard on Discord to check progress.",
   "dashboard.leveling.enable_label": "Enable Leveling System",
@@ -172,11 +159,13 @@
   "dashboard.leveling.xp_max_label": "Max XP per Message",
   "dashboard.leveling.message_label": "Level-Up Message",
   "dashboard.leveling.placeholders_hint": "— use {user}, {username}, {level}, {xp}",
-
   "dashboard.fun.title": "Mention Replies",
   "dashboard.fun.desc": "When someone @mentions Astra or says her name in chat, she replies with a random, lighthearted line — no AI, just a bit of canned personality. On by default.",
   "dashboard.fun.enable_label": "Enable Mention/Name Replies",
-
+  "dashboard.ai.title": "Smart Replies",
+  "dashboard.ai.badge": "EXPERIMENTAL",
+  "dashboard.ai.desc": "When someone @mentions Astra or says her name with a question she understands (how the economy works, how levels work, how to verify, commissions...), she answers it in English or Portuguese. It runs locally on the bot, no AI service involved. If she doesn't understand, or this is off, she uses the normal replies above. If several people call her at once, she says she's busy.",
+  "dashboard.ai.enable_label": "Enable smart replies",
   "dashboard.economy.title": "Economy & Currency",
   "dashboard.economy.desc": "Members earn currency with /daily, check it with /balance, send it to each other with /pay, and compare with /richest. No shop/gambling yet.",
   "dashboard.economy.enable_label": "Enable Economy System",
@@ -187,7 +176,6 @@
   "dashboard.economy.streak_bonus_label": "Streak Bonus (per consecutive day)",
   "dashboard.economy.streak_bonus_hint": "— caps out at 10 days",
   "dashboard.economy.commands_hint": "// MEMBERS USE /daily, /balance, /pay, AND /richest ON DISCORD",
-
   "dashboard.antiscam.title": "Anti-Scam Protection",
   "dashboard.antiscam.desc": "Flag or auto-kick brand-new accounts on join — the classic scam-bot signature.",
   "dashboard.antiscam.enable_label": "Enable Anti-Scam Checks",
@@ -196,12 +184,10 @@
   "dashboard.antiscam.action_kick": "Kick automatically",
   "dashboard.antiscam.min_age_label": "Min. Account Age (hours)",
   "dashboard.antiscam.no_avatar_label": "Require no avatar too",
-
   "dashboard.autokick.title": "Auto-Kick Unverified Members",
   "dashboard.autokick.desc": "Bots, the owner, and Astra Admins are always exempt.",
   "dashboard.autokick.enable_label": "Enable Auto-Kick",
   "dashboard.autokick.grace_label": "Grace Period (days)",
-
   "dashboard.tickets.setup_title": "Ticket System Setup",
   "dashboard.tickets.setup_desc": "Where the ticket panel lives, and where new ticket channels get created.",
   "dashboard.tickets.panel_channel_label": "Ticket Panel Channel",
@@ -238,7 +224,6 @@
   "dashboard.tickets.price_placeholder": "Message me for pricing",
   "dashboard.tickets.save_panel_button": "Save Panel",
   "dashboard.tickets.cancel_button": "Cancel",
-
   "dashboard.admins.title": "Astra Admin Roles",
   "dashboard.admins.desc": "Roles here can use Astra's config commands (not this site) without needing real Administrator permission.",
   "dashboard.admins.none": "Only real Administrators can configure Astra right now.",
@@ -257,35 +242,47 @@
   "dashboard.levelroles.replace_hint": "Adding a reward for a level that already has one replaces its role.",
   "dashboard.levelroles.unassignable": "above Astra's role",
   "dashboard.levelroles.unassignable_hint": "Astra can't give this role. In Server Settings → Roles, drag Astra's role above it.",
-
   "onboarding.title": "Help & Setup",
   "onboarding.subtitle": "How each part of Astra works, and where to configure it. Hi, {username}.",
   "onboarding.go_to_configuration": "Go straight to Configuration →",
-
   "onboarding.status.configured": "Configured",
   "onboarding.status.not_set_up": "Not set up",
   "onboarding.status.enabled": "Enabled",
   "onboarding.status.optional": "Optional",
-
   "onboarding.verification.title": "Verification",
   "onboarding.verification.desc": "Keeps bots and randoms out until they prove they're real. Pick a channel + role for a single Verify button, or go further with a two-step gate — a rules channel they click \"I Agree\" in, then a verify channel where they type {command}. Either way, a final role is what actually unlocks the rest of your server.",
   "onboarding.verification.review_button": "Review Verification",
   "onboarding.verification.configure_button": "Configure Verification",
-
   "onboarding.antiscam.title": "Anti-Scam",
   "onboarding.antiscam.desc": "Catches the classic throwaway-scam-account pattern: a brand-new Discord account with no avatar joining your server. You choose whether Astra just logs it for review, or kicks automatically.",
   "onboarding.antiscam.configure_button": "Configure Anti-Scam",
-
   "onboarding.autokick.title": "Auto-Kick",
   "onboarding.autokick.desc": "For members who never finish verification. After a grace period you set (in days), anyone still unverified gets removed automatically. Bots, the server owner, and Astra Admins are never touched by this.",
   "onboarding.autokick.configure_button": "Configure Auto-Kick",
-
   "onboarding.tickets.title": "Commission Tickets",
   "onboarding.tickets.desc": "A member clicks \"Open a Ticket,\" picks an artist, and gets a private channel with that artist's own Terms of Service, Won't-Do list, and pricing already posted. Register artists here or on Discord with {addCommand} — each one can customize their own panel with {panelCommand}.",
   "onboarding.tickets.review_button": "Review Tickets",
   "onboarding.tickets.configure_button": "Configure Tickets",
-
   "onboarding.admins.title": "Admin Roles",
   "onboarding.admins.desc": "By default only real server Administrators can configure Astra. If you want a Moderator role (or similar) to manage her too — without handing out full Administrator — grant that role access here.",
-  "onboarding.admins.manage_button": "Manage Admin Roles"
+  "onboarding.admins.manage_button": "Manage Admin Roles",
+  "dashboard.levelroles.create_title": "Create the roles for me",
+  "dashboard.levelroles.create_desc": "Astra makes cosmetic roles (no permissions) for the levels you list and sets each one as that level's reward. Colors fade from the first to the second.",
+  "dashboard.levelroles.create_levels": "Levels (up to 15, separated by commas)",
+  "dashboard.levelroles.create_name": "Role name ({level} becomes the number)",
+  "dashboard.levelroles.create_color_from": "First color",
+  "dashboard.levelroles.create_color_to": "Last color",
+  "dashboard.levelroles.create_hoist": "Show separately in the member list",
+  "dashboard.levelroles.create_button": "Create roles",
+  "dashboard.levelroles.create_hint": "Levels that already have a reward are skipped, and a role with the exact same name is reused instead of duplicated. New roles appear at the bottom of the role list, so Astra can always give them.",
+  "dashboard.levelroles.create_result": "Done: {made} role(s) created, {reused} reused, {skipped} level(s) skipped because they already had a reward.",
+  "dashboard.levelroles.err_invalid": "Type at least one level between 1 and 1000, like: 10, 20, 30.",
+  "dashboard.levelroles.err_toomany": "That's a lot of roles at once. Up to 15 per go, please.",
+  "dashboard.levelroles.err_perm": "Astra needs the Manage Roles permission to create roles. Give it to her role in Server Settings, then try again.",
+  "dashboard.levelroles.err_limit": "This server is near Discord's 250 role limit, so the roles weren't created.",
+  "dashboard.levelroles.err_failed": "Something went wrong while creating the roles. Some may have been made, check the list above and try again.",
+  "joinintro.body": "**Hi, I'm Astra!** 🛡️ Thanks for adding me. I handle verification, anti-scam, artist tickets, levels, economy and more.\n\n**Admins, start here:**\n• `/quickstart` walks you through the setup\n• `/config language` sets the language I use here{site_line}\n\n**Everyone:** `/help` lists what I can do, `/about` explains me in plain terms. You can also just ask me, e.g. \"@Astra what do you do?\" once an admin turns on `/config ai`.",
+  "joinintro.footer": "I only introduce myself once",
+  "joinintro.perms": "I'm missing these permissions for some features: {perms}. Give them to my role in Server Settings.",
+  "joinintro.site_line": "\n• Dashboard: {site}"
 }

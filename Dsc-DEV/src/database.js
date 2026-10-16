@@ -142,6 +142,18 @@ pool.connect()
             // anyone until they pick a channel.
             await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS admin_log_channel_id VARCHAR(30);`);
 
+            // NEW: experimental local "smart replies" (commands/ai.js).
+            // Defaults to OFF for every server, new and existing.
+            await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN DEFAULT FALSE;`);
+
+            // NEW: owner-only Gemini playground (commands/playground.js): the one
+            // channel per server where the bot owner can chat with a real LLM.
+            await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ai_playground_channel_id VARCHAR(30);`);
+
+            // NEW: remembers that Astra already introduced herself in this server
+            // (guildCreate in index.js), so re-adding her never repeats it.
+            await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS astra_welcomed BOOLEAN DEFAULT FALSE;`);
+
             // NEW: category for artists' private setup channels, and a
             // toggle for join/leave logging (shared log_channel_id).
             await client.query(`

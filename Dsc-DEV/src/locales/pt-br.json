@@ -7,7 +7,6 @@
   "verify.you_are_verified": "✅ Você está verificado(a)! Aproveite o servidor.",
   "verify.go_to_verify_channel": "✅ Regras aceitas. Agora vá até {channel} para finalizar a verificação.",
   "verify.go_to_rules_channel": "✅ Etapa concluída. Agora vá até {channel} e clique em **Concordo** para finalizar a verificação.",
-
   "panel.rules_title": "📜 Confirmação das Regras",
   "panel.rules_description": "Ao clicar abaixo, você confirma que leu e concorda em seguir as regras acima.",
   "panel.i_agree": "Concordo",
@@ -15,14 +14,12 @@
   "panel.step1_footer": "Astra — Etapa 1 de 2",
   "panel.step2_footer": "Astra — Etapa 2 de 2",
   "panel.step2_instructions": "Digite `!verify` neste canal para completar a etapa 2. Qualquer outra coisa que você digitar aqui será removida.",
-
   "tickets.choose_artist": "Com qual artista você gostaria de abrir um ticket?",
   "tickets.no_artists": "Nenhum artista está aceitando tickets no momento — volte mais tarde.",
   "tickets.already_open": "❌ Você já tem um ticket aberto: {channel}. Use esse ou feche-o antes de abrir outro.",
   "tickets.opening": "Abrindo seu ticket com {artist}...",
   "tickets.welcome": "{user} — bem-vindo(a)! {artist} vai te atender em breve.",
   "tickets.closing": "🔒 Fechando este ticket em 5 segundos...",
-
   "help.title": "🤖 Astra — Comandos",
   "help.everyone": "Todos",
   "help.artists": "Artistas",
@@ -49,14 +46,12 @@
   "help.admin_setup": "Configuração (Admins da Astra)",
   "help.admin_setup_body": "`/config verification` — Canais de regras/verificação, botões, cargos.\n`/config antiscam` — Sinaliza ou expulsa contas suspeitas de golpe.\n`/config tickets` — Painel de tickets, categoria, categoria de setup dos artistas.\n`/config artist-roles` — Cargos que contam automaticamente como artistas.\n`/config language` — Troca o idioma da Astra neste servidor.\n`/config logs` — Escolhe um canal separado para os avisos de admin.\n`/artist add/remove/list` — Registra artistas individualmente.\n`/artist setup-channel` — (Re)cria o canal privado de setup de um artista.\n`/quickstart` — Passo a passo da configuração inicial.",
   "help.admin_community": "Comunidade (Admins da Astra)",
-  "help.admin_community_body": "`/config welcome` — Mensagem de boas-vindas, canal e cartão.\n`/config leave` — Mensagem de despedida e canal.\n`/config leveling` — Liga/desliga o XP, mensagem de nível, cooldown, faixa de XP.\n`/config level-roles` — Cargos dados em certos níveis (add/remove/list).\n`/config economy` — Liga/desliga a economia, nome/símbolo da moeda, recompensa diária.\n`/config fun` — Liga/desliga as respostas da Astra a @menções e ao nome dela.",
+  "help.admin_community_body": "`/config welcome` — Mensagem de boas-vindas, canal e cartão.\n`/config leave` — Mensagem de despedida e canal.\n`/config leveling` — Liga/desliga o XP, mensagem de nível, cooldown, faixa de XP.\n`/config level-roles` — Cargos dados em certos níveis (add/remove/list).\n`/config economy` — Liga/desliga a economia, nome/símbolo da moeda, recompensa diária.\n`/config fun` — Liga/desliga as respostas da Astra a @menções e ao nome dela.\n`/config ai` — (Experimental) respostas inteligentes que respondem perguntas.",
   "help.superadmin_body": "`/config admins add` — Dá acesso de admin da Astra a um cargo.\n`/config admins remove` — Remove o acesso de admin de um cargo.\n`/config admins list` — Veja quais cargos têm acesso hoje.",
   "help.footer_admin": "Astra — tudo isso também pode ser configurado no painel web.",
   "help.footer_member": "Alguns comandos estão ocultos — peça acesso a um admin do servidor.",
-
   "about.description": "A Astra cuida de três coisas no seu servidor: **verificação** (mantém bots e desconhecidos fora até provarem que são reais), **proteção anti-golpe** (detecta contas novas e descartáveis ao entrar) e um **sistema de tickets de comissão** (canais privados entre clientes e artistas, com termos e preços personalizados). Tudo é configurável pelo Discord ou pelo painel web — novo por aqui? Experimente `/quickstart`.",
   "about.footer": "Feita com carinho — use /quickstart para configurar, ou /help para ver todos os comandos.",
-
   "quickstart.title": "🚀 Astra — Início Rápido",
   "quickstart.intro": "Alguns minutos de configuração e pronto. Siga mais ou menos nesta ordem:",
   "quickstart.step1_title": "1️⃣ Confira as permissões da Astra",
@@ -70,7 +65,6 @@
   "quickstart.step5_title": "5️⃣ Prefere clicar em vez de digitar?",
   "quickstart.step5_desc": "Tudo acima também pode ser feito pelo painel web da Astra — faça login, escolha este servidor e as mesmas configurações estarão lá.",
   "quickstart.footer": "Use /help a qualquer momento para ver todos os comandos.",
-
   "site.nav.get_started": "Começar",
   "site.nav.help": "Ajuda & Configuração",
   "site.nav.configuration": "Configuração",
@@ -99,7 +93,6 @@
   "site.home.feature_verification_desc": "Portões de verificação em uma ou duas etapas, totalmente configuráveis por servidor.",
   "site.home.feature_antiscam_desc": "Sinaliza ou expulsa automaticamente contas novas e sem avatar ao entrar.",
   "site.home.feature_tickets_desc": "Canais privados de comissão por artista, com termos e preços personalizados.",
-
   "dashboard.title": "Configuração",
   "dashboard.subtitle": "Gerencie as configurações de segurança, tickets e acesso do seu servidor.",
   "dashboard.saved_banner": "// Configurações salvas com sucesso.",
@@ -108,7 +101,6 @@
   "dashboard.stats.members": "Membros",
   "dashboard.stats.artists": "Artistas",
   "dashboard.autosave_note": "// AS MUDANÇAS SALVAM AUTOMATICAMENTE",
-
   "dashboard.tab.verification": "Verificação",
   "dashboard.tab.welcome": "Boas-vindas",
   "dashboard.tab.leveling": "Níveis",
@@ -118,12 +110,10 @@
   "dashboard.tab.autokick": "Auto-Kick",
   "dashboard.tab.tickets": "Tickets",
   "dashboard.tab.admins": "Cargos de Admin",
-
   "dashboard.language.label": "Idioma da Astra",
   "dashboard.language.hint": "(o que a Astra fala pros membros — não é o idioma desta página, esse é o botão EN/PT-BR lá em cima)",
   "dashboard.language.option_en": "Inglês",
   "dashboard.language.option_ptbr": "Português (Brasil)",
-
   "dashboard.verification.title": "Portão de Verificação",
   "dashboard.verification.desc": "Defina um canal/cargo de regras e um canal/cargo de verificação para exigir os dois antes de conceder o cargo final. Deixe os campos de regras em branco para usar a verificação em etapa única.",
   "dashboard.verification.rules_channel_label": "Canal de Regras",
@@ -145,7 +135,6 @@
   "dashboard.adminlog.none": "Igual ao canal de logs principal",
   "dashboard.verification.post_panel_button": "Postar / Atualizar Painel no Discord",
   "dashboard.verification.post_panel_hint": "As configurações acima salvam automaticamente — clique aqui sempre que quiser (re)enviar a(s) mensagem(ns) com botão para seus canais.",
-
   "dashboard.welcome.title": "Mensagens de Boas-vindas",
   "dashboard.welcome.desc": "Publica uma mensagem pública em um canal à sua escolha sempre que alguém entrar — separado do aviso de verificação e do log administrativo de entradas/saídas.",
   "dashboard.welcome.enable_label": "Ativar Mensagens de Boas-vindas",
@@ -153,14 +142,12 @@
   "dashboard.welcome.card_label": "Publicar como embed estilizado (com avatar)",
   "dashboard.welcome.message_label": "Mensagem",
   "dashboard.welcome.placeholders_hint": "— use {user}, {username}, {server}, {membercount}",
-
   "dashboard.leave.title": "Mensagens de Saída",
   "dashboard.leave.desc": "Publica uma mensagem quando alguém sai do servidor.",
   "dashboard.leave.enable_label": "Ativar Mensagens de Saída",
   "dashboard.leave.channel_label": "Canal de Saída",
   "dashboard.leave.message_label": "Mensagem",
   "dashboard.leave.placeholders_hint": "— use {username}, {server}, {membercount}",
-
   "dashboard.leveling.title": "XP e Níveis",
   "dashboard.leveling.desc": "Membros ganham XP conversando e sobem de nível com o tempo — use /rank e /leaderboard no Discord para ver o progresso.",
   "dashboard.leveling.enable_label": "Ativar Sistema de Níveis",
@@ -172,11 +159,13 @@
   "dashboard.leveling.xp_max_label": "XP Máximo por Mensagem",
   "dashboard.leveling.message_label": "Mensagem de Level-Up",
   "dashboard.leveling.placeholders_hint": "— use {user}, {username}, {level}, {xp}",
-
   "dashboard.fun.title": "Respostas por Menção",
   "dashboard.fun.desc": "Quando alguém menciona @Astra ou fala o nome dela no chat, ela responde com uma linha aleatória e descontraída — sem IA, só um pouco de personalidade pré-escrita. Ativado por padrão.",
   "dashboard.fun.enable_label": "Ativar Respostas por Menção/Nome",
-
+  "dashboard.ai.title": "Respostas Inteligentes",
+  "dashboard.ai.badge": "EXPERIMENTAL",
+  "dashboard.ai.desc": "Quando alguém @menciona a Astra ou diz o nome dela com uma pergunta que ela entende (como funciona a economia, os níveis, a verificação, comissões...), ela responde em português ou inglês. Roda localmente no bot, sem serviço de IA. Se ela não entender, ou se estiver desligado, usa as respostas normais acima. Se várias pessoas chamarem ao mesmo tempo, ela diz que está ocupada.",
+  "dashboard.ai.enable_label": "Ativar respostas inteligentes",
   "dashboard.economy.title": "Economia e Moeda",
   "dashboard.economy.desc": "Membros ganham moeda com /daily, conferem com /balance, enviam uns pros outros com /pay, e comparam com /richest. Ainda sem loja/apostas.",
   "dashboard.economy.enable_label": "Ativar Sistema de Economia",
@@ -187,7 +176,6 @@
   "dashboard.economy.streak_bonus_label": "Bônus de Sequência (por dia consecutivo)",
   "dashboard.economy.streak_bonus_hint": "— limita em 10 dias",
   "dashboard.economy.commands_hint": "// MEMBROS USAM /daily, /balance, /pay E /richest NO DISCORD",
-
   "dashboard.antiscam.title": "Proteção Anti-Golpe",
   "dashboard.antiscam.desc": "Sinalize ou expulse automaticamente contas recém-criadas ao entrar — a assinatura clássica de contas-golpe.",
   "dashboard.antiscam.enable_label": "Ativar Verificações Anti-Golpe",
@@ -196,12 +184,10 @@
   "dashboard.antiscam.action_kick": "Expulsar automaticamente",
   "dashboard.antiscam.min_age_label": "Idade Mínima da Conta (horas)",
   "dashboard.antiscam.no_avatar_label": "Exigir também que não tenha avatar",
-
   "dashboard.autokick.title": "Auto-Kick de Membros Não Verificados",
   "dashboard.autokick.desc": "Bots, o dono e os Admins da Astra estão sempre isentos.",
   "dashboard.autokick.enable_label": "Ativar Auto-Kick",
   "dashboard.autokick.grace_label": "Período de Tolerância (dias)",
-
   "dashboard.tickets.setup_title": "Configuração do Sistema de Tickets",
   "dashboard.tickets.setup_desc": "Onde o painel de tickets fica, e onde os novos canais de ticket são criados.",
   "dashboard.tickets.panel_channel_label": "Canal do Painel de Tickets",
@@ -238,7 +224,6 @@
   "dashboard.tickets.price_placeholder": "Me chame para saber o preço",
   "dashboard.tickets.save_panel_button": "Salvar Painel",
   "dashboard.tickets.cancel_button": "Cancelar",
-
   "dashboard.admins.title": "Cargos de Admin da Astra",
   "dashboard.admins.desc": "Cargos listados aqui podem usar os comandos de configuração da Astra (não este site) sem precisar da permissão real de Administrador.",
   "dashboard.admins.none": "Apenas Administradores reais podem configurar a Astra por enquanto.",
@@ -257,35 +242,47 @@
   "dashboard.levelroles.replace_hint": "Adicionar recompensa para um nível que já tem uma substitui o cargo dele.",
   "dashboard.levelroles.unassignable": "acima do cargo da Astra",
   "dashboard.levelroles.unassignable_hint": "A Astra não consegue dar este cargo. Em Configurações do Servidor → Cargos, arraste o cargo da Astra para cima dele.",
-
   "onboarding.title": "Ajuda & Configuração",
   "onboarding.subtitle": "Como cada parte da Astra funciona, e onde configurar cada uma. Olá, {username}.",
   "onboarding.go_to_configuration": "Ir direto para a Configuração →",
-
   "onboarding.status.configured": "Configurado",
   "onboarding.status.not_set_up": "Não configurado",
   "onboarding.status.enabled": "Ativado",
   "onboarding.status.optional": "Opcional",
-
   "onboarding.verification.title": "Verificação",
   "onboarding.verification.desc": "Mantém bots e desconhecidos de fora até provarem que são reais. Escolha um canal + cargo para um único botão de Verificar, ou vá além com um portão em duas etapas — um canal de regras onde clicam em \"Concordo\", depois um canal de verificação onde digitam {command}. De qualquer forma, um cargo final é o que realmente libera o resto do seu servidor.",
   "onboarding.verification.review_button": "Revisar Verificação",
   "onboarding.verification.configure_button": "Configurar Verificação",
-
   "onboarding.antiscam.title": "Anti-Golpe",
   "onboarding.antiscam.desc": "Detecta o padrão clássico de conta-golpe descartável: uma conta do Discord recém-criada, sem avatar, entrando no seu servidor. Você escolhe se a Astra apenas registra para revisão, ou expulsa automaticamente.",
   "onboarding.antiscam.configure_button": "Configurar Anti-Golpe",
-
   "onboarding.autokick.title": "Auto-Kick",
   "onboarding.autokick.desc": "Para membros que nunca terminam a verificação. Depois de um período de tolerância que você define (em dias), quem ainda não verificou é removido automaticamente. Bots, o dono do servidor e os Admins da Astra nunca são afetados por isso.",
   "onboarding.autokick.configure_button": "Configurar Auto-Kick",
-
   "onboarding.tickets.title": "Tickets de Comissão",
   "onboarding.tickets.desc": "Um membro clica em \"Abrir um Ticket\", escolhe um artista, e recebe um canal privado já com os Termos de Serviço, lista de Não Farei e preços daquele artista. Registre artistas aqui ou no Discord com {addCommand} — cada um pode personalizar seu próprio painel com {panelCommand}.",
   "onboarding.tickets.review_button": "Revisar Tickets",
   "onboarding.tickets.configure_button": "Configurar Tickets",
-
   "onboarding.admins.title": "Cargos de Admin",
   "onboarding.admins.desc": "Por padrão, apenas Administradores reais do servidor podem configurar a Astra. Se quiser que um cargo de Moderador (ou similar) também a gerencie — sem dar permissão total de Administrador — conceda acesso a esse cargo aqui.",
-  "onboarding.admins.manage_button": "Gerenciar Cargos de Admin"
+  "onboarding.admins.manage_button": "Gerenciar Cargos de Admin",
+  "dashboard.levelroles.create_title": "Criar os cargos pra mim",
+  "dashboard.levelroles.create_desc": "A Astra cria cargos cosméticos (sem permissões) para os níveis que você listar e define cada um como a recompensa daquele nível. As cores fazem um degradê da primeira até a segunda.",
+  "dashboard.levelroles.create_levels": "Níveis (até 15, separados por vírgula)",
+  "dashboard.levelroles.create_name": "Nome do cargo ({level} vira o número)",
+  "dashboard.levelroles.create_color_from": "Primeira cor",
+  "dashboard.levelroles.create_color_to": "Última cor",
+  "dashboard.levelroles.create_hoist": "Mostrar separado na lista de membros",
+  "dashboard.levelroles.create_button": "Criar cargos",
+  "dashboard.levelroles.create_hint": "Níveis que já têm recompensa são pulados, e um cargo com exatamente o mesmo nome é reaproveitado em vez de duplicado. Os cargos novos aparecem no fim da lista de cargos, então a Astra sempre consegue entregar.",
+  "dashboard.levelroles.create_result": "Pronto: {made} cargo(s) criado(s), {reused} reaproveitado(s), {skipped} nível(is) pulado(s) por já terem recompensa.",
+  "dashboard.levelroles.err_invalid": "Digite pelo menos um nível entre 1 e 1000, tipo: 10, 20, 30.",
+  "dashboard.levelroles.err_toomany": "É cargo demais de uma vez. Até 15 por vez, por favor.",
+  "dashboard.levelroles.err_perm": "A Astra precisa da permissão Gerenciar Cargos para criar cargos. Dê isso ao cargo dela nas Configurações do Servidor e tente de novo.",
+  "dashboard.levelroles.err_limit": "Este servidor está perto do limite de 250 cargos do Discord, então os cargos não foram criados.",
+  "dashboard.levelroles.err_failed": "Algo deu errado ao criar os cargos. Alguns podem ter sido criados, confira a lista acima e tente de novo.",
+  "joinintro.body": "**Oi, eu sou a Astra!** 🛡️ Obrigada por me adicionar. Cuido de verificação, anti-scam, tickets de artistas, níveis, economia e mais.\n\n**Admins, comecem aqui:**\n• `/quickstart` guia vocês na configuração\n• `/config language` define o idioma que uso aqui{site_line}\n\n**Todo mundo:** `/help` lista o que eu faço, `/about` me explica em termos simples. Dá também pra perguntar direto, tipo \"@Astra o que você faz?\", quando um admin ligar o `/config ai`.",
+  "joinintro.footer": "Eu só me apresento uma vez",
+  "joinintro.perms": "Estou sem estas permissões para alguns recursos: {perms}. Dê-as ao meu cargo nas Configurações do Servidor.",
+  "joinintro.site_line": "\n• Painel: {site}"
 }

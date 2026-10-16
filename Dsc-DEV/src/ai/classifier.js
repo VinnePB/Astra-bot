@@ -45,6 +45,7 @@ function cleanText(content) {
     return content
         .replace(/<[@#&]!?\d+>/g, ' ')
         .replace(/\bastra\b/gi, ' ')
+        .replace(/(\p{L})\1{2,}/gu, '$1$1') // "oiiiiii" -> "oii", "kkkkk" -> "kk"
         .replace(/\s+/g, ' ')
         .trim();
 }
@@ -63,6 +64,24 @@ async function classify(text) {
     return best;
 }
 
+// Richer than classify(): says WHY she'd stay quiet, so commands/ai.js can
+// answer an unclear QUESTION with a nudge to /help instead of a random line.
+//   { status: 'hit', intent, score, locale }
+//   { status: 'offtopic', locale }   she recognized it as outside her job
+//   { status: 'unsure', locale }     low confidence
+async function understand(text) {
+    let best = null;
+    for (const locale of LOCALES) {
+        const r = await manager.process(locale, text);
+        if (!r || !r.intent || r.intent === 'None') continue;
+        if (!best || r.score > best.score) best = { intent: r.intent, score: r.score, locale };
+    }
+    if (!best) return { status: 'unsure', locale: null };
+    if (best.intent === 'offtopic' && best.score >= MIN_SCORE) return { status: 'offtopic', locale: best.locale };
+    if (best.intent === 'offtopic' || best.score < MIN_SCORE) return { status: 'unsure', locale: best.locale };
+    return { status: 'hit', ...best };
+}
+
 // Same as classify() but returns the raw best match, for the test script.
 async function inspect(text) {
     let best = null;
@@ -78,6 +97,7 @@ module.exports = {
     loadModel,
     cleanText,
     classify,
+    understand,
     inspect,
     getCorpus: () => corpus,
     MODEL_PATH,

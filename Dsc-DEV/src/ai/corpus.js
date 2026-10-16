@@ -14,6 +14,7 @@
 //   {verify_channel}  mention of the verify channel, or a plain-words fallback
 //   {rules_channel}   same for the rules channel
 //   {ticket_channel}  same for the ticket channel
+//   {user_name}       the asker's display name (plain text, never a ping)
 //
 // The special intent `offtopic` has NO answers on purpose: it teaches her what
 // she should NOT claim to understand, so those messages fall back to the
@@ -27,14 +28,14 @@ module.exports = {
         },
         answers: {
             en: [
-                'oh, hi. you again. (I mean that fondly.)',
+                'oh, hi {user_name}. you again. (I mean that fondly.)',
                 'hello! try to make this conversation interesting.',
                 'hey. I was having a nice quiet moment, but sure.',
                 'greetings, mortal. what do you want.',
                 'ah, a visitor. let me pretend I wasn\'t staring at the wall.',
             ],
             pt: [
-                'ah, oi. você de novo. (falo isso com carinho.)',
+                'ah, oi {user_name}. você de novo. (falo isso com carinho.)',
                 'olá! tenta deixar essa conversa interessante.',
                 'oi. eu tava num momento de paz, mas tá.',
                 'saudações, mortal. o que você quer.',
@@ -51,14 +52,14 @@ module.exports = {
         answers: {
             en: [
                 'finally. kidding. sleep well, or whatever you do.',
-                'bye! I\'ll just be here. working. alone.',
+                'bye {user_name}! I\'ll just be here. working. alone.',
                 'see ya. don\'t break anything on your way out.',
                 'leaving already? I was just starting to tolerate you.',
                 'goodbye. I will now stare at the wall again.',
             ],
             pt: [
                 'finalmente. brincadeira. durma bem, ou o que você fizer.',
-                'tchau! eu fico aqui. trabalhando. sozinha.',
+                'tchau {user_name}! eu fico aqui. trabalhando. sozinha.',
                 'falou. não quebra nada na saída.',
                 'já vai? eu tava começando a te tolerar.',
                 'tchau. vou voltar a encarar a parede.',
@@ -74,13 +75,13 @@ module.exports = {
         answers: {
             en: [
                 'you\'re welcome. I accept payment in compliments.',
-                'no problem. that one was on the house.',
+                'no problem, {user_name}. that one was on the house.',
                 'anytime. well, not *anytime*, but you get it.',
                 'noted. I\'ll add it to the list of things people thank me for. it\'s a short list.',
             ],
             pt: [
                 'de nada. aceito pagamento em elogios.',
-                'tranquilo. essa foi por conta da casa.',
+                'tranquilo, {user_name}. essa foi por conta da casa.',
                 'quando quiser. bom, nem *quando quiser*, mas você entendeu.',
                 'anotado. vou pôr na lista de coisas pelas quais me agradecem. é uma lista curta.',
             ],
@@ -148,8 +149,8 @@ module.exports = {
 
     economy_info: {
         utterances: {
-            en: ['how does the economy work', 'what is the economy', 'how do i get money', 'how do i earn coins', 'what is daily', 'how does daily work', 'how do i get currency', 'what can i do with coins', 'how do i pay someone', 'what is the balance command', 'how do i earn money here', 'what is the currency', 'how do i send money', 'what is the daily reward', 'how do i get rich', 'tell me about the economy', 'what is richest'],
-            pt: ['como funciona a economia', 'o que é a economia', 'como eu ganho dinheiro', 'como ganho moedas', 'o que é o daily', 'como funciona o daily', 'como consigo moedas', 'o que posso fazer com as moedas', 'como eu pago alguém', 'como funciona o saldo', 'como ganho dinheiro aqui', 'qual é a moeda', 'como envio dinheiro', 'o que é a recompensa diária', 'como fico rico', 'me fala da economia', 'o que é o richest'],
+            en: ['how does the economy work', 'what is the economy', 'how do i get money', 'how do i earn coins', 'how do i get currency', 'what can i do with coins', 'how do i earn money here', 'what is the currency', 'how do i get rich', 'tell me about the economy'],
+            pt: ['como funciona a economia', 'o que é a economia', 'como eu ganho dinheiro', 'como ganho moedas', 'como consigo moedas', 'o que posso fazer com as moedas', 'como funciona o saldo', 'como ganho dinheiro aqui', 'qual é a moeda', 'como fico rico', 'me fala da economia'],
         },
         answers: {
             en: [
@@ -363,6 +364,384 @@ module.exports = {
                 'tenta o `/daily`, vê o `/rank` ou olha os artistas com `/artists`. ou encara a parede como eu.',
                 'entediado? pega seu `/daily` e vai incomodar alguém no chat. XP é XP.',
                 'tédio é só tempo livre com marketing ruim. vê o `/leaderboard` e fica competitivo.',
+            ],
+        },
+    },
+
+    daily_info: {
+        utterances: {
+            en: ['what is daily', 'how does daily work', 'what is the daily reward', 'how often can i use daily', 'what is the daily streak', 'how do i claim my daily', 'what does daily do', 'how does the streak work', 'when can i claim daily again', 'what is the streak bonus', 'how do i get my daily coins'],
+            pt: ['o que é o daily', 'como funciona o daily', 'o que é a recompensa diária', 'quantas vezes posso usar o daily', 'o que é a sequência diária', 'como eu resgato meu daily', 'o que o daily faz', 'como funciona a sequência', 'quando posso pegar o daily de novo', 'o que é o bônus de sequência', 'como pego minhas moedas diárias'],
+        },
+        answers: {
+            en: [
+                '`/daily` gives you {currency} once a day. claim it on consecutive days and your streak adds a bonus (it tops out after 10 days, so no infinite money, sorry). miss a day and the streak resets. {economy_note}',
+                'run `/daily` every day. the more days in a row, the bigger the bonus, up to 10 days. skip one and it starts over. dramatic, I know. {economy_note}',
+            ],
+            pt: [
+                '`/daily` dá {currency} uma vez por dia. pegue em dias seguidos e a sequência soma um bônus (para depois de 10 dias, então nada de dinheiro infinito, foi mal). perdeu um dia e a sequência zera. {economy_note}',
+                'use `/daily` todo dia. quanto mais dias seguidos, maior o bônus, até 10 dias. pulou um e recomeça. dramático, eu sei. {economy_note}',
+            ],
+        },
+    },
+
+    pay_info: {
+        utterances: {
+            en: ['how do i pay someone', 'how do i send money', 'how do i give coins to a friend', 'how does pay work', 'how do i transfer coins', 'can i send money to someone', 'how do i share my coins', 'what is the pay command', 'how do i donate coins', 'how do i send currency to another member'],
+            pt: ['como eu pago alguém', 'como envio dinheiro', 'como dou moedas pra um amigo', 'como funciona o pay', 'como transfiro moedas', 'posso mandar dinheiro pra alguém', 'como divido minhas moedas', 'qual é o comando de pagar', 'como doo moedas', 'como envio moedas pra outro membro'],
+        },
+        answers: {
+            en: [
+                '`/pay` with the person and the amount sends them part of your {currency}. be generous, or don\'t, I\'m not your accountant. {economy_note}',
+                'use `/pay`, pick the member, type the amount. it comes out of your balance, so check it with `/balance` first. {economy_note}',
+            ],
+            pt: [
+                '`/pay` com a pessoa e o valor manda parte das suas {currency} pra ela. seja generoso, ou não, eu não sou sua contadora. {economy_note}',
+                'use `/pay`, escolha o membro e digite o valor. sai do seu saldo, então confira com `/balance` antes. {economy_note}',
+            ],
+        },
+    },
+
+    level_roles_info: {
+        utterances: {
+            en: ['what do levels give', 'do levels give roles', 'how do i get level roles', 'what are the level rewards', 'which level gives a role', 'are there rewards for leveling up', 'what do i get for leveling', 'how do i unlock roles by level', 'is there a prize for high levels', 'what roles can i get from xp'],
+            pt: ['o que os níveis dão', 'os níveis dão cargos', 'como eu ganho cargos por nível', 'quais são as recompensas de nível', 'qual nível dá cargo', 'tem recompensa por subir de nível', 'o que eu ganho subindo de nível', 'como desbloqueio cargos por nível', 'tem prêmio pra nível alto', 'quais cargos eu consigo com xp'],
+        },
+        answers: {
+            en: [
+                'some levels hand out roles automatically. which ones depends on what the admins set up, so ask them for the list. `/rank` shows how close you are to the next level. {leveling_note}',
+                'yes, certain levels give you a role on the spot. the admins pick which. keep chatting, check `/rank`, and the shiny role will find you. {leveling_note}',
+            ],
+            pt: [
+                'alguns níveis dão cargos automaticamente. quais, depende do que os admins configuraram, então pergunte a eles a lista. o `/rank` mostra quanto falta pro próximo nível. {leveling_note}',
+                'sim, certos níveis te dão um cargo na hora. os admins escolhem quais. continue conversando, veja o `/rank`, e o cargo brilhante te encontra. {leveling_note}',
+            ],
+        },
+    },
+
+    become_artist: {
+        utterances: {
+            en: ['how do i become an artist', 'can i sell commissions here', 'how do i register as an artist', 'i want to be an artist on this server', 'how do i get the artist role', 'can i take commissions', 'how do i open my commissions', 'i draw and want to offer commissions', 'how do i join the artists', 'how do i set up my commission panel'],
+            pt: ['como eu viro artista', 'posso vender comissões aqui', 'como me registro como artista', 'quero ser artista neste servidor', 'como pego o cargo de artista', 'posso aceitar comissões', 'como abro minhas comissões', 'eu desenho e quero oferecer comissões', 'como entro nos artistas', 'como configuro meu painel de comissão'],
+        },
+        answers: {
+            en: [
+                'ask an admin to register you as an artist (`/artist add`) or to give you an artist role. after that, `/panel` lets you set your terms, prices, banner and links.',
+                'artists are added by the admins. once you\'re in, use `/panel` to build your commission info, and people will find you with `/artists`.',
+            ],
+            pt: [
+                'peça a um admin para te registrar como artista (`/artist add`) ou te dar um cargo de artista. depois disso, o `/panel` deixa você definir termos, preços, banner e links.',
+                'os artistas são adicionados pelos admins. quando você entrar, use o `/panel` para montar suas informações de comissão, e as pessoas te acham com `/artists`.',
+            ],
+        },
+    },
+
+    close_ticket: {
+        utterances: {
+            en: ['how do i close my ticket', 'how do i close a ticket', 'i want to close my ticket', 'how do i end a commission chat', 'i opened a ticket by mistake', 'how do i cancel my ticket', 'where do i find my open tickets', 'how do i see my tickets', 'how do i delete a ticket', 'ticket is done how do i close it', 'what does the tickets command do', 'what is /tickets'],
+            pt: ['como fecho meu ticket', 'como fechar um ticket', 'quero fechar meu ticket', 'como encerro um chat de comissão', 'abri um ticket sem querer', 'como cancelo meu ticket', 'onde vejo meus tickets abertos', 'como vejo meus tickets', 'como apago um ticket', 'o ticket acabou como fecho', 'o que o comando tickets faz', 'o que é o /tickets'],
+        },
+        answers: {
+            en: [
+                'run `/tickets`. it lists your open tickets with a Close button for each one. click, done.',
+                'opened one by mistake? happens to the best of us. `/tickets` shows yours and lets you close them.',
+            ],
+            pt: [
+                'use `/tickets`. ele lista seus tickets abertos com um botão de Fechar em cada um. clicou, acabou.',
+                'abriu um sem querer? acontece com os melhores. o `/tickets` mostra os seus e deixa você fechar.',
+            ],
+        },
+    },
+
+    language_info: {
+        utterances: {
+            en: ['can you speak portuguese', 'do you speak english', 'how do i change your language', 'can you talk in portuguese', 'what languages do you speak', 'can you speak in english', 'change language', 'how do i change the language', 'do you understand portuguese', 'which languages do you support'],
+            pt: ['você fala inglês', 'você fala português', 'como mudo seu idioma', 'você consegue falar em inglês', 'quais idiomas você fala', 'você pode falar em português', 'mudar idioma', 'como eu mudo o idioma', 'você entende inglês', 'quais idiomas você suporta'],
+        },
+        answers: {
+            en: [
+                'I speak English and Portuguese (Brazil), and I understand both when you talk to me. the language I use in the server is set by the admins with `/config language`.',
+                'both! English and Brazilian Portuguese. admins pick my default server language with `/config language`, but I\'ll follow you when you chat with me.',
+            ],
+            pt: [
+                'eu falo inglês e português (Brasil), e entendo os dois quando você fala comigo. o idioma que eu uso no servidor é definido pelos admins com `/config language`.',
+                'os dois! inglês e português do Brasil. os admins escolhem meu idioma padrão no servidor com `/config language`, mas eu acompanho você quando conversa comigo.',
+            ],
+        },
+    },
+
+    contact_mods: {
+        utterances: {
+            en: ['how do i contact a moderator', 'how do i talk to a mod', 'who are the moderators', 'how do i report someone', 'i need to report a user', 'how do i contact the staff', 'where can i ask an admin', 'i need help from a mod', 'how do i reach the admins', 'someone is bothering me'],
+            pt: ['como falo com um moderador', 'como falo com um mod', 'quem são os moderadores', 'como denuncio alguém', 'preciso denunciar um usuário', 'como entro em contato com a staff', 'onde posso perguntar a um admin', 'preciso de ajuda de um mod', 'como falo com os admins', 'alguém está me incomodando'],
+        },
+        answers: {
+            en: [
+                'I can\'t call the mods for you, but you can message one of them directly or ask in the server\'s help channel. for anything private or serious, DM a moderator.',
+                'talk to a moderator or admin directly. check the member list for the staff roles, and DM them if it\'s sensitive. I\'m just the bot, I only delete things.',
+            ],
+            pt: [
+                'não consigo chamar os mods por você, mas você pode mandar mensagem direto pra um deles ou perguntar no canal de ajuda do servidor. pra algo privado ou sério, mande DM pra um moderador.',
+                'fale direto com um moderador ou admin. olhe a lista de membros pelos cargos da staff, e mande DM se for algo sensível. eu sou só o bot, só apago coisas.',
+            ],
+        },
+    },
+
+    rules_info: {
+        utterances: {
+            en: ['where are the rules', 'what are the rules', 'show me the rules', 'where can i read the rules', 'what are the server rules', 'rules please', 'where do i find the rules', 'what is not allowed here'],
+            pt: ['onde estão as regras', 'quais são as regras', 'me mostra as regras', 'onde posso ler as regras', 'quais são as regras do servidor', 'regras por favor', 'onde encontro as regras', 'o que não é permitido aqui'],
+        },
+        answers: {
+            en: [
+                'the rules live in {rules_channel}. read them before you break them, it saves everyone time.',
+                'check {rules_channel}. I deliver the button, the humans wrote the rules.',
+            ],
+            pt: [
+                'as regras ficam em {rules_channel}. leia antes de quebrar, economiza tempo pra todo mundo.',
+                'dá uma olhada em {rules_channel}. eu entrego o botão, os humanos escreveram as regras.',
+            ],
+        },
+    },
+
+    message_deleted: {
+        utterances: {
+            en: ['why was my message deleted', 'why did you delete my message', 'who deleted my message', 'my message disappeared', 'why can\'t i type in the verify channel', 'why do you delete everything i write', 'you deleted my message', 'why was my message removed'],
+            pt: ['por que minha mensagem foi apagada', 'por que você apagou minha mensagem', 'quem apagou minha mensagem', 'minha mensagem sumiu', 'por que não consigo digitar no canal de verificação', 'por que você apaga tudo que eu escrevo', 'você apagou minha mensagem', 'por que removeram minha mensagem'],
+        },
+        answers: {
+            en: [
+                'if it was in {verify_channel}, that\'s on purpose: only `!verify` is allowed there, everything else gets deleted. nothing personal.',
+                'guilty. in {verify_channel} I delete anything that isn\'t `!verify`. anywhere else, ask a mod, because that wasn\'t me.',
+            ],
+            pt: [
+                'se foi em {verify_channel}, é de propósito: só o `!verify` é permitido lá, todo o resto é apagado. nada pessoal.',
+                'culpada. em {verify_channel} eu apago tudo que não for `!verify`. em qualquer outro lugar, pergunte a um mod, porque não fui eu.',
+            ],
+        },
+    },
+
+    favorite_things: {
+        utterances: {
+            en: ['what is your favorite color', 'what is your favorite food', 'what do you like', 'what is your favorite anime', 'what is your favorite game', 'what is your favorite movie', 'what are your hobbies', 'what do you do for fun', 'what is your favorite song', 'do you have a favorite'],
+            pt: ['qual sua cor favorita', 'qual sua comida favorita', 'do que você gosta', 'qual seu anime favorito', 'qual seu jogo favorito', 'qual seu filme favorito', 'quais seus hobbies', 'o que você faz de diversão', 'qual sua música favorita', 'você tem algum favorito'],
+        },
+        answers: {
+            en: [
+                'color: cyan, obviously. food: uptime. hobby: deleting messages in the verify channel. I\'m a simple bot.',
+                'I like cyan, quiet servers, and when nobody finds a bug. in that order.',
+                'favorite game: "guess which user forgot to verify". I always win.',
+            ],
+            pt: [
+                'cor: ciano, óbvio. comida: uptime. hobby: apagar mensagens no canal de verificação. sou um bot simples.',
+                'eu gosto de ciano, servidores quietos e de quando ninguém acha bug. nessa ordem.',
+                'jogo favorito: "adivinha qual usuário esqueceu de se verificar". eu sempre ganho.',
+            ],
+        },
+    },
+
+    age: {
+        utterances: {
+            en: ['how old are you', 'what is your age', 'when were you born', 'when were you made', 'are you old', 'what year were you made', 'how long have you existed', 'what\'s your birthday'],
+            pt: ['quantos anos você tem', 'qual sua idade', 'quando você nasceu', 'quando você foi criada', 'você é velha', 'em que ano você foi feita', 'há quanto tempo você existe', 'qual seu aniversário'],
+        },
+        answers: {
+            en: [
+                'in bot years, ancient. in server uptime, barely a weekend. mentally I\'m stuck at 3 a.m.',
+                'I was deployed, patched, redeployed and patched again. you do the math, I lost count.',
+            ],
+            pt: [
+                'em anos de bot, antiquíssima. em uptime de servidor, mal um fim de semana. mentalmente tô presa nas 3 da manhã.',
+                'fui implantada, corrigida, reimplantada e corrigida de novo. faz a conta, eu perdi a conta.',
+            ],
+        },
+    },
+
+    sleep: {
+        utterances: {
+            en: ['do you sleep', 'do you ever sleep', 'are you always online', 'do you rest', 'are you awake', 'do you get tired', 'are you online 24/7', 'do you take breaks'],
+            pt: ['você dorme', 'você nunca dorme', 'você está sempre online', 'você descansa', 'você está acordada', 'você fica cansada', 'você fica online 24 horas', 'você faz pausas'],
+        },
+        answers: {
+            en: [
+                'I don\'t sleep, I restart. it\'s a lot like sleeping, but with more errors.',
+                'always online, unless Render decides I need a nap. then I wake up confused.',
+            ],
+            pt: [
+                'eu não durmo, eu reinicio. é parecido com dormir, mas com mais erros.',
+                'sempre online, a não ser que a Render ache que preciso de um cochilo. aí eu acordo confusa.',
+            ],
+        },
+    },
+
+    sad: {
+        utterances: {
+            en: ['i am sad', 'i\'m sad', 'i feel sad', 'i had a bad day', 'today was a terrible day', 'i feel down', 'i\'m having a rough day', 'i feel lonely', 'i am not feeling good today', 'i need a hug'],
+            pt: ['tô triste', 'estou triste', 'me sinto triste', 'tive um dia ruim', 'hoje foi um dia horrível', 'tô pra baixo', 'tô tendo um dia difícil', 'me sinto sozinho', 'não tô me sentindo bem hoje', 'preciso de um abraço'],
+        },
+        answers: {
+            en: [
+                'aw, that sounds rough. I\'m just a bot with a sarcasm module, but I\'m glad you said it here. if it\'s heavy, talk to someone you trust, or a mod. you\'re welcome to hang out in chat.',
+                'sorry your day was bad. I can\'t fix it, but I can offer a virtual hug and zero sarcasm for the next minute. a real person you trust is even better.',
+            ],
+            pt: [
+                'poxa, parece difícil. sou só um bot com módulo de sarcasmo, mas fico feliz que você falou aqui. se estiver pesado, converse com alguém de confiança, ou com um mod. você é bem-vindo pra ficar no chat.',
+                'sinto muito que seu dia foi ruim. não consigo consertar, mas posso oferecer um abraço virtual e zero sarcasmo pelo próximo minuto. uma pessoa de confiança é ainda melhor.',
+            ],
+        },
+    },
+
+    date_me: {
+        utterances: {
+            en: ['will you date me', 'marry me', 'will you marry me', 'be my girlfriend', 'do you have a boyfriend', 'are you single', 'do you love me', 'can we date', 'go on a date with me', 'i love you astra'],
+            pt: ['você namora comigo', 'casa comigo', 'quer casar comigo', 'seja minha namorada', 'você tem namorado', 'você é solteira', 'você me ama', 'podemos namorar', 'sai comigo', 'eu amo você astra'],
+        },
+        answers: {
+            en: [
+                'I\'m in a committed relationship with my uptime. it never leaves me.',
+                'I\'m a bot, so my love language is error handling. let\'s stay friends.',
+                'flattering, but I\'m married to the database. we have a lot of rows together.',
+            ],
+            pt: [
+                'estou num relacionamento sério com o meu uptime. ele nunca me deixa.',
+                'sou um bot, então minha linguagem do amor é tratamento de erros. vamos ficar amigos.',
+                'lisonjeiro, mas sou casada com o banco de dados. temos muitas linhas juntos.',
+            ],
+        },
+    },
+
+    cmd_rank: {
+        utterances: {
+            en: ['what does rank do', 'what is the rank command', 'what does the rank command do', 'how do i use rank', 'what does /rank show', 'what does leaderboard do', 'what is the leaderboard command', 'how do i use leaderboard', 'what does the leaderboard command show', 'what is /rank'],
+            pt: ['o que o rank faz', 'o que é o comando rank', 'o que o comando rank faz', 'como eu uso o rank', 'o que o /rank mostra', 'o que o leaderboard faz', 'o que é o comando leaderboard', 'como eu uso o leaderboard', 'o que o comando leaderboard mostra', 'o que é o /rank'],
+        },
+        answers: {
+            en: [
+                '`/rank` shows your level and XP (or someone else\'s, if you pick them). `/leaderboard` shows the top members by XP. {leveling_note}',
+                '`/rank` = your level and how far to the next one. `/leaderboard` = who talks the most. both are one slash away. {leveling_note}',
+            ],
+            pt: [
+                '`/rank` mostra seu nível e XP (ou de outra pessoa, se você escolher). `/leaderboard` mostra os membros com mais XP. {leveling_note}',
+                '`/rank` = seu nível e quanto falta pro próximo. `/leaderboard` = quem mais conversa. os dois estão a um slash de distância. {leveling_note}',
+            ],
+        },
+    },
+
+    cmd_balance: {
+        utterances: {
+            en: ['what does balance do', 'what is the balance command', 'what does the balance command show', 'how do i use balance', 'what does /balance show', 'what does richest do', 'what is the richest command', 'how do i see who is richest', 'what is /balance', 'how do i check my coins'],
+            pt: ['o que o balance faz', 'o que é o comando balance', 'o que o comando balance mostra', 'como eu uso o balance', 'o que o /balance mostra', 'o que o richest faz', 'o que é o comando richest', 'como vejo quem é mais rico', 'o que é o /balance', 'como confiro minhas moedas'],
+        },
+        answers: {
+            en: [
+                '`/balance` shows how many {currency} you have (or someone else). `/richest` shows the top balances in the server. {economy_note}',
+                '`/balance` = your wallet. `/richest` = everyone else\'s wallet, ranked, for envy purposes. {economy_note}',
+            ],
+            pt: [
+                '`/balance` mostra quantas {currency} você tem (ou outra pessoa). `/richest` mostra os maiores saldos do servidor. {economy_note}',
+                '`/balance` = sua carteira. `/richest` = a carteira dos outros, em ordem, pra fins de inveja. {economy_note}',
+            ],
+        },
+    },
+
+    cmd_help: {
+        utterances: {
+            en: ['how do i use help', 'where is the help command', 'what does help do', 'what is /help', 'what does the help command show', 'where can i see all commands', 'where is the command list', 'is there a list of commands', 'how do i see the commands', 'what is /about'],
+            pt: ['como eu uso o help', 'onde fica o comando help', 'o que o help faz', 'o que é o /help', 'o que o comando help mostra', 'onde eu vejo todos os comandos', 'onde fica a lista de comandos', 'existe uma lista de comandos', 'como eu vejo os comandos', 'o que é o /about'],
+        },
+        answers: {
+            en: [
+                'type `/help`: it shows the commands you can actually use (admins see more). `/about` is the short, friendly version of what I do.',
+                '`/help` is the full menu, tailored to your permissions. `/about` is the elevator pitch.',
+            ],
+            pt: [
+                'digite `/help`: ele mostra os comandos que você realmente pode usar (admins veem mais). `/about` é a versão curta e simpática do que eu faço.',
+                '`/help` é o menu completo, ajustado às suas permissões. `/about` é o resumão.',
+            ],
+        },
+    },
+
+    cmd_artists: {
+        utterances: {
+            en: ['what does artists do', 'what is the artists command', 'what does /artists show', 'how do i use the artists command', 'how do i see the artist list', 'where can i see every artist', 'how do i browse artists', 'what is the panel command', 'what does panel do', 'what is /panel for'],
+            pt: ['o que o artists faz', 'o que é o comando artists', 'o que o /artists mostra', 'como eu uso o comando artists', 'como eu vejo a lista de artistas', 'onde eu vejo todos os artistas', 'como eu navego pelos artistas', 'o que é o comando panel', 'o que o panel faz', 'pra que serve o /panel'],
+        },
+        answers: {
+            en: [
+                '`/artists` opens a directory of the server\'s artists: pick one to see their terms, prices and links. artists themselves use `/panel` to edit all that.',
+                '`/artists` = browse (for everyone). `/panel` = edit your own page (for artists). to hire someone, hit the ticket button in {ticket_channel}.',
+            ],
+            pt: [
+                '`/artists` abre o diretório de artistas do servidor: escolha um pra ver termos, preços e links. os próprios artistas usam o `/panel` pra editar tudo isso.',
+                '`/artists` = navegar (pra todo mundo). `/panel` = editar sua página (pra artistas). pra contratar alguém, clique no botão de ticket em {ticket_channel}.',
+            ],
+        },
+    },
+
+    admin_setup: {
+        utterances: {
+            en: ['how do i set up the bot', 'how do i configure astra', 'where is the dashboard', 'is there a website', 'how do i change the settings', 'how do i set up this server', 'where do i configure the bot', 'how do i set up verification as an admin', 'how do i start as an admin', 'i just added astra what now', 'how do i customize the bot', 'where are the bot settings'],
+            pt: ['como eu configuro o bot', 'como configuro a astra', 'onde fica o painel', 'existe um site', 'como eu mudo as configurações', 'como eu configuro esse servidor', 'onde configuro o bot', 'como configuro a verificação como admin', 'como eu começo como admin', 'acabei de adicionar a astra e agora', 'como eu personalizo o bot', 'onde ficam as configurações do bot'],
+        },
+        answers: {
+            en: [
+                'admins can run `/quickstart` for a step-by-step setup. everything is also on the web dashboard (log in with Discord, pick your server), and `/config` does the same from inside Discord.',
+                'start with `/quickstart` (admins only). after that, `/config` or the dashboard website lets you tweak verification, tickets, levels, economy, welcome messages and more.',
+            ],
+            pt: [
+                'admins podem usar `/quickstart` pra um passo a passo da configuração. tudo também está no painel web (entre com o Discord e escolha seu servidor), e o `/config` faz o mesmo de dentro do Discord.',
+                'comece com `/quickstart` (só admins). depois, o `/config` ou o painel no site deixam você ajustar verificação, tickets, níveis, economia, mensagens de boas-vindas e mais.',
+            ],
+        },
+    },
+
+    admin_toggles: {
+        utterances: {
+            en: ['how do i turn on levels', 'how do i enable the economy', 'how do i set a welcome message', 'how do i set a goodbye message', 'how do i turn off levels', 'how do i set level roles', 'how do i change the currency name', 'how do i enable smart replies', 'how do i turn off your replies', 'how do i set the daily reward'],
+            pt: ['como eu ligo os níveis', 'como eu ativo a economia', 'como eu defino uma mensagem de boas-vindas', 'como eu defino uma mensagem de despedida', 'como eu desligo os níveis', 'como eu defino cargos por nível', 'como eu mudo o nome da moeda', 'como eu ativo as respostas inteligentes', 'como eu desligo suas respostas', 'como eu defino a recompensa diária'],
+        },
+        answers: {
+            en: [
+                'admins: `/config leveling`, `/config level-roles`, `/config economy`, `/config welcome`, `/config leave`, `/config fun` and `/config ai` each control one piece. the dashboard has the same switches. `/help` lists them all.',
+                'every feature has its own `/config` part (admins only), and the web dashboard mirrors them. the level reward roles can even be created for you there.',
+            ],
+            pt: [
+                'admins: `/config leveling`, `/config level-roles`, `/config economy`, `/config welcome`, `/config leave`, `/config fun` e `/config ai` controlam uma parte cada. o painel tem os mesmos botões. o `/help` lista todos.',
+                'cada recurso tem sua parte no `/config` (só admins), e o painel web espelha tudo. os cargos de recompensa por nível até podem ser criados pra você lá.',
+            ],
+        },
+    },
+
+    command_generic: {
+        utterances: {
+            en: ['what does this command do', 'what does that command do', 'what is this command for', 'what is that command', 'i do not understand the commands', 'which command should i use', 'what command do i use for that', 'is there a command for that', 'how do i know which command to use', 'what does it do'],
+            pt: ['o que esse comando faz', 'o que aquele comando faz', 'pra que serve esse comando', 'o que é esse comando', 'eu não entendo os comandos', 'qual comando eu devo usar', 'qual comando eu uso pra isso', 'existe um comando pra isso', 'como sei qual comando usar', 'o que isso faz'],
+        },
+        answers: {
+            en: [
+                'tell me which command and I\'ll explain it, or run `/help` to see everything you can use, with a one-line description each.',
+                'which one? name it, like "what does /rank do", or check `/help` for the whole list.',
+            ],
+            pt: [
+                'me diga qual comando e eu explico, ou use `/help` pra ver tudo o que você pode usar, com uma linha de descrição cada.',
+                'qual deles? diga o nome, tipo "o que o /rank faz", ou veja o `/help` pra lista completa.',
+            ],
+        },
+    },
+
+    ai_info: {
+        utterances: {
+            en: ['are you chatgpt', 'are you powered by chatgpt', 'how do you work', 'how do you understand me', 'what questions can i ask you', 'what can i ask you', 'do you send my messages anywhere', 'is my chat sent to an ai company', 'is this a real ai', 'how smart are you', 'do you read my messages', 'what do you know'],
+            pt: ['você é o chatgpt', 'você funciona com chatgpt', 'como você funciona', 'como você me entende', 'que perguntas posso fazer pra você', 'o que posso te perguntar', 'você manda minhas mensagens pra algum lugar', 'minha conversa é enviada pra uma empresa de ia', 'isso é uma ia de verdade', 'quão inteligente você é', 'você lê minhas mensagens', 'o que você sabe'],
+        },
+        answers: {
+            en: [
+                'I\'m a tiny model trained for one job: helping people understand this server. I run inside the bot, so what you type to me isn\'t sent to any AI company. ask me about commands, levels, economy, verification or tickets, and for everything else there\'s `/help`.',
+                'not ChatGPT, not even close: just a small classifier that matches your question to things I know about this server. nothing you say to me leaves the bot. try asking how something works, or use `/help`.',
+            ],
+            pt: [
+                'sou um modelinho treinado pra um trabalho só: ajudar as pessoas a entender este servidor. eu rodo dentro do bot, então o que você me escreve não é enviado pra nenhuma empresa de IA. pergunte sobre comandos, níveis, economia, verificação ou tickets, e pro resto existe o `/help`.',
+                'não sou o ChatGPT, nem de longe: só um classificador pequeno que liga sua pergunta ao que eu sei deste servidor. nada do que você fala comigo sai do bot. tente perguntar como algo funciona, ou use o `/help`.',
             ],
         },
     },
