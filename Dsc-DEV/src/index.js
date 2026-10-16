@@ -14,7 +14,6 @@ const ticketsCommand = require('./commands/tickets');
 const levelingCommand = require('./commands/leveling');
 const funCommand = require('./commands/fun');
 const aiCommand = require('./commands/ai');
-const playgroundCommand = require('./commands/playground');
 const economyCommand = require('./commands/economy');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
@@ -1190,10 +1189,7 @@ client.on('messageCreate', async (message) => {
     // default) — see commands/ai.js. If it handled the message, the canned
     // fun.js reply below must NOT also fire; if it's off or unsure, fun.js
     // answers like before.
-    // Owner-only Gemini playground (commands/playground.js) goes first: it only
-    // ever acts for ASTRA_OWNER_IDS in the one channel set with /config playground.
-    const aiHandled = (await playgroundCommand.handleMessage(message))
-        || (await aiCommand.handleMessage(message));
+    const aiHandled = await aiCommand.handleMessage(message);
     if (!aiHandled) {
         // silly mention/name reply — see commands/fun.js. No AI involved.
         await funCommand.handleMentionReply(message);

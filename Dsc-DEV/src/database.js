@@ -146,8 +146,7 @@ pool.connect()
             // Defaults to OFF for every server, new and existing.
             await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN DEFAULT FALSE;`);
 
-            // NEW: owner-only Gemini playground (commands/playground.js): the one
-            // channel per server where the bot owner can chat with a real LLM.
+            // (Unused: the Gemini playground was dropped. Column kept; it's harmless.)
             await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ai_playground_channel_id VARCHAR(30);`);
 
             // NEW: remembers that Astra already introduced herself in this server

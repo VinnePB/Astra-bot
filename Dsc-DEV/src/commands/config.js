@@ -312,6 +312,14 @@ module.exports = {
         )
         .addSubcommand(subcommand =>
             subcommand
+                .setName('ai')
+                .setDescription('EXPERIMENTAL: toggle Astra\'s smart replies (understands EN/PT-BR, local, no AI service)')
+                .addBooleanOption(option =>
+                    option.setName('enabled')
+                        .setDescription('Turn smart replies on or off (default: off)')
+                        .setRequired(true)))
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('economy')
                 .setDescription('Configure the currency/economy system')
                 .addBooleanOption(option =>
@@ -399,6 +407,10 @@ module.exports = {
 
         if (sub === 'economy') {
             return this.handleEconomySubcommand(interaction);
+        }
+
+        if (sub === 'ai') {
+            return this.handleAiSubcommand(interaction);
         }
 
         if (sub === 'language') {
@@ -582,6 +594,39 @@ module.exports = {
             return interaction.reply({ content: `✅ Astra will ${enabled ? 'now' : 'no longer'} reply when @mentioned or called by name.`, ephemeral: true });
         } catch (error) {
             console.error('❌ Error saving fun settings:', error);
+            return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
+        }
+    },
+
+    // /config ai — EXPERIMENTAL local smart replies (commands/ai.js). Separate
+    // from /config fun, which only controls the canned-line replies.
+    async handleAiSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const enabled = interaction.options.getBoolean('enabled');
+
+        try {
+            await db.query(
+                `INSERT INTO guild_settings (guild_id, ai_enabled) VALUES ($1, $2)
+                 ON CONFLICT (guild_id) DO UPDATE SET ai_enabled = $2`,
+                [interaction.guild.id, enabled]
+            );
+            await logAction(interaction.guild, `⚙️ ${interaction.user} ${enabled ? 'enabled' : 'disabled'} Astra's experimental smart replies.`);
+
+            let note = '';
+            if (enabled && !require('./ai').isReady()) {
+                note = '\n⚠️ The model file isn\'t available on the bot right now, so she\'ll keep using the normal canned replies until it\'s deployed.';
+            }
+            return interaction.reply({
+                content: enabled
+                    ? `✅ Smart replies are **on** (experimental). When someone @mentions Astra or says her name with a question she understands, she'll answer it; otherwise she falls back to her usual lines.${note}`
+                    : '✅ Smart replies are **off**. She goes back to canned lines only (`/config fun` still controls those).',
+                ephemeral: true
+            });
+        } catch (error) {
+            console.error('❌ Error saving AI settings:', error);
             return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
         }
     },
