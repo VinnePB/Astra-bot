@@ -150,7 +150,7 @@ module.exports = {
                 return true;
             }
 
-            const result = await classifier.understand(text);
+            const result = await classifier.understand(text, settings.language === 'pt-br' ? 'pt' : 'en');
 
             if (result.status !== 'hit') {
                 // Not a recognized topic. A real QUESTION still gets an answer
