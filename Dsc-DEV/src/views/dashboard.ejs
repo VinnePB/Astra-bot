@@ -62,6 +62,17 @@
                 </select>
             </form>
 
+            <form action="/api/update-admin-log" method="POST" class="mb-6" data-autosave>
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <label class="fui-label"><%= t('dashboard.adminlog.label') %> <span class="normal-case text-slate-600"><%= t('dashboard.adminlog.hint') %></span></label>
+                <select name="admin_log_channel_id" class="fui-input sm:w-72">
+                    <option value="" <%= !settings.admin_log_channel_id ? 'selected' : '' %>><%= t('dashboard.adminlog.none') %></option>
+                    <% channels.forEach(channel => { %>
+                        <option value="<%= channel.id %>" <%= settings.admin_log_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                    <% }) %>
+                </select>
+            </form>
+
             <form action="/api/update-verification" method="POST" class="space-y-6" data-autosave>
                 <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -239,9 +250,47 @@
                         <textarea name="levelup_message" rows="2" class="fui-input" placeholder="🎉 {user} just reached **Level {level}**!"><%= settings.levelup_message || '' %></textarea>
                     </div>
                 </div>
-                <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.leveling.roles_hint') %></p>
                 <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.autosave_note') %></p>
             </form>
+
+            <!-- LEVEL-UP ROLE REWARDS -->
+            <div class="mt-10 pt-8 border-t border-cyan-500/10">
+                <h3 class="fui-section-title"><%= t('dashboard.levelroles.title') %></h3>
+                <p class="text-sm text-slate-500 mb-6"><%= t('dashboard.levelroles.desc') %></p>
+
+                <div class="space-y-2 mb-6">
+                    <% if (levelRoles.length === 0) { %>
+                        <p class="text-slate-600 text-xs"><%= t('dashboard.levelroles.none') %></p>
+                    <% } %>
+                    <% levelRoles.forEach(lr => { %>
+                        <div class="flex items-center justify-between bg-black/40 border border-cyan-500/10 px-4 py-2.5">
+                            <span class="text-sm text-white">
+                                <span class="text-cyan-300 fui-tracked uppercase"><%= t('dashboard.levelroles.level_n', { level: lr.level }) %></span>
+                                <span class="text-slate-600 mx-2">→</span>
+                                <% if (lr.name) { %>@<%= lr.name %><% if (!lr.assignable) { %> <span class="text-amber-400 text-xs" title="<%= t('dashboard.levelroles.unassignable_hint') %>">⚠ <%= t('dashboard.levelroles.unassignable') %></span><% } %><% } else { %><span class="text-slate-500"><%= t('dashboard.levelroles.deleted_role') %></span><% } %>
+                            </span>
+                            <form action="/api/level-roles/remove" method="POST">
+                                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                                <input type="hidden" name="level" value="<%= lr.level %>">
+                                <button type="submit" class="text-xs text-fuchsia-400 hover:text-fuchsia-300 fui-tracked uppercase"><%= t('dashboard.levelroles.remove_button') %></button>
+                            </form>
+                        </div>
+                    <% }) %>
+                </div>
+
+                <form action="/api/level-roles/add" method="POST" class="flex flex-col sm:flex-row gap-2">
+                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                    <input type="number" name="level" min="1" max="1000" required placeholder="<%= t('dashboard.levelroles.level_placeholder') %>" class="fui-input sm:w-40">
+                    <select name="role_id" required class="fui-input flex-1">
+                        <option value=""><%= t('dashboard.levelroles.select_role') %></option>
+                        <% roles.forEach(role => { %>
+                            <option value="<%= role.id %>">@<%= role.name %></option>
+                        <% }) %>
+                    </select>
+                    <button type="submit" class="fui-btn text-xs px-4 text-cyan-300 border-cyan-500/30 whitespace-nowrap"><%= t('dashboard.levelroles.add_button') %></button>
+                </form>
+                <p class="text-xs text-slate-600 mt-3"><%= t('dashboard.levelroles.replace_hint') %></p>
+            </div>
         </div>
     </div>
 

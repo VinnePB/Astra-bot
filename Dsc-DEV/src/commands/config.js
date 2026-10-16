@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 const db = require('../database');
 const { isServerAdministrator, isAstraAdmin } = require('../permissions');
 const { t } = require('../i18n');
@@ -29,8 +29,15 @@ function fillTemplate(template, vars) {
 async function logAction(guild, message) {
     try {
         const settings = await getSettings(guild.id);
-        if (!settings || !settings.log_channel_id) return;
-        const logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
+        // Admin/config notices go to admin_log_channel_id when set, else
+        // fall back to the shared log_channel_id (the old behavior).
+        const targetId = settings && (settings.admin_log_channel_id || settings.log_channel_id);
+        if (!targetId) return;
+        let logChannel = await guild.channels.fetch(targetId).catch(() => null);
+        // Admin channel was deleted? Fall back rather than losing the notice.
+        if (!logChannel && settings.admin_log_channel_id && settings.log_channel_id) {
+            logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
+        }
         if (logChannel) await logChannel.send(message).catch(() => {});
     } catch (err) {
         console.error('❌ Error posting to Astra log channel:', err);
@@ -340,6 +347,19 @@ module.exports = {
         )
         .addSubcommand(subcommand =>
             subcommand
+                .setName('logs')
+                .setDescription('Choose where Astra posts admin notices (settings changes, registrations)')
+                .addChannelOption(option =>
+                    option.setName('admin_channel')
+                        .setDescription('Admin-only channel for config-change notices')
+                        .addChannelTypes(ChannelType.GuildText)
+                        .setRequired(false))
+                .addBooleanOption(option =>
+                    option.setName('reset')
+                        .setDescription('Send admin notices to the main log channel again')
+                        .setRequired(false)))
+        .addSubcommand(subcommand =>
+            subcommand
                 .setName('language')
                 .setDescription('Set the language Astra uses for member-facing messages in this server')
                 .addStringOption(option =>
@@ -383,6 +403,10 @@ module.exports = {
 
         if (sub === 'language') {
             return this.handleLanguageSubcommand(interaction);
+        }
+
+        if (sub === 'logs') {
+            return this.handleLogsSubcommand(interaction);
         }
 
         if (sub === 'verification') {
@@ -504,7 +528,10 @@ module.exports = {
                     [guildId, level, role.id]
                 );
                 await logAction(interaction.guild, `⚙️ ${interaction.user} set ${role} as the reward for reaching level ${level}.`);
-                return interaction.reply({ content: `✅ Members who reach **Level ${level}** will now automatically get ${role}.`, ephemeral: true });
+                const me = interaction.guild.members.me;
+                const canAssign = me && me.permissions.has(PermissionFlagsBits.ManageRoles) && role.position < me.roles.highest.position && !role.managed;
+                const warning = canAssign ? '' : `\n⚠️ Heads up: I can't currently assign ${role} — it's above my highest role (or I lack Manage Roles). Move my role above it in Server Settings → Roles or the reward won't be given.`;
+                return interaction.reply({ content: `✅ Members who reach **Level ${level}** will now automatically get ${role}.${warning}`, ephemeral: true });
             } catch (error) {
                 console.error('❌ Error adding level role:', error);
                 return interaction.reply({ content: '❌ Database error while saving the role reward.', ephemeral: true });
@@ -781,6 +808,46 @@ module.exports = {
         } catch (error) {
             console.error('❌ Error saving antiscam settings:', error);
             return interaction.reply({ content: '❌ Database error while saving settings.', ephemeral: true });
+        }
+    },
+
+    // /config logs — where admin/config-change notices (logAction) go.
+    // Member joins/leaves, scam flags and ticket events stay on the main
+    // log channel; only the admin notices move.
+    async handleLogsSubcommand(interaction) {
+        if (!(await isAstraAdmin(interaction.member))) {
+            return interaction.reply({ content: '❌ You need Administrator permission or an Astra-authorized role to do this.', ephemeral: true });
+        }
+
+        const channel = interaction.options.getChannel('admin_channel');
+        const reset = interaction.options.getBoolean('reset');
+        const guildId = interaction.guild.id;
+
+        try {
+            if (reset) {
+                await db.query('UPDATE guild_settings SET admin_log_channel_id = NULL WHERE guild_id = $1', [guildId]);
+                await logAction(interaction.guild, `⚙️ ${interaction.user} sent admin notices back to the main log channel.`);
+                return interaction.reply({ content: '✅ Admin notices will go to the main log channel again.', ephemeral: true });
+            }
+
+            if (!channel) {
+                const settings = await getSettings(guildId);
+                const current = settings?.admin_log_channel_id
+                    ? `<#${settings.admin_log_channel_id}>`
+                    : (settings?.log_channel_id ? `the main log channel (<#${settings.log_channel_id}>)` : 'nowhere yet (no log channel is set)');
+                return interaction.reply({ content: `Admin notices currently go to ${current}.\nPick \`admin_channel\` to change it, or \`reset:True\` to use the main log channel.`, ephemeral: true });
+            }
+
+            await db.query(
+                `INSERT INTO guild_settings (guild_id, admin_log_channel_id) VALUES ($1, $2)
+                 ON CONFLICT (guild_id) DO UPDATE SET admin_log_channel_id = $2`,
+                [guildId, channel.id]
+            );
+            await logAction(interaction.guild, `⚙️ ${interaction.user} set this channel for admin notices. Settings changes and registrations will be posted here.`);
+            return interaction.reply({ content: `✅ Admin notices will now be posted in ${channel}. Member joins/leaves and other logs stay on the main log channel.`, ephemeral: true });
+        } catch (error) {
+            console.error('❌ Error saving admin log channel:', error);
+            return interaction.reply({ content: '❌ Database error while saving.', ephemeral: true });
         }
     },
 

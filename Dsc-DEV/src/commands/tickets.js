@@ -329,6 +329,69 @@ module.exports = {
         return interaction.reply({ content: description, components: rows, ephemeral: true });
     },
 
+    // --- /artists — public, browsable artist directory. Anyone can run it:
+    // it lists every registered artist and lets you pick one from a menu to
+    // see their full commission panel (ToS, pricing, banner, links) privately.
+    // Separate from the admin-only /artist add/remove/list on purpose.
+    artistsDirectoryData: new SlashCommandBuilder()
+        .setName('artists')
+        .setDescription('Browse this server\'s commission artists and see their info'),
+
+    async executeSlashArtistsDirectory(interaction) {
+        const guild = interaction.guild;
+        const lang = await getGuildLanguage(guild.id);
+
+        await interaction.deferReply({ ephemeral: true });
+        const artistList = await getArtistList(guild);
+        if (artistList.length === 0) {
+            return interaction.editReply({ content: t(lang, 'artists.empty') });
+        }
+
+        const settingsRows = (await db.query('SELECT ticket_channel_id FROM guild_settings WHERE guild_id = $1', [guild.id])).rows;
+        const ticketChannelId = settingsRows[0]?.ticket_channel_id;
+
+        const lines = artistList.map(([id]) => `🎨 <@${id}>`).join('\n');
+        let description = `${lines}\n\n${t(lang, 'artists.pick_hint')}`;
+        if (ticketChannelId) description += `\n${t(lang, 'artists.ticket_hint', { channel: `<#${ticketChannelId}>` })}`;
+
+        const embed = new EmbedBuilder()
+            .setTitle(t(lang, 'artists.title'))
+            .setColor('#5865F2')
+            .setDescription(description)
+            .setFooter({ text: t(lang, 'artists.count', { count: artistList.length }) });
+        const icon = guild.iconURL();
+        if (icon) embed.setThumbnail(icon);
+
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId('astra_artist_directory')
+            .setPlaceholder(t(lang, 'artists.placeholder'))
+            .addOptions(artistList.map(([id, name]) => ({ label: String(name).slice(0, 100), value: id })));
+
+        return interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
+    },
+
+    // Picking an artist replies with a NEW private message (instead of
+    // editing the directory), so the menu stays usable to browse others.
+    async handleArtistDirectorySelect(interaction) {
+        const guild = interaction.guild;
+        const lang = await getGuildLanguage(guild.id);
+        const artistId = interaction.values[0];
+
+        const artistMember = await guild.members.fetch(artistId).catch(() => null);
+        if (!artistMember) {
+            return interaction.reply({ content: t(lang, 'artists.not_found'), ephemeral: true });
+        }
+
+        const profile = await getArtistProfile(guild.id, artistId);
+        const pricing = await getArtistPricing(guild.id, artistId);
+        const linkRow = buildArtistLinkRow(profile);
+        return interaction.reply({
+            embeds: [buildPanelEmbed(artistMember, profile, pricing)],
+            components: linkRow ? [linkRow] : [],
+            ephemeral: true
+        });
+    },
+
     // --- /artist (admin-managed registration) ---
     artistData: new SlashCommandBuilder()
         .setName('artist')

@@ -68,67 +68,41 @@ module.exports = {
     async executeSlash(interaction) {
         const admin = await isAstraAdmin(interaction.member);
         const superAdmin = await isServerAdministrator(interaction.member);
-        const { rows } = await db.query('SELECT language FROM guild_settings WHERE guild_id = $1', [interaction.guild.id]);
-        const lang = rows[0]?.language;
+        // Artists see their /panel section too, not just admins.
+        const artist = admin || await require('./tickets').isArtist(interaction.member);
+        const lang = await getGuildLanguage(interaction.guild.id);
 
         const embed = new EmbedBuilder()
             .setAuthor({ name: t(lang, 'help.title'), iconURL: interaction.client.user.displayAvatarURL() })
             .setColor('#5865F2')
-            .setDescription(
-                '🔐 **Verification:** click **I Agree** in the rules channel, then type `!verify` in the ' +
-                'verify channel (or vice versa) to unlock the server. Anything else typed there gets removed.\n\n' +
-                '🎫 **Tickets:** click **Open a Ticket** in the ticket channel and pick an artist to start a private commission chat.'
-            );
+            .setDescription(t(lang, 'help.intro'));
 
+        // Everyone
         embed.addFields(
-            { name: `👤 ${t(lang, 'help.everyone')}`, value: '`!verify` — Complete step 2 of verification.\n`/about` — What Astra does, in plain terms.\n`/help` — Show this menu.' }
+            { name: `👤 ${t(lang, 'help.everyone')}`, value: t(lang, 'help.everyone_body') },
+            { name: `⭐ ${t(lang, 'help.levels')}`, value: t(lang, 'help.levels_body') },
+            { name: `💰 ${t(lang, 'help.economy')}`, value: t(lang, 'help.economy_body') },
+            { name: `💬 ${t(lang, 'help.fun')}`, value: t(lang, 'help.fun_body') }
         );
 
+        if (artist) {
+            embed.addFields({ name: `🎨 ${t(lang, 'help.artists')}`, value: t(lang, 'help.artist_body') });
+        }
+
         if (admin) {
-            embed.addFields({
-                name: '🚀 New here?',
-                value: 'Run `/quickstart` for a step-by-step first-time setup walkthrough.'
-            });
-
-            embed.addFields({
-                name: `🎨 ${t(lang, 'help.artists')}`,
-                value: [
-                    '`/panel set-tos` — Set your Terms of Service.',
-                    '`/panel set-wontdo` — Set your Won\'t Do list.',
-                    '`/panel set-askme` — Set what people can ask you about.',
-                    '`/panel set-price` — Set a price for one category.',
-                    '`/panel reset` — Reset part of your panel to defaults.',
-                    '`/panel preview` — See how your panel looks to clients.'
-                ].join('\n')
-            });
-
-            embed.addFields({
-                name: `🛠️ ${t(lang, 'help.admins')}`,
-                value: [
-                    '`/config verification` — Rules/verify channels, buttons, roles.',
-                    '`/config antiscam` — Flag or auto-kick likely scam accounts.',
-                    '`/config tickets` — Ticket panel, category, artist setup category.',
-                    '`/config artist-roles` — Roles that auto-count as artists.',
-                    '`/config language` — Switch Astra\'s language for this server.',
-                    '`/artist add/remove/list` — Register individual artists.',
-                    '`/artist setup-channel` — (Re)create an artist\'s private setup channel.'
-                ].join('\n')
-            });
+            embed.addFields(
+                { name: t(lang, 'help.newhere'), value: t(lang, 'help.newhere_body') },
+                { name: `🛠️ ${t(lang, 'help.admin_setup')}`, value: t(lang, 'help.admin_setup_body') },
+                { name: `🏘️ ${t(lang, 'help.admin_community')}`, value: t(lang, 'help.admin_community_body') }
+            );
         }
 
         if (superAdmin) {
-            embed.addFields({
-                name: `👑 ${t(lang, 'help.superadmins')}`,
-                value: [
-                    '`/config admins add` — Grant a role Astra-admin access.',
-                    '`/config admins remove` — Revoke a role\'s Astra-admin access.',
-                    '`/config admins list` — See which roles currently have access.'
-                ].join('\n')
-            });
+            embed.addFields({ name: `👑 ${t(lang, 'help.superadmins')}`, value: t(lang, 'help.superadmin_body') });
         }
 
         embed.setFooter({
-            text: admin ? 'Astra' : 'Some commands are hidden — ask a server admin for access.',
+            text: admin ? t(lang, 'help.footer_admin') : t(lang, 'help.footer_member'),
             iconURL: interaction.client.user.displayAvatarURL()
         });
 

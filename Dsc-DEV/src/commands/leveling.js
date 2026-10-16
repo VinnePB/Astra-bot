@@ -36,6 +36,9 @@ function fillRankTemplate(template, vars) {
         .replace(/\{xp\}/g, vars.xp);
 }
 
+// guild:role pairs we've already warned admins about (resets on restart)
+const warnedRoles = new Set();
+
 module.exports = {
     calculateLevel,
     xpForNextLevel,
@@ -184,7 +187,19 @@ module.exports = {
                 );
                 for (const { role_id } of roleRows) {
                     if (!message.member.roles.cache.has(role_id)) {
-                        await message.member.roles.add(role_id).catch(() => {});
+                        await message.member.roles.add(role_id).catch(async (err) => {
+                            // Usually: the reward role sits above Astra's own role, or she
+                            // lacks Manage Roles. Tell admins once per role instead of
+                            // failing silently (or spamming on every level-up).
+                            const key = `${guildId}:${role_id}`;
+                            if (warnedRoles.has(key)) return;
+                            warnedRoles.add(key);
+                            console.error(`❌ Could not grant level-role ${role_id} in ${guildId}:`, err.message);
+                            try {
+                                const { logAction } = require('./config');
+                                await logAction(message.guild, `⚠️ I couldn't give <@&${role_id}> as a level reward (to ${message.author}). Move my role **above** it in Server Settings → Roles and make sure I have Manage Roles.`);
+                            } catch (_) {}
+                        });
                     }
                 }
             } catch (roleErr) {

@@ -136,6 +136,12 @@ pool.connect()
             await client.query(`UPDATE guild_settings SET site_language = language WHERE site_language IS NULL;`);
             await client.query(`ALTER TABLE guild_settings ALTER COLUMN site_language SET DEFAULT 'en';`);
 
+            // NEW: optional separate channel for Astra's admin/config-change
+            // notices (logAction). When NULL, notices keep going to
+            // log_channel_id exactly like before — so nothing changes for
+            // anyone until they pick a channel.
+            await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS admin_log_channel_id VARCHAR(30);`);
+
             // NEW: category for artists' private setup channels, and a
             // toggle for join/leave logging (shared log_channel_id).
             await client.query(`

@@ -334,11 +334,22 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         }));
         const artistCount = artistDetails.length;
 
+        // Level-up role rewards (guild_level_roles) — shown/edited in the Leveling tab.
+        const { rows: levelRoleRows } = await db.query('SELECT level, role_id FROM guild_level_roles WHERE guild_id = $1 ORDER BY level ASC', [guildId]);
+        const botMember = client.guilds.cache.get(guildId)?.members.me;
+        const levelRoles = levelRoleRows.map(r => {
+            const role = roles.find(ro => ro.id === r.role_id);
+            // Astra can only hand out roles below her own highest role.
+            const assignable = !role || !botMember ? true
+                : botMember.permissions.has('ManageRoles') && role.position < botMember.roles.highest.position && !role.managed;
+            return { level: r.level, role_id: r.role_id, name: role?.name || null, assignable };
+        });
+
         const editingId = req.query.edit || null;
         const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, categories, roles, adminRoles, artistCount, memberCount,
+            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
             currentLang: settings.site_language || 'en',
@@ -395,6 +406,36 @@ app.post('/api/update-language', checkAuth, async (req, res) => {
 
         respondSaved(req, res, '/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// Separate channel for admin/config-change notices (see logAction in
+// commands/config.js). Empty = fall back to the main log channel.
+app.post('/api/update-admin-log', checkAuth, async (req, res) => {
+    const { guild_id, admin_log_channel_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const guild = client.guilds.cache.get(guild_id);
+    let channelId = null;
+    if (admin_log_channel_id) {
+        const ch = guild?.channels.cache.get(admin_log_channel_id);
+        if (!ch || !ch.isTextBased()) return res.status(400).send('Invalid channel.');
+        channelId = ch.id;
+    }
+
+    try {
+        await db.query(
+            `INSERT INTO guild_settings (guild_id, admin_log_channel_id) VALUES ($1, $2)
+             ON CONFLICT (guild_id) DO UPDATE SET admin_log_channel_id = $2`,
+            [guild_id, channelId]
+        );
+        if (guild) await configCommand.logAction(guild, channelId
+            ? `⚙️ ${req.session.user.username} set this channel for admin notices from the website.`
+            : `⚙️ ${req.session.user.username} sent admin notices back to the main log channel from the website.`);
+        respondSaved(req, res, '/dashboard?status=success');
+    } catch (err) {
+        console.error('❌ Error saving admin log channel:', err);
+        res.status(500).send("DB Error.");
+    }
 });
 
 // FIX: this is the actual fix for "setup via the site doesn't do anything" —
@@ -527,8 +568,8 @@ app.post('/api/update-leave', checkAuth, async (req, res) => {
 });
 
 // NEW: XP/leveling system — see commands/leveling.js. Milestone role
-// rewards (guild_level_roles) are Discord-only for now (/config level-roles),
-// same as admin/artist roles — not exposed on the website yet.
+// rewards (guild_level_roles) are managed below (/api/level-roles/*) and
+// on Discord via /config level-roles — both write the same table.
 app.post('/api/update-leveling', checkAuth, async (req, res) => {
     const { guild_id, leveling_enabled, levelup_channel_id, levelup_message, xp_cooldown_seconds, xp_min, xp_max } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -562,6 +603,57 @@ app.post('/api/update-leveling', checkAuth, async (req, res) => {
         respondSaved(req, res, '/dashboard?status=success');
     } catch (err) {
         console.error('❌ Error saving leveling settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
+// Level-up role rewards, website side of /config level-roles. Same table,
+// same one-role-per-level rule (adding an existing level replaces its role).
+app.post('/api/level-roles/add', checkAuth, async (req, res) => {
+    const { guild_id, level, role_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const lvl = parseInt(level, 10);
+    if (!Number.isInteger(lvl) || lvl < 1 || lvl > 1000 || !role_id) {
+        return res.redirect('/dashboard?tab=leveling');
+    }
+
+    // Only accept a real, assignable role from this guild (not @everyone,
+    // not a bot-managed role), so a tampered form can't store junk.
+    const guild = client.guilds.cache.get(guild_id);
+    const role = guild?.roles.cache.get(role_id);
+    if (!role || role.id === guild.id || role.managed) {
+        return res.status(400).send('Invalid role.');
+    }
+
+    try {
+        await db.query(
+            `INSERT INTO guild_level_roles (guild_id, level, role_id) VALUES ($1, $2, $3)
+             ON CONFLICT (guild_id, level) DO UPDATE SET role_id = $3`,
+            [guild_id, lvl, role_id]
+        );
+        await configCommand.logAction(guild, `⚙️ ${req.session.user.username} set ${role} as the reward for reaching level ${lvl} from the website.`);
+        res.redirect('/dashboard?tab=leveling&status=success');
+    } catch (err) {
+        console.error('❌ Error adding level role:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
+app.post('/api/level-roles/remove', checkAuth, async (req, res) => {
+    const { guild_id, level } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const lvl = parseInt(level, 10);
+    if (!Number.isInteger(lvl)) return res.redirect('/dashboard?tab=leveling');
+
+    try {
+        await db.query('DELETE FROM guild_level_roles WHERE guild_id = $1 AND level = $2', [guild_id, lvl]);
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} removed the role reward for level ${lvl} from the website.`);
+        res.redirect('/dashboard?tab=leveling&status=success');
+    } catch (err) {
+        console.error('❌ Error removing level role:', err);
         res.status(500).send("DB Error.");
     }
 });
@@ -839,6 +931,7 @@ client.once('ready', async () => {
             ticketsCommand.artistData.toJSON(),
             ticketsCommand.panelData.toJSON(),
             ticketsCommand.ticketsOverviewData.toJSON(),
+            ticketsCommand.artistsDirectoryData.toJSON(),
             levelingCommand.data.toJSON(),
             levelingCommand.leaderboardData.toJSON(),
             economyCommand.data.toJSON(),
@@ -963,6 +1056,8 @@ client.on('interactionCreate', async (interaction) => {
             await ticketsCommand.executeSlashPanel(interaction);
         } else if (interaction.commandName === 'tickets') {
             await ticketsCommand.executeSlashTicketsOverview(interaction);
+        } else if (interaction.commandName === 'artists') {
+            await ticketsCommand.executeSlashArtistsDirectory(interaction);
         } else if (interaction.commandName === 'rank') {
             await levelingCommand.executeSlashRank(interaction);
         } else if (interaction.commandName === 'leaderboard') {
@@ -985,6 +1080,8 @@ client.on('interactionCreate', async (interaction) => {
     } else if (interaction.isStringSelectMenu()) {
         if (interaction.customId === 'astra_ticket_artist_select') {
             await ticketsCommand.handleSelectMenu(interaction);
+        } else if (interaction.customId === 'astra_artist_directory') {
+            await ticketsCommand.handleArtistDirectorySelect(interaction);
         } else {
             await configCommand.handleMenu(interaction);
         }
