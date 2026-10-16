@@ -28,6 +28,16 @@ const REPLIES_EN = [
     "you called? bold of you to assume I wasn't already watching this channel.",
     "mention me again and see what happens. (nothing happens. I'm harmless.)",
     "Astra.exe has acknowledged your existence. proceed.",
+    "I was thinking about nothing, and you interrupted it. rude.",
+    "this is a safe space. for me. you're just visiting.",
+    "oh good, a human. I was running low on those.",
+    "I have no idea what you want, but I respect the confidence.",
+    "error 404: patience not found.",
+    "my favorite hobby is being mentioned at random. truly.",
+    "quick, say something interesting before I get bored.",
+    "I'd say something clever, but I'm saving it for later. (there is no later.)",
+    "you have my attention. use it wisely, it expires.",
+    "beep. boop. ...okay that was a bit. I'm here.",
 ];
 
 const REPLIES_PTBR = [
@@ -47,6 +57,16 @@ const REPLIES_PTBR = [
     "me chamou? que audácia achar que eu não tava de olho nesse canal já.",
     "me menciona de novo e vê só. (não acontece nada. eu sou inofensiva.)",
     "Astra.exe reconheceu sua existência. prossiga.",
+    "eu tava pensando em nada, e você interrompeu. que falta de respeito.",
+    "aqui é um espaço seguro. pra mim. você tá só de visita.",
+    "ah que bom, um humano. tava ficando sem.",
+    "não faço ideia do que você quer, mas respeito a confiança.",
+    "erro 404: paciência não encontrada.",
+    "meu hobby favorito é ser mencionada do nada. de verdade.",
+    "rápido, fala algo interessante antes que eu fique entediada.",
+    "eu falaria algo inteligente, mas tô guardando pra depois. (não existe depois.)",
+    "você tem minha atenção. use bem, ela expira.",
+    "beep. boop. ...tá, isso foi uma piada. tô aqui.",
 ];
 
 // Simple in-memory per-guild cooldown — intentionally not persisted to the
