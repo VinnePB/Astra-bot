@@ -685,12 +685,12 @@ module.exports = {
         },
         answers: {
             en: [
-                'admins can run `/quickstart` for a step-by-step setup. everything is also on the web dashboard (log in with Discord, pick your server), and `/config` does the same from inside Discord.',
-                'start with `/quickstart` (admins only). after that, `/config` or the dashboard website lets you tweak verification, tickets, levels, economy, welcome messages and more.',
+                'admins can run `/quickstart` for a step-by-step setup. everything is also on the web dashboard at {site_url} (log in with Discord, pick your server), and `/config` does the same from inside Discord.',
+                'start with `/quickstart` (admins only). after that, `/config` or the dashboard ({site_url}) lets you tweak verification, tickets, levels, economy, welcome messages and more.',
             ],
             pt: [
-                'admins podem usar `/quickstart` pra um passo a passo da configuração. tudo também está no painel web (entre com o Discord e escolha seu servidor), e o `/config` faz o mesmo de dentro do Discord.',
-                'comece com `/quickstart` (só admins). depois, o `/config` ou o painel no site deixam você ajustar verificação, tickets, níveis, economia, mensagens de boas-vindas e mais.',
+                'admins podem usar `/quickstart` pra um passo a passo da configuração. tudo também está no painel web em {site_url} (entre com o Discord e escolha seu servidor), e o `/config` faz o mesmo de dentro do Discord.',
+                'comece com `/quickstart` (só admins). depois, o `/config` ou o painel ({site_url}) deixam você ajustar verificação, tickets, níveis, economia, mensagens de boas-vindas e mais.',
             ],
         },
     },
@@ -757,3 +757,6 @@ module.exports = {
         answers: { en: [], pt: [] },
     },
 };
+
+// Extra intents live in their own file.
+Object.assign(module.exports, require('./corpus_more'));

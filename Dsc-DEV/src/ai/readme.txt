@@ -1,8 +1,8 @@
-ASTRA — EXPERIMENTAL SMART REPLIES (PROTOTYPE, v2)
+ASTRA — EXPERIMENTAL SMART REPLIES (PROTOTYPE, v3)
 ==================================================
 What it is: a small LOCAL intent classifier (node-nlp / nlp.js), trained for ONE
 purpose: helping members understand the server. No LLM, no API, no cost. She matches
-what someone says to one of 40 intents in English and Portuguese and replies with a
+what someone says to one of 48 intents in English and Portuguese and replies with a
 pre-written line in a chaotic, deadpan personality. Anything she isn't sure about, or
 that is off-topic, falls back to the normal /config fun lines. OFF by default.
 
@@ -12,13 +12,18 @@ WHAT SHE UNDERSTANDS
   joke, random_chaos, sentient, creator, bored, daily_info, pay_info, level_roles_info,
   become_artist, close_ticket, language_info, contact_mods, rules_info, message_deleted,
   favorite_things, age, sleep, sad, date_me, cmd_rank, cmd_balance, cmd_help, cmd_artists,
-  admin_setup, admin_toggles, command_generic, ai_info, + "offtopic" (teaches her what NOT
+  admin_setup, admin_toggles, command_generic, ai_info,
+  invite_info, report_scam, bug_report, commission_price, commission_wait, permissions_info,
+  xp_tips, followup_more ("tell me more", see FOLLOW-UPS), + "offtopic" (teaches her what NOT
   to answer: weather, football, homework...)
   Answers fill in real server data: currency name, whether economy/levels are on,
   and the verify/rules/ticket channels.
 
 FILES (inside Dsc-DEV/src/)
   ai/corpus.js      what she understands + what she answers (the file you edit)
+  ai/corpus_more.js the newer intents (merged into corpus.js; edit them the same way)
+  ai/spell.js       typo fixer ("verfy" -> "verify"), no dependencies
+  ai/test-spell.js  checks the typo fixer on its own (npm run test-spell, no node-nlp needed)
   ai/augment.js     makes slang/typo/no-accent training variants (used by train.js)
   ai/validate.js    checks the corpus for mistakes (npm run check-ai, no node-nlp needed)
   ai/classifier.js  loads the model + classifies (no Discord/DB code)
@@ -50,7 +55,7 @@ TUNING (the loop to improve her)
   1. npm run test-ai   -> shows hits and misses on phrases NOT in the corpus
   2. add similar phrases for each miss to the right intent in ai/corpus.js
      (or to "offtopic" if she answered something she shouldn't)
-  3. npm run check-ai, retrain, redeploy
+  3. npm run check-ai, retrain, redeploy.  `npm run test-spell` checks the typo fixer without a model
   MIN_SCORE (ai/classifier.js, now 0.6) is a guess: higher = fewer wrong answers but
   more "I don't know"; lower = the opposite. Pick it using test-ai results.
   NOTE: none of this has been run against the real node-nlp yet.
@@ -61,6 +66,17 @@ BEHAVIOR
   - One smart reply per channel per 6s. Inside that window: the same person gets
     silence; a DIFFERENT person gets "I'm busy" (at most once per 20s per channel).
   - Never repeats the same answer twice in a row for an intent.
+  - TYPO FIXER: if the first attempt isn't confident, unknown words that are one or two
+    letters away from a word in the corpus are repaired ("how do i verfy" -> "verify") and
+    she tries again. The repaired text only wins if it is clearly better, so it can't
+    make a good match worse. Possible false repairs of rare ordinary words are guarded the
+    same way (see npm run test-spell).
+  - FOLLOW-UPS: for 3 minutes she remembers the last topic she answered to the same
+    person in the same channel (memory only, never stored). "tell me more" / "explain
+    again" / "não entendi" then gives another wording of that answer, or points to
+    /about when there's nothing else to add. With no recent topic she asks what you mean.
+  - {site_url} in an answer = the dashboard address, from the REDIRECT_URI variable
+    (shown as <https://...> so Discord adds no link preview).
   - A question she doesn't understand -> "try /help"; an off-topic question -> "not my
     job, I only know this server". Non-questions still go to /config fun lines.
   - {user_name} in an answer = the person's server nickname (no pings, no markdown).

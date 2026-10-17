@@ -6,8 +6,8 @@
 const corpus = require('./corpus');
 
 const LOCALES = ['en', 'pt'];
-const PLACEHOLDERS = new Set(['currency', 'economy_note', 'leveling_note', 'verify_channel', 'rules_channel', 'ticket_channel', 'user_name']);
-const NO_ANSWER_INTENTS = new Set(['offtopic']);
+const PLACEHOLDERS = new Set(['currency', 'economy_note', 'leveling_note', 'verify_channel', 'rules_channel', 'ticket_channel', 'user_name', 'site_url']);
+const NO_ANSWER_INTENTS = new Set(['offtopic', 'followup_more']);
 
 function validateCorpus(data = corpus) {
     const problems = [];

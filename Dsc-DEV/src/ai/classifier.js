@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { buildSpeller } = require('./spell');
 
 const MODEL_PATH = path.join(__dirname, 'model.nlp');
 const LOCALES = ['en', 'pt'];
@@ -14,6 +15,7 @@ const MIN_SCORE = 0.6; // below this she "doesn't understand"; tune with `npm ru
 
 let corpus = null;
 let manager = null;
+let speller = null;
 let state = 'idle'; // idle | ready | missing | error
 
 function loadModel() {
@@ -30,6 +32,7 @@ function loadModel() {
         corpus = require('./corpus');
         manager = new NlpManager({ languages: LOCALES, autoSave: false, autoLoad: false, nlu: { log: false } });
         manager.load(MODEL_PATH);
+        speller = buildSpeller(corpus, [...EN_WORDS, ...PT_WORDS]);
         state = 'ready';
         console.log('🧠 AI smart replies: model loaded.');
         return true;
@@ -78,9 +81,8 @@ function detectLocale(text) {
     return null;
 }
 
-// Best raw match for a message, honoring the language rules above.
-// fallbackLocale: the server's own language ('en' | 'pt'), used on ties.
-async function bestMatch(text, fallbackLocale = 'en') {
+// Classify `text` once, honoring the language rules above.
+async function classifyOnce(text, fallbackLocale) {
     const detected = detectLocale(text);
     const locales = detected ? [detected] : LOCALES;
     let best = null;
@@ -91,6 +93,23 @@ async function bestMatch(text, fallbackLocale = 'en') {
         if (!best || score > best.score) best = { intent: r.intent, score, locale };
     }
     return { best, locale: detected || fallbackLocale };
+}
+
+// Best raw match for a message. If the first try isn't confident, the typo
+// fixer (ai/spell.js) gets a second chance: "how do i verfy" -> "how do i
+// verify". The fixed text only wins if it is clearly better, so it can never
+// turn a good match into a worse one.
+// fallbackLocale: the server's own language ('en' | 'pt'), used on ties.
+async function bestMatch(text, fallbackLocale = 'en') {
+    const first = await classifyOnce(text, fallbackLocale);
+    if (first.best && first.best.score >= MIN_SCORE) return first;
+    const fixed = speller ? speller.fix(text) : null;
+    if (!fixed) return first;
+    const second = await classifyOnce(fixed, fallbackLocale);
+    if (second.best && second.best.score >= MIN_SCORE && (!first.best || second.best.score > first.best.score + 0.05)) {
+        return { ...second, fixedText: fixed };
+    }
+    return first;
 }
 
 // Richer than a plain yes/no, so commands/ai.js can answer an unclear QUESTION
@@ -117,6 +136,8 @@ module.exports = {
     understand,
     detectLocale,
     inspect,
+    knownWords: () => [...EN_WORDS, ...PT_WORDS],
+    fixTypos: (text) => (speller ? speller.fix(text) : null),
     getCorpus: () => corpus,
     MODEL_PATH,
     MIN_SCORE,

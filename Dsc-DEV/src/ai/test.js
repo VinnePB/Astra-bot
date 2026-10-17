@@ -54,6 +54,17 @@ const CASES = [
     ['wat can u do', 'what_can_you_do'],
     ['how do i verfy', 'verify_info'],
     ['whats the daily thing', 'daily_info'],
+    // new topics (English)
+    ['how can i get astra on my own discord', 'invite_info'],
+    ['this guy keeps asking for my login code', 'report_scam'],
+    ['the bot just stopped replying to me', 'bug_report'],
+    ['what do artists usually charge', 'commission_price'],
+    ['how many weeks until my art is ready', 'commission_wait'],
+    ['why does it say i lack permission', 'permissions_info'],
+    ['how do i earn xp quicker', 'xp_tips'],
+    ['can you explain it one more time', 'followup_more'],
+    ['how do i verfy myself', 'verify_info'],
+    ['whats the leaderbord command', 'cmd_rank'],
     // Portuguese
     ['oi tudo bem', 'greeting'],
     ['boa noite pessoal', 'farewell'],
@@ -97,6 +108,17 @@ const CASES = [
     ['oq vc faz', 'what_can_you_do'],
     ['como eu me verifco', 'verify_info'],
     ['oq é o daily', 'daily_info'],
+    // assuntos novos (português)
+    ['como eu coloco a astra no meu próprio discord', 'invite_info'],
+    ['esse cara fica pedindo meu código de login', 'report_scam'],
+    ['o bot simplesmente parou de me responder', 'bug_report'],
+    ['quanto os artistas costumam cobrar', 'commission_price'],
+    ['quantas semanas até minha arte ficar pronta', 'commission_wait'],
+    ['por que diz que eu não tenho permissão', 'permissions_info'],
+    ['como eu ganho xp mais rapidinho', 'xp_tips'],
+    ['pode explicar mais uma vez', 'followup_more'],
+    ['como eu me verfico aqui', 'verify_info'],
+    ['qual o comando do leaderbord', 'cmd_rank'],
 ];
 
 (async () => {
