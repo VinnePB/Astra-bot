@@ -408,5 +408,10 @@
   "site.legal.privacy_link": "Privacy",
   "site.legal.terms_link": "Terms",
   "site.legal.privacy_full": "Privacy Policy",
-  "site.legal.terms_full": "Terms of Service"
+  "site.legal.terms_full": "Terms of Service",
+  "help.home_intro": "Pick a section from the menu below to see its commands. You only see the sections that apply to you.",
+  "help.menu_placeholder": "Choose a section…",
+  "help.menu_home": "Overview",
+  "help.data": "Your data & privacy",
+  "help.data_body": "`/mydata view` — See everything Astra stores about you.\n`/mydata delete` — Erase it (moderation records are kept for server safety).\nFull details: the Privacy Policy on the Astra website."
 }

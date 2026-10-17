@@ -12,7 +12,7 @@ const fakeDiscord = {
     SlashCommandBuilder: function () { return chain; }, EmbedBuilder: function () { return chain; },
     AttachmentBuilder: function (b, o) { this.buffer = b; this.name = o.name; },
     ActionRowBuilder: function () { return chain; }, ButtonBuilder: function () { return chain; }, ButtonStyle: {},
-    PermissionFlagsBits: { Administrator: 8n },
+    PermissionFlagsBits: { Administrator: 8n }, InteractionContextType: { BotDM: 1 },
 };
 const posts = [];
 const fakeAxios = { post: async (url, body) => { posts.push({ url, body }); return {}; } };

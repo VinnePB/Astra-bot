@@ -1439,7 +1439,6 @@ function allCommandsJSON() {
         moderationCommand.warnData.toJSON(),
         moderationCommand.clearData.toJSON(),
         moderationCommand.modData.toJSON(),
-        ownerCommand.data.toJSON(),
         mydataCommand.data.toJSON()
     ];
 }
@@ -1480,8 +1479,9 @@ client.once('ready', async () => {
     alerts.notify('Astra started', `Online in ${client.guilds.cache.size} server(s).`, { level: 'info', key: 'started', cooldownMs: 60 * 1000 });
     try {
         commandRest ||= new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        await commandRest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
-        console.log('🧹 Global commands cleared.');
+        // Global registration holds only /owner, and only for DMs with Astra.
+        await commandRest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [ownerCommand.data.toJSON()] });
+        console.log('🔒 /owner registered for DMs only.');
 
         for (const guildId of client.guilds.cache.keys()) await syncGuildCommands(guildId);
         console.log(`🔄 Command sync pass complete${commandSyncFailed.size ? ` (${commandSyncFailed.size} server(s) failed, retrying every ${COMMAND_RETRY_MS / 60000} min)` : ''}.`);
@@ -1656,7 +1656,14 @@ setTimeout(() => configCommand.runAutoKickSweep(client), 60_000);
 setInterval(() => configCommand.runAutoKickSweep(client), 60 * 60 * 1000);
 
 client.on('interactionCreate', async (interaction) => {
-    if (!interaction.guild) return;
+    // The only thing that works outside a server is /owner in DMs with Astra.
+    if (!interaction.guild) {
+        if (interaction.isChatInputCommand() && interaction.commandName === 'owner') {
+            try { await ownerCommand.execute(interaction); }
+            catch (e) { console.error('❌ /owner error:', e); }
+        }
+        return;
+    }
 
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'config') {
@@ -1711,8 +1718,6 @@ client.on('interactionCreate', async (interaction) => {
             await moderationCommand.executeClear(interaction);
         } else if (interaction.commandName === 'mod') {
             await moderationCommand.executeMod(interaction);
-        } else if (interaction.commandName === 'owner') {
-            await ownerCommand.execute(interaction);
         } else if (interaction.commandName === 'mydata') {
             await mydataCommand.execute(interaction);
         }
@@ -1731,7 +1736,9 @@ client.on('interactionCreate', async (interaction) => {
             await configCommand.handleButton(interaction);
         }
     } else if (interaction.isStringSelectMenu()) {
-        if (interaction.customId === 'astra_ticket_artist_select') {
+        if (interaction.customId === 'astra_help_menu') {
+            await helpCommand.handleHelpMenu(interaction);
+        } else if (interaction.customId === 'astra_ticket_artist_select') {
             await ticketsCommand.handleSelectMenu(interaction);
         } else if (interaction.customId === 'astra_artist_directory') {
             await ticketsCommand.handleArtistDirectorySelect(interaction);

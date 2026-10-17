@@ -13,11 +13,11 @@
 //   /owner userdelete <user_id> <confirm> [include_moderation]
 //   /owner backup                      send a backup to your DMs right now
 //
-// The command is hidden from non-admins by Discord, and refuses anyone who is
-// not the owner regardless.
+// It only exists in direct messages with Astra (not in any server), and it
+// refuses anyone who is not the owner regardless.
 
 const {
-    SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, PermissionFlagsBits,
+    SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, InteractionContextType,
 } = require('discord.js');
 const db = require('../database');
 const { getOwnerIds } = require('../botowner');
@@ -32,8 +32,10 @@ const clip = (s, n) => String(s || '').slice(0, n);
 
 const data = new SlashCommandBuilder()
     .setName('owner').setDescription('Bot owner only: manage servers and data.')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .setDMPermission(false)
+    // Direct messages with Astra only: this command is registered globally for
+    // the DM context and is never registered in any server, so nobody sees it
+    // in a server's command list.
+    .setContexts(InteractionContextType.BotDM)
     .addSubcommand((s) => s.setName('servers').setDescription('List the servers Astra is in')
         .addIntegerOption((o) => o.setName('page').setDescription('Page number').setMinValue(1).setRequired(false)))
     .addSubcommand((s) => s.setName('server').setDescription('Details about one server')

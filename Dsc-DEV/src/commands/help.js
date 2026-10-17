@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits } = require('discord.js');
 const { isAstraAdmin, isServerAdministrator } = require('../permissions');
 const { t } = require('../i18n');
 const db = require('../database');
@@ -117,48 +117,72 @@ module.exports = {
         .setName('help')
         .setDescription('List what Astra can do'),
 
-    async executeSlash(interaction) {
-        const admin = await isAstraAdmin(interaction.member);
-        const superAdmin = await isServerAdministrator(interaction.member);
-        // Artists see their /panel section too, not just admins.
-        const artist = admin || await require('./tickets').isArtist(interaction.member);
-        const lang = await getGuildLanguage(interaction.guild.id);
+    // ---- /help: one section at a time, picked from a menu. Each person only
+    // sees the sections that apply to them (admins see setup/community,
+    // moderators see moderation, and so on). Permissions are re-checked every
+    // time a section is opened, never trusted from the menu itself.
+    async helpFlags(member) {
+        const admin = await isAstraAdmin(member);
+        const superAdmin = await isServerAdministrator(member);
+        const artist = admin || await require('./tickets').isArtist(member);
+        const p = member?.permissions;
+        const mod = admin || !!(p && (p.has(PermissionFlagsBits.BanMembers) || p.has(PermissionFlagsBits.KickMembers)
+            || p.has(PermissionFlagsBits.ModerateMembers) || p.has(PermissionFlagsBits.ManageMessages)));
+        return { admin, superAdmin, artist, mod };
+    },
 
+    // [id, emoji, title key, body key(s), allowed?]
+    helpSections(flags) {
+        return [
+            { id: 'basics',    emoji: '👤', title: 'help.everyone',        body: ['help.intro', 'help.everyone_body'], ok: true },
+            { id: 'levels',    emoji: '⭐', title: 'help.levels',          body: ['help.levels_body'],     ok: true },
+            { id: 'economy',   emoji: '💰', title: 'help.economy',         body: ['help.economy_body'],    ok: true },
+            { id: 'fun',       emoji: '💬', title: 'help.fun',             body: ['help.fun_body'],        ok: true },
+            { id: 'data',      emoji: '🔒', title: 'help.data',            body: ['help.data_body'],       ok: true },
+            { id: 'artists',   emoji: '🎨', title: 'help.artists',         body: ['help.artist_body'],     ok: flags.artist },
+            { id: 'moderation',emoji: '🛡️', title: 'help.moderation',      body: ['help.moderation_body'], ok: flags.mod },
+            { id: 'setup',     emoji: '🛠️', title: 'help.admin_setup',     body: ['help.newhere_body', 'help.admin_setup_body'], ok: flags.admin },
+            { id: 'community', emoji: '🏘️', title: 'help.admin_community', body: ['help.admin_community_body'], ok: flags.admin },
+            { id: 'serveradmin',emoji: '👑', title: 'help.superadmins',    body: ['help.superadmin_body'], ok: flags.superAdmin },
+        ].filter((x) => x.ok);
+    },
+
+    buildHelpPage(client, lang, sectionId, flags) {
+        const sections = this.helpSections(flags);
+        const section = sections.find((x) => x.id === sectionId);
         const embed = new EmbedBuilder()
-            .setAuthor({ name: t(lang, 'help.title'), iconURL: interaction.client.user.displayAvatarURL() })
+            .setAuthor({ name: t(lang, 'help.title'), iconURL: client.user.displayAvatarURL() })
             .setColor('#5865F2')
-            .setDescription(t(lang, 'help.intro'));
+            .setFooter({ text: (flags.admin ? t(lang, 'help.footer_admin') : t(lang, 'help.footer_member')), iconURL: client.user.displayAvatarURL() });
 
-        // Everyone
-        embed.addFields(
-            { name: `👤 ${t(lang, 'help.everyone')}`, value: t(lang, 'help.everyone_body') },
-            { name: `⭐ ${t(lang, 'help.levels')}`, value: t(lang, 'help.levels_body') },
-            { name: `💰 ${t(lang, 'help.economy')}`, value: t(lang, 'help.economy_body') },
-            { name: `💬 ${t(lang, 'help.fun')}`, value: t(lang, 'help.fun_body') }
-        );
-
-        if (artist) {
-            embed.addFields({ name: `🎨 ${t(lang, 'help.artists')}`, value: t(lang, 'help.artist_body') });
+        if (!section) {
+            embed.setDescription(t(lang, 'help.home_intro') + '\n\n' +
+                sections.map((x) => `${x.emoji} **${t(lang, x.title)}**`).join('\n'));
+        } else {
+            embed.setTitle(`${section.emoji} ${t(lang, section.title)}`)
+                .setDescription(section.body.map((k) => t(lang, k)).join('\n\n'));
         }
 
-        if (admin) {
-            embed.addFields(
-                { name: t(lang, 'help.newhere'), value: t(lang, 'help.newhere_body') },
-                { name: `🛠️ ${t(lang, 'help.admin_setup')}`, value: t(lang, 'help.admin_setup_body') },
-                { name: `🏘️ ${t(lang, 'help.admin_community')}`, value: t(lang, 'help.admin_community_body') },
-                { name: `🛡️ ${t(lang, 'help.moderation')}`, value: t(lang, 'help.moderation_body') }
-            );
-        }
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId('astra_help_menu')
+            .setPlaceholder(t(lang, 'help.menu_placeholder'))
+            .addOptions([
+                { label: t(lang, 'help.menu_home'), value: 'home', emoji: '🏠', default: !section },
+                ...sections.map((x) => ({ label: t(lang, x.title).slice(0, 100), value: x.id, emoji: x.emoji, default: x.id === sectionId })),
+            ]);
+        return { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] };
+    },
 
-        if (superAdmin) {
-            embed.addFields({ name: `👑 ${t(lang, 'help.superadmins')}`, value: t(lang, 'help.superadmin_body') });
-        }
+    async executeSlash(interaction) {
+        const lang = await getGuildLanguage(interaction.guild.id);
+        const flags = await this.helpFlags(interaction.member);
+        return interaction.reply({ ...this.buildHelpPage(interaction.client, lang, 'home', flags), ephemeral: true });
+    },
 
-        embed.setFooter({
-            text: admin ? t(lang, 'help.footer_admin') : t(lang, 'help.footer_member'),
-            iconURL: interaction.client.user.displayAvatarURL()
-        });
-
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+    async handleHelpMenu(interaction) {
+        const lang = await getGuildLanguage(interaction.guild.id);
+        const flags = await this.helpFlags(interaction.member);
+        const page = this.buildHelpPage(interaction.client, lang, interaction.values[0], flags);
+        return interaction.update(page);
     }
 };
