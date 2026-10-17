@@ -363,7 +363,7 @@
 
 ---
 
-## b.8.16.0 — Smarter Smart Replies, round 2 *(current)*
+## b.8.16.0 — Smarter Smart Replies, round 2
 **October 16, 2026**
 
 - **Typos:** Astra now repairs misspelled words before giving up. If she isn't sure what you meant, unknown words that are one or two letters away from words she knows are fixed ("how do i verfy" -> "verify", "como funcioan o rank" -> "funciona") and she tries again. Pure JavaScript, no model, no cost. The repaired text is only used when it is clearly a better match
@@ -373,5 +373,32 @@
 - `npm run test-spell` checks the typo fixer without needing the trained model; `npm run test-ai` grew to 101 phrases not in the corpus, including new topics, typos and follow-ups
 - Still not measured against the real `node-nlp` (run `npm run test-ai` after the next deploy and tune from the result)
 - Discord Developer Portal "About Me" text now mentions projeckt-v.dev (paste it by hand)
+
+---
+
+## b.8.17.0 — Economy, Part 2: Random Events, Shop & Gambling *(current)*
+**October 17, 2026**
+*The currency finally has something to do.*
+
+**Random events (off by default)**
+- While people chat, Astra now and then posts a button message. Two kinds: a **coin drop** (the first click wins a random amount, usually 25-150, sometimes a lot more, rarely a golden pouch worth 500-1500) and a **coin rain** (45 seconds, everyone can catch once for a random 5-60)
+- Never more often than the interval you set (default 45 min, 10-1440), and only when at least two different people have chatted recently, so a quiet server doesn't get spammed. The economy has to be on
+- Turn on with `/shopconfig events enabled:True` (optionally a channel and interval) or in Dashboard > Economy > Random Events
+- Clicks are race-proof: three people clicking at the same millisecond means exactly one winner and one payout
+
+**Shop**
+- `/shop` lists what you can spend on, `/buy` buys it (start typing for the list)
+- **Cosmetic roles:** admins sell roles with `/shopconfig add-role name price role` or in Dashboard > Economy > Shop. Roles with powerful permissions (Administrator, managing roles/messages/members/channels, kick/ban, @everyone mentions...) are refused, as are roles above Astra's own or managed by an integration. Max 25 items. If giving the role fails, the buyer is refunded automatically
+- **Five built-in silly items** that need no setup: **Town crier** (Astra announces your message, no links, no pings), **Get roasted**, **Get hyped**, **Fake ban** (clearly fake) and a **Mystery box** (random payout that averages about 80% of its price, so it drains coins rather than printing them)
+- `/shopconfig view` shows items and event settings; `/shopconfig remove` takes an item out (people keep roles they bought)
+
+**Gambling**
+- `/gamble amount:` is a coin flip: 45% to win double, up to 1000 per bet, short cooldown. Slightly rigged on purpose so it removes coins from the economy
+
+**Under the hood**
+- Every money change in the shop and events is one atomic SQL statement, so simultaneous buys/clicks can't overdraw or lose an update
+- New columns `events_enabled`, `events_channel_id`, `events_interval_min` and a new table `shop_items`, all created on boot
+- 4 new commands: `/shop`, `/buy`, `/gamble`, `/shopconfig`. `/help`, `/about`, `/quickstart` and the dashboard text mention them (English and Portuguese)
+- Smart replies learned 3 new topics (51 total): what the shop sells, what the random coin drops are, and how gambling works
 
 {UPCOMING UPDATE, SOON}

@@ -196,6 +196,81 @@ module.exports = {
         },
     },
 
+    shop_info: {
+        utterances: {
+            en: [
+                'what can i spend my coins on', 'is there a shop', 'how do i buy something', 'what can i buy here',
+                'how do i buy a role', 'can i buy a cosmetic role', 'what is the shop command', 'where do i spend my money',
+                'what are the shop items', 'how do i use the shop', 'can i buy colors for my name', 'what does the buy command do',
+            ],
+            pt: [
+                'no que eu posso gastar minhas moedas', 'tem loja', 'como eu compro alguma coisa', 'o que eu posso comprar aqui',
+                'como eu compro um cargo', 'posso comprar um cargo cosmético', 'o que faz o comando shop', 'onde eu gasto meu dinheiro',
+                'quais são os itens da loja', 'como eu uso a loja', 'posso comprar cor pro meu nome', 'o que o comando buy faz',
+            ],
+        },
+        answers: {
+            en: [
+                'yes! `/shop` lists everything: cosmetic roles the admins set up, plus silly extras like the Town crier (I announce your message), Get roasted, Get hyped, Fake ban and a Mystery box. buy with `/buy`. {economy_note}',
+                'spend {currency} in `/shop`: look at the list, then `/buy` the one you want. there are cosmetic roles and a few dumb extras (I will happily roast you for a price). {economy_note}',
+            ],
+            pt: [
+                'tem sim! o `/shop` lista tudo: cargos cosméticos que os admins configuraram, mais extras bobos como o Arauto (eu anuncio sua mensagem), Ser zoado, Ser exaltado, Banimento falso e uma Caixa misteriosa. compre com `/buy`. {economy_note}',
+                'gaste {currency} no `/shop`: veja a lista e use `/buy` no que quiser. tem cargos cosméticos e uns extras bobos (eu zoo você com prazer, por um preço). {economy_note}',
+            ],
+        },
+    },
+
+    events_info: {
+        utterances: {
+            en: [
+                'what are the random coin drops', 'how do i get the coin pouch', 'what is the coin rain', 'why did a pouch appear in chat',
+                'when do coin drops happen', 'how do the random events work', 'what is that grab it button', 'how do i catch the coins',
+                'are there random events', 'who gets the coin drop', 'how often do events happen', 'how can i find free coins',
+            ],
+            pt: [
+                'o que são as moedas aleatórias', 'como eu pego a bolsa de moedas', 'o que é a chuva de moedas', 'por que apareceu uma bolsa no chat',
+                'quando as moedas aparecem', 'como funcionam os eventos aleatórios', 'o que é aquele botão de pegar', 'como eu pego as moedas',
+                'tem eventos aleatórios', 'quem fica com a moeda que caiu', 'com que frequência os eventos acontecem', 'como eu acho moedas de graça',
+            ],
+        },
+        answers: {
+            en: [
+                'if an admin turned events on, now and then something drops in chat while people are talking: click **Grab it!** first and the coins are yours, or in a coin rain everyone gets one catch. they never come too often. {economy_note}',
+                'random events: a pouch of {currency} appears out of nowhere and the fastest click wins, or it rains and everybody catches some. just keep chatting and keep an eye out. {economy_note}',
+            ],
+            pt: [
+                'se um admin ligou os eventos, de vez em quando algo cai no chat enquanto o pessoal conversa: clique primeiro em **Pegar!** e as moedas são suas, ou numa chuva de moedas todo mundo pega uma vez. nunca vêm com muita frequência. {economy_note}',
+                'eventos aleatórios: uma bolsa de {currency} aparece do nada e vence o clique mais rápido, ou chove e todo mundo pega um pouco. é só continuar conversando e ficar de olho. {economy_note}',
+            ],
+        },
+    },
+
+    gamble_info: {
+        utterances: {
+            en: [
+                'how does gambling work', 'how do i gamble my coins', 'what is the gamble command', 'can i bet my coins',
+                'is there a coin flip game', 'what are the odds of winning', 'can i double my money', 'is there a casino here',
+                'how do i flip a coin for coins', 'what happens if i lose a bet', 'is gambling rigged', 'how much can i bet',
+            ],
+            pt: [
+                'como funciona a aposta', 'como eu aposto minhas moedas', 'o que é o comando gamble', 'posso apostar minhas moedas',
+                'tem jogo de cara ou coroa', 'qual a chance de ganhar', 'posso dobrar meu dinheiro', 'tem cassino aqui',
+                'como eu jogo uma moeda valendo moedas', 'o que acontece se eu perder uma aposta', 'a aposta é viciada', 'quanto eu posso apostar',
+            ],
+        },
+        answers: {
+            en: [
+                '`/gamble amount:` flips a coin: heads doubles your bet, tails and it\'s gone. fair warning, the coin is slightly rigged (45% to win), you can bet up to 1000 at a time and there\'s a few seconds of cooldown. {economy_note}',
+                'bet with `/gamble`: win and you get double, lose and the coin keeps it. the odds are a little against you on purpose, so only bet what you can laugh about losing. {economy_note}',
+            ],
+            pt: [
+                '`/gamble amount:` joga uma moeda: cara dobra a aposta, coroa e já era. aviso justo: a moeda é levemente viciada (45% de ganhar), dá pra apostar até 1000 por vez e tem alguns segundos de espera. {economy_note}',
+                'aposte com `/gamble`: ganhou, leva o dobro; perdeu, a moeda fica com tudo. as chances são um pouco contra você de propósito, então aposte só o que você ri de perder. {economy_note}',
+            ],
+        },
+    },
+
     // No fixed answers on purpose: commands/ai.js answers these from what she
     // said last (see "follow-up" there). Without a recent topic she asks what you mean.
     followup_more: {

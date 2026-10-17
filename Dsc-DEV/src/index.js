@@ -15,6 +15,7 @@ const levelingCommand = require('./commands/leveling');
 const funCommand = require('./commands/fun');
 const aiCommand = require('./commands/ai');
 const economyCommand = require('./commands/economy');
+const shopCommand = require('./commands/shop');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -349,11 +350,21 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             return { level: r.level, role_id: r.role_id, name: role?.name || null, assignable };
         });
 
+        // Shop role items (commands/shop.js) — shown/edited in the Economy tab.
+        const shopRows = await shopCommand.listRoleItems(guildId);
+        const shopItems = shopRows.map(i => {
+            const role = roles.find(ro => ro.id === i.role_id);
+            const assignable = !role || !botMember ? true
+                : botMember.permissions.has('ManageRoles') && role.position < botMember.roles.highest.position && !role.managed;
+            return { name: i.name, description: i.description, price: i.price, role_id: i.role_id, role_name: role?.name || null, assignable };
+        });
+        const shopErr = ['name', 'price', 'builtin', 'limit', 'invalid', 'managed', 'dangerous', 'hierarchy'].includes(req.query.shoperr) ? req.query.shoperr : null;
+
         const editingId = req.query.edit || null;
         const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, artistCount, memberCount,
+            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
             currentLang: settings.site_language || 'en',
@@ -830,6 +841,68 @@ app.post('/api/update-economy', checkAuth, async (req, res) => {
     }
 });
 
+// NEW: economy part 2 — random events + shop (see commands/shop.js).
+// Event settings autosave like every other form here. Shop roles are
+// validated server-side with the same rules as /shopconfig (real role, below
+// Astra's, no powerful permissions), so a tampered form can't sell an admin role.
+app.post('/api/update-events', checkAuth, async (req, res) => {
+    const { guild_id, events_enabled, events_channel_id, events_interval_min } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const interval = Math.min(1440, Math.max(10, parseInt(events_interval_min, 10) || 45));
+    const channelId = /^\d{5,25}$/.test(events_channel_id || '') ? events_channel_id : null;
+
+    try {
+        await db.query(`
+            INSERT INTO guild_settings (guild_id, events_enabled, events_channel_id, events_interval_min)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                events_enabled = $2, events_channel_id = $3, events_interval_min = $4
+        `, [guild_id, events_enabled === 'on', channelId, interval]);
+        shopCommand.invalidate(guild_id);
+
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `🎲 ${req.session.user.username} updated random event settings from the website.`);
+        respondSaved(req, res, '/dashboard?tab=economy&status=success');
+    } catch (err) {
+        console.error('❌ Error saving event settings:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
+app.post('/api/shop/add', checkAuth, async (req, res) => {
+    const { guild_id, name, price, role_id, description } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+
+    const guild = client.guilds.cache.get(guild_id);
+    if (!guild) return res.status(500).send('Astra isn\'t connected to that server right now.');
+    try {
+        const result = await shopCommand.addRoleItem(guild, {
+            name, price: parseInt(price, 10), roleId: role_id, description: description || ''
+        });
+        if (!result.ok) return res.redirect(`/dashboard?tab=economy&shoperr=${encodeURIComponent(result.error)}`);
+        await configCommand.logAction(guild, `🛒 ${req.session.user.username} added shop item **${result.name}** from the website.`);
+        res.redirect('/dashboard?tab=economy&status=success');
+    } catch (err) {
+        console.error('❌ Error adding shop item:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
+app.post('/api/shop/remove', checkAuth, async (req, res) => {
+    const { guild_id, name } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    try {
+        await shopCommand.removeItemByName(guild_id, name);
+        const guild = client.guilds.cache.get(guild_id);
+        if (guild) await configCommand.logAction(guild, `🛒 ${req.session.user.username} removed shop item **${String(name).slice(0, 40)}** from the website.`);
+        res.redirect('/dashboard?tab=economy&status=success');
+    } catch (err) {
+        console.error('❌ Error removing shop item:', err);
+        res.status(500).send("DB Error.");
+    }
+});
+
 app.post('/api/admins/add', checkAuth, async (req, res) => {
     const { guild_id, role_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -1044,7 +1117,11 @@ client.once('ready', async () => {
             economyCommand.data.toJSON(),
             economyCommand.dailyData.toJSON(),
             economyCommand.payData.toJSON(),
-            economyCommand.richestData.toJSON()
+            economyCommand.richestData.toJSON(),
+            shopCommand.shopData.toJSON(),
+            shopCommand.buyData.toJSON(),
+            shopCommand.gambleData.toJSON(),
+            shopCommand.shopConfigData.toJSON()
         ];
 
         for (const [guildId, guild] of client.guilds.cache) {
@@ -1188,6 +1265,9 @@ client.on('messageCreate', async (message) => {
     // NEW: XP/leveling — see commands/leveling.js. Independent of the
     // verify-channel moderation above; runs on every eligible message.
     await levelingCommand.handleMessageXp(message);
+    // NEW: random coin events while people chat (off by default), see
+    // commands/shop.js. Never blocks or replaces anything below.
+    await shopCommand.handleMessageEvent(message);
     // NEW: experimental smart replies (local intent classifier, off by
     // default) — see commands/ai.js. If it handled the message, the canned
     // fun.js reply below must NOT also fire; if it's off or unsure, fun.js
@@ -1240,9 +1320,21 @@ client.on('interactionCreate', async (interaction) => {
             await economyCommand.executeSlashPay(interaction);
         } else if (interaction.commandName === 'richest') {
             await economyCommand.executeSlashRichest(interaction);
+        } else if (interaction.commandName === 'shop') {
+            await shopCommand.executeSlashShop(interaction);
+        } else if (interaction.commandName === 'buy') {
+            await shopCommand.executeSlashBuy(interaction);
+        } else if (interaction.commandName === 'gamble') {
+            await shopCommand.executeSlashGamble(interaction);
+        } else if (interaction.commandName === 'shopconfig') {
+            await shopCommand.executeSlashShopConfig(interaction);
         }
+    } else if (interaction.isAutocomplete()) {
+        await shopCommand.handleAutocomplete(interaction);
     } else if (interaction.isButton()) {
-        if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {
+        if (interaction.customId.startsWith('astra_event_')) {
+            await shopCommand.handleEventButton(interaction);
+        } else if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {
             await ticketsCommand.handleButton(interaction);
         } else if (interaction.customId.startsWith('astra_about_')) {
             await helpCommand.handleAboutButton(interaction);

@@ -2,7 +2,7 @@ ASTRA — EXPERIMENTAL SMART REPLIES (PROTOTYPE, v3)
 ==================================================
 What it is: a small LOCAL intent classifier (node-nlp / nlp.js), trained for ONE
 purpose: helping members understand the server. No LLM, no API, no cost. She matches
-what someone says to one of 48 intents in English and Portuguese and replies with a
+what someone says to one of 51 intents in English and Portuguese and replies with a
 pre-written line in a chaotic, deadpan personality. Anything she isn't sure about, or
 that is off-topic, falls back to the normal /config fun lines. OFF by default.
 
@@ -14,7 +14,7 @@ WHAT SHE UNDERSTANDS
   favorite_things, age, sleep, sad, date_me, cmd_rank, cmd_balance, cmd_help, cmd_artists,
   admin_setup, admin_toggles, command_generic, ai_info,
   invite_info, report_scam, bug_report, commission_price, commission_wait, permissions_info,
-  xp_tips, followup_more ("tell me more", see FOLLOW-UPS), + "offtopic" (teaches her what NOT
+  xp_tips, shop_info, events_info, gamble_info, followup_more ("tell me more", see FOLLOW-UPS), + "offtopic" (teaches her what NOT
   to answer: weather, football, homework...)
   Answers fill in real server data: currency name, whether economy/levels are on,
   and the verify/rules/ticket channels.

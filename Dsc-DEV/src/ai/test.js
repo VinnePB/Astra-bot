@@ -63,6 +63,9 @@ const CASES = [
     ['why does it say i lack permission', 'permissions_info'],
     ['how do i earn xp quicker', 'xp_tips'],
     ['can you explain it one more time', 'followup_more'],
+    ['what do the coins even buy', 'shop_info'],
+    ['what is the thing that pops up with a grab button', 'events_info'],
+    ['can i double my coins by betting', 'gamble_info'],
     ['how do i verfy myself', 'verify_info'],
     ['whats the leaderbord command', 'cmd_rank'],
     // Portuguese
@@ -117,6 +120,9 @@ const CASES = [
     ['por que diz que eu não tenho permissão', 'permissions_info'],
     ['como eu ganho xp mais rapidinho', 'xp_tips'],
     ['pode explicar mais uma vez', 'followup_more'],
+    ['o que dá pra comprar com as moedas', 'shop_info'],
+    ['o que é aquilo que aparece com botão de pegar', 'events_info'],
+    ['dá pra dobrar minhas moedas apostando', 'gamble_info'],
     ['como eu me verfico aqui', 'verify_info'],
     ['qual o comando do leaderbord', 'cmd_rank'],
 ];

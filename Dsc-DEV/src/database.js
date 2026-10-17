@@ -260,6 +260,27 @@ pool.connect()
                 );
             `);
 
+            // Economy part 2 (commands/shop.js): random events (off by default)
+            // and the shop. shop_items holds the cosmetic ROLES admins sell; the
+            // built-in fun items need no rows.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS events_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS events_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS events_interval_min INTEGER DEFAULT 45;
+            `);
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS shop_items (
+                    id SERIAL PRIMARY KEY,
+                    guild_id VARCHAR(30) NOT NULL,
+                    name VARCHAR(40) NOT NULL,
+                    description VARCHAR(120),
+                    price INTEGER NOT NULL,
+                    role_id VARCHAR(30) NOT NULL,
+                    UNIQUE (guild_id, name)
+                );
+            `);
+
             // Per-artist pricing sheet: one row per category (Headshot, Bust,
             // Full Body, etc.) with a free-text price value.
             await client.query(`
