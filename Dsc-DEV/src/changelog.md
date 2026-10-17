@@ -490,7 +490,7 @@
 
 ---
 
-## b.8.20.0 — Moderation Tools *(current)*
+## b.8.20.0 — Moderation Tools
 **October 17, 2026**
 *Astra can now help moderate your server.*
 
@@ -511,5 +511,15 @@
 - Added Home and Support links to the dashboard menu
 
 **Note:** Astra's invite link now includes the Ban Members and Moderate Members permissions. Servers that added her earlier can grant them in Server Settings, under Roles
+
+---
+
+## b.8.20.1 — Privacy & Terms *(current)*
+**October 17, 2026**
+*Clear rules about your data, and automatic cleanup.*
+
+- New **Privacy Policy** and **Terms of Service** pages, in English and Portuguese, linked from the footer of the website. They explain what Astra stores, why, and your rights
+- When Astra is removed from a server, that server's data is now deleted automatically after 30 days. Adding her back within that time restores everything
+- Astra still never stores the content of messages, and her smart replies still run inside the bot, with nothing sent to an AI company
 
 ---

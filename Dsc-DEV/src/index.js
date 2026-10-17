@@ -20,6 +20,8 @@ const shopCommand = require('./commands/shop');
 const banterCommand = require('./commands/banter');
 const updatesCommand = require('./commands/updates');
 const moderationCommand = require('./commands/moderation');
+const legalContent = require('./legal-content');
+const retention = require('./retention');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -269,6 +271,25 @@ app.get('/', (req, res) => {
         pageTitle: 'Projeckt V: Astra'
     });
 });
+
+// ---- Legal pages (public) ----
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+// Escapes text, then turns **bold** into <strong>. Content comes from our own file, never from users.
+const fmtLegal = (str) => escapeHtml(str).replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-200">$1</strong>');
+function renderLegal(kind) {
+    return (req, res) => {
+        const lang = req.session.siteLang || 'en';
+        res.render('legal', {
+            doc: legalContent.getDoc(kind, lang), lang, fmt: fmtLegal,
+            t: (key, vars) => t(lang, key, vars),
+            contactEmail: process.env.CONTACT_EMAIL || ''
+        });
+    };
+}
+app.get('/privacy', renderLegal('privacy'));
+app.get('/terms', renderLegal('terms'));
 
 app.get('/support', (req, res) => {
     const lang = req.session.siteLang || 'en';
@@ -1437,6 +1458,7 @@ setInterval(async () => {
 }, COMMAND_RETRY_MS).unref();
 
 client.once('ready', async () => {
+    retention.start(client);
     try {
         commandRest ||= new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         await commandRest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
@@ -1463,7 +1485,14 @@ client.once('ready', async () => {
 // in both languages (nobody has picked one yet), and points at the first steps.
 // Goes to the system channel, else the first text channel she can write in,
 // else the server owner's DMs. astra_welcomed stops it from repeating.
+client.on('guildDelete', async (guild) => {
+    if (guild.available === false) return; // a Discord outage, not a real removal
+    try { await retention.markLeft(guild.id); }
+    catch (err) { console.error('❌ Could not mark server as left:', err.message); }
+});
+
 client.on('guildCreate', async (guild) => {
+    await retention.markJoined(guild.id).catch(() => {});
     // Commands right away for a new server (before, they only came after a restart).
     await syncGuildCommands(guild.id);
     try {

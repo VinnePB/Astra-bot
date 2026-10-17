@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="<%= lang === 'pt-br' ? 'pt-BR' : 'en' %>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= doc.title %> — Projeckt V: Astra</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <meta property="og:title" content="<%= doc.title %>">">
+    <meta property="og:image" content="/logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --fui-cyan: #22e5ff;
+            --fui-line: rgba(34, 229, 255, 0.28);
+        }
+        body { font-family: 'Rajdhani', sans-serif; background-color: #05070a; color: #e8fbff; }
+        .fui-brand { font-family: 'Orbitron', sans-serif; letter-spacing: 0.08em; }
+        .fui-tracked { letter-spacing: 0.14em; }
+
+        .fui-panel {
+            background: linear-gradient(160deg, rgba(10,15,22,0.9), rgba(5,7,10,0.95));
+            border: 1px solid var(--fui-line);
+            clip-path: polygon(0 16px, 16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+            position: relative;
+        }
+        .fui-corners::before, .fui-corners::after {
+            content: ''; position: absolute; width: 16px; height: 16px;
+            border-color: var(--fui-cyan); pointer-events: none; opacity: 0.85;
+        }
+        .fui-corners::before { top: -1px; left: -1px; border-top: 2px solid; border-left: 2px solid; }
+        .fui-corners::after { bottom: -1px; right: -1px; border-bottom: 2px solid; border-right: 2px solid; }
+
+        .fui-btn {
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            clip-path: polygon(0 10px, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+            border: 1px solid var(--fui-line);
+            transition: all 0.15s ease;
+        }
+        .fui-btn:hover { border-color: var(--fui-cyan); box-shadow: 0 0 20px -2px rgba(34,229,255,0.55), inset 0 0 14px -4px rgba(34,229,255,0.3); }
+        .fui-btn-solid { background: rgba(34,229,255,0.1); border-color: var(--fui-cyan); color: var(--fui-cyan); }
+        .fui-btn-solid:hover { background: rgba(34,229,255,0.18); }
+
+        .fui-grid-bg {
+            background-image:
+                linear-gradient(rgba(34,229,255,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(34,229,255,0.04) 1px, transparent 1px);
+            background-size: 42px 42px;
+        }
+        .fui-scanline {
+            position: fixed; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(34,229,255,0.5), transparent);
+            animation: fui-sweep 9s linear infinite; pointer-events: none; z-index: 0;
+        }
+        @keyframes fui-sweep { 0% { top: 0%; } 100% { top: 100%; } }
+    </style>
+</head>
+<body class="min-h-screen antialiased relative overflow-x-hidden">
+
+    <div class="fixed inset-0 overflow-hidden pointer-events-none -z-10 fui-grid-bg">
+        <div class="absolute -top-32 -left-24 w-[28rem] h-[28rem] bg-cyan-500/10 rounded-full blur-[120px]"></div>
+        <div class="absolute top-1/2 -right-32 w-[26rem] h-[26rem] bg-fuchsia-600/10 rounded-full blur-[120px]"></div>
+    </div>
+    <div class="fui-scanline"></div>
+
+    <div class="flex items-center justify-between px-5 sm:px-8 py-5 max-w-6xl mx-auto relative z-10">
+        <a href="/" class="leading-none">
+            <div class="fui-brand text-base sm:text-lg font-extrabold text-cyan-300 fui-tracked">PROJECKT V</div>
+            <div class="fui-tracked text-[10px] text-slate-500">: ASTRA</div>
+        </a>
+        <div class="flex items-center gap-4">
+            <a href="/" class="fui-btn text-xs px-3 py-1.5 text-slate-400 hover:text-cyan-300"><%= doc.ui.home %></a>
+            <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">
+                <a href="/lang/en" class="px-2.5 py-1 transition fui-tracked <%= lang === 'en' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-cyan-300' %>">EN</a>
+                <a href="/lang/pt-br" class="px-2.5 py-1 transition fui-tracked <%= lang === 'pt-br' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-cyan-300' %>">PT-BR</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-3xl mx-auto px-5 sm:px-8 pt-8 pb-16 relative z-10">
+        <div class="mb-8">
+            <h1 class="fui-brand text-3xl sm:text-4xl font-black text-cyan-300 mb-2"><%= doc.title %></h1>
+            <div class="fui-tracked text-xs text-slate-500 uppercase"><%= doc.ui.updated %>: <%= doc.updated %></div>
+            <p class="text-slate-300 leading-relaxed mt-5"><%- fmt(doc.intro) %></p>
+        </div>
+
+        <% doc.sections.forEach((s) => { %>
+        <div class="fui-panel fui-corners p-6 mb-4">
+            <h2 class="fui-tracked text-xs uppercase text-cyan-300 mb-3"><%= s.h %></h2>
+            <% (s.p || []).forEach((para) => { %>
+                <p class="text-slate-400 text-sm leading-relaxed mb-2"><%- fmt(para) %></p>
+            <% }) %>
+            <% if (s.ul) { %>
+                <ul class="text-slate-400 text-sm leading-relaxed space-y-2">
+                    <% s.ul.forEach((li) => { %><li>&#9670; <%- fmt(li) %></li><% }) %>
+                </ul>
+            <% } %>
+        </div>
+        <% }) %>
+
+        <div class="fui-panel fui-corners p-6">
+            <h2 class="fui-tracked text-xs uppercase text-fuchsia-300 mb-3"><%= doc.ui.contact %></h2>
+            <p class="text-slate-400 text-sm leading-relaxed">
+                <% if (contactEmail) { %>
+                    <a class="text-cyan-300 underline" href="mailto:<%= contactEmail %>"><%= contactEmail %></a>
+                <% } else { %>
+                    <%= doc.ui.contactVia %> <a class="text-cyan-300 underline" href="https://ko-fi.com/lils0ls" target="_blank" rel="noopener noreferrer"><%= doc.ui.kofi %></a>.
+                <% } %>
+            </p>
+        </div>
+    </div>
+
+    <footer class="relative z-10 text-center text-xs text-slate-400 fui-tracked uppercase pb-10 px-5">
+    <a href="/support" class="text-fuchsia-300 hover:text-fuchsia-200 transition"><%= t('site.support.footer_support') %></a>
+    <span class="mx-2">&middot;</span>
+    <a href="/privacy" class="hover:text-cyan-300 transition"><%= t('site.legal.privacy_link') %></a>
+    <span class="mx-2">&middot;</span>
+    <a href="/terms" class="hover:text-cyan-300 transition"><%= t('site.legal.terms_link') %></a>
+    <div class="mt-2 normal-case"><%= t('site.support.footer_credit') %></div>
+</footer>
+</body>
+</html>

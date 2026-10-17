@@ -107,10 +107,13 @@
         </div>
     </div>
 
-    <footer class="relative z-10 text-center text-xs text-slate-400 fui-tracked uppercase pb-8 px-5">
+    <footer class="relative z-10 text-center text-xs text-slate-400 fui-tracked uppercase pb-10 px-5">
     <a href="/support" class="text-fuchsia-300 hover:text-fuchsia-200 transition"><%= t('site.support.footer_support') %></a>
     <span class="mx-2">&middot;</span>
-    <span><%= t('site.support.footer_credit') %></span>
+    <a href="/privacy" class="hover:text-cyan-300 transition"><%= t('site.legal.privacy_link') %></a>
+    <span class="mx-2">&middot;</span>
+    <a href="/terms" class="hover:text-cyan-300 transition"><%= t('site.legal.terms_link') %></a>
+    <div class="mt-2 normal-case"><%= t('site.support.footer_credit') %></div>
 </footer>
 </body>
 </html>

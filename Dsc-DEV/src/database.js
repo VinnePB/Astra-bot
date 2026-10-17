@@ -347,6 +347,8 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS mod_warn_ban_at INTEGER;
             `);
 
+            await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ;`);
+
             await client.query(`
                 CREATE TABLE IF NOT EXISTS mod_cases (
                     id SERIAL PRIMARY KEY,
