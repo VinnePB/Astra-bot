@@ -44,6 +44,7 @@
         <button class="fui-tab-btn" data-tab="antiscam"><%= t('dashboard.tab.antiscam') %></button>
         <button class="fui-tab-btn" data-tab="autokick"><%= t('dashboard.tab.autokick') %></button>
         <button class="fui-tab-btn" data-tab="tickets"><%= t('dashboard.tab.tickets') %></button>
+        <button class="fui-tab-btn" data-tab="updates"><%= t('dashboard.tab.updates') %></button>
         <button class="fui-tab-btn" data-tab="admins"><%= t('dashboard.tab.admins') %></button>
     </div>
 
@@ -690,6 +691,65 @@
                     </form>
                 </div>
             <% } %>
+        </div>
+    </div>
+
+    <!-- UPDATES TAB (commands/updates.js) -->
+    <div class="fui-tab-panel" data-tab-content="updates">
+        <div class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title"><%= t('dashboard.updates.title') %></h2>
+            <p class="text-sm text-slate-500 mb-6"><%= t('dashboard.updates.desc') %></p>
+
+            <% if (updErr) { %>
+                <div class="bg-black/40 border border-amber-500/40 px-4 py-2.5 text-xs text-amber-400 mb-4"><%= t('dashboard.updates.err_' + updErr) %></div>
+            <% } %>
+
+            <form action="/api/updates/save" method="POST" class="space-y-6">
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <div class="flex items-center justify-between p-4 bg-black/40 border border-cyan-500/10">
+                    <label class="font-medium text-white text-sm"><%= t('dashboard.updates.enable_label') %></label>
+                    <input type="checkbox" name="updates_enabled" <%= settings.updates_enabled ? 'checked' : '' %> class="w-6 h-6 accent-cyan-500 cursor-pointer">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.updates.channel_label') %></label>
+                        <select name="updates_channel_id" class="fui-input">
+                            <option value="" <%= !settings.updates_channel_id ? 'selected' : '' %>><%= t('dashboard.updates.channel_none') %></option>
+                            <% channels.forEach(channel => { %>
+                                <option value="<%= channel.id %>" <%= settings.updates_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.updates.role_label') %> <span class="normal-case text-slate-600"><%= t('dashboard.updates.role_hint') %></span></label>
+                        <select name="updates_role_id" class="fui-input">
+                            <option value="" <%= !settings.updates_role_id ? 'selected' : '' %>><%= t('dashboard.updates.role_none') %></option>
+                            <% roles.filter(r => !r.managed).forEach(role => { %>
+                                <option value="<%= role.id %>" <%= settings.updates_role_id === role.id ? 'selected' : '' %>>@<%= role.name %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-600 fui-tracked">
+                    <%= t('dashboard.updates.status', { last: settings.updates_last_version || '—', current: updatesVersion || '—' }) %>
+                </p>
+                <div class="flex justify-end">
+                    <button type="submit" class="fui-btn py-2.5 px-8 text-sm text-cyan-300 border-cyan-500/30"><%= t('dashboard.updates.save') %></button>
+                </div>
+            </form>
+
+            <div class="mt-10 pt-8 border-t border-cyan-500/10 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <form action="/api/updates/create-channel" method="POST" data-confirm="<%= t('dashboard.updates.create_confirm') %>" onsubmit="return confirm(this.dataset.confirm);">
+                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                    <p class="text-xs text-slate-500 mb-3"><%= t('dashboard.updates.create_desc') %></p>
+                    <button type="submit" class="fui-btn w-full py-2.5 text-sm text-cyan-300 border-cyan-500/30"><%= t('dashboard.updates.create_button') %></button>
+                </form>
+                <form action="/api/updates/preview" method="POST">
+                    <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                    <p class="text-xs text-slate-500 mb-3"><%= t('dashboard.updates.preview_desc') %></p>
+                    <button type="submit" class="fui-btn w-full py-2.5 text-sm text-cyan-300 border-cyan-500/30 <%= settings.updates_enabled ? '' : 'opacity-40 cursor-not-allowed' %>" <%= settings.updates_enabled ? '' : 'disabled' %>><%= t('dashboard.updates.preview_button') %></button>
+                </form>
+            </div>
         </div>
     </div>
 

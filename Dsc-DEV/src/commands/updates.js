@@ -131,6 +131,43 @@ async function setLast(guildId, version) {
     await db.query('UPDATE guild_settings SET updates_last_version = $2 WHERE guild_id = $1', [guildId, version]);
 }
 
+const currentEntry = () => { const e = loadChangelog(); return e.length ? e[e.length - 1] : null; };
+
+// Saves the updates settings (slash command and dashboard share this).
+// Turning updates on (from off, or with no remembered version) starts from the
+// current version, so old history is never dumped; edits while it is already
+// on keep the remembered version.
+async function saveSettings(guildId, { enabled, channelId, roleId }) {
+    const current = currentEntry();
+    await db.query(
+        `INSERT INTO guild_settings (guild_id, updates_enabled, updates_channel_id, updates_role_id, updates_last_version)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (guild_id) DO UPDATE SET
+            updates_enabled = $2, updates_channel_id = $3, updates_role_id = $4,
+            updates_last_version = CASE
+                WHEN $2 AND (guild_settings.updates_enabled IS NOT TRUE OR guild_settings.updates_last_version IS NULL) THEN $5
+                ELSE guild_settings.updates_last_version END`,
+        [guildId, enabled, channelId, roleId, current ? current.version : null]
+    );
+}
+
+// Creates a read-only #astra-updates. Returns { ok, channel } or { ok: false, error: 'nomanage' }.
+async function createUpdatesChannel(guild, settings, requestedBy) {
+    const me = guild.members.me || await guild.members.fetchMe();
+    if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) return { ok: false, error: 'nomanage' };
+    const channel = await guild.channels.create({
+        name: CREATED_CHANNEL_NAME,
+        type: ChannelType.GuildText,
+        topic: L(settings, 'Astra changelogs and update notices.', 'Changelogs e avisos de atualização da Astra.'),
+        permissionOverwrites: [
+            { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] },
+            { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks] },
+        ],
+        reason: `Astra updates channel, requested by ${requestedBy}`,
+    });
+    return { ok: true, channel };
+}
+
 // Called once after startup. Never throws.
 async function postPendingToAll(client) {
     const summary = { guilds: 0, posted: 0, failed: 0 };
@@ -273,21 +310,11 @@ async function executeSlashUpdates(interaction) {
 
             let channelId = picked ? picked.id : settings?.updates_channel_id || null;
             if (create) {
-                const me = guild.members.me || await guild.members.fetchMe();
-                if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                const made = await createUpdatesChannel(guild, settings, interaction.user.username);
+                if (!made.ok) {
                     return interaction.reply({ content: L(settings, '❌ I need the **Manage Channels** permission to create a channel. Give it to me, or pick an existing channel with `channel:`.', '❌ Preciso da permissão **Gerenciar Canais** para criar um canal. Me dê a permissão, ou escolha um canal existente com `channel:`.'), ephemeral: true });
                 }
-                const made = await guild.channels.create({
-                    name: CREATED_CHANNEL_NAME,
-                    type: ChannelType.GuildText,
-                    topic: L(settings, 'Astra changelogs and update notices.', 'Changelogs e avisos de atualização da Astra.'),
-                    permissionOverwrites: [
-                        { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] },
-                        { id: me.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks] },
-                    ],
-                    reason: `Astra updates channel, requested by ${interaction.user.username}`,
-                });
-                channelId = made.id;
+                channelId = made.channel.id;
             }
             if (!channelId) {
                 return interaction.reply({ content: L(settings, '❌ Pick a channel with `channel:` or let me create one with `create:True`.', '❌ Escolha um canal com `channel:` ou deixe eu criar um com `create:True`.'), ephemeral: true });
@@ -297,18 +324,12 @@ async function executeSlashUpdates(interaction) {
                 return interaction.reply({ content: L(settings, `❌ I can't post in <#${channelId}> (${check.reason}). I need View Channel, Send Messages and Embed Links there.`, `❌ Não consigo postar em <#${channelId}> (${check.reason}). Preciso de Ver Canal, Enviar Mensagens e Inserir Links ali.`), ephemeral: true });
             }
             const roleId = clearRole ? null : role ? role.id : settings?.updates_role_id || null;
-            await db.query(
-                `INSERT INTO guild_settings (guild_id, updates_enabled, updates_channel_id, updates_role_id, updates_last_version)
-                 VALUES ($1, TRUE, $2, $3, $4)
-                 ON CONFLICT (guild_id) DO UPDATE SET
-                    updates_enabled = TRUE, updates_channel_id = $2, updates_role_id = $3, updates_last_version = $4`,
-                [guild.id, channelId, roleId, current.version]
-            );
+            await saveSettings(guild.id, { enabled: true, channelId, roleId });
             await logAction(guild, `📣 ${interaction.user} turned on the updates channel (<#${channelId}>).`);
             return interaction.reply({
                 content: L(settings,
-                    `✅ Updates are on in <#${channelId}>${roleId ? `, pinging <@&${roleId}>` : ''}. I start from **${current.version}**, so the next version I get will show up there on its own. \`/updates preview\` posts the latest one now if you want to see how it looks.`,
-                    `✅ Atualizações ligadas em <#${channelId}>${roleId ? `, marcando <@&${roleId}>` : ''}. Começo a partir da **${current.version}**, então a próxima versão que eu receber aparece lá sozinha. \`/updates preview\` posta a mais recente agora, se quiser ver como fica.`),
+                    `✅ Updates are on in <#${channelId}>${roleId ? `, pinging <@&${roleId}>` : ''}. the next version I get will show up there on its own. \`/updates preview\` posts the latest one now if you want to see how it looks.`,
+                    `✅ Atualizações ligadas em <#${channelId}>${roleId ? `, marcando <@&${roleId}>` : ''}. a próxima versão que eu receber aparece lá sozinha. \`/updates preview\` posta a mais recente agora, se quiser ver como fica.`),
                 ephemeral: true, allowedMentions: { parse: [] },
             });
         }
@@ -369,5 +390,7 @@ module.exports = {
     updatesData, announceData,
     executeSlashUpdates, executeSlashAnnounce,
     postPendingToAll,
+    // shared with the dashboard routes in index.js
+    saveSettings, createUpdatesChannel, usableChannel, postEntry, currentEntry,
     _test: { parseChangelog, chunkText, pendingFor, postEntry, sendSoonNotice, loadChangelog, getOwnerIds, usableChannel },
 };

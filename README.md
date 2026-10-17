@@ -437,6 +437,7 @@
 - Each server remembers the last version it was shown, so nothing is posted twice. A server that was offline for a while gets at most the 3 newest, with a note about how many were skipped. Turning updates on never dumps old history: it starts from the current version
 - `/updates view` shows the settings, `/updates preview` posts the latest version right now (handy to test the setup, never pings the role), `/updates off` turns it off
 - If she can't post (channel deleted, missing permissions) she just retries after the next start
+- **Dashboard:** a new **Updates** tab does the same from the website: turn it on, pick the channel and ping role, **Create #astra-updates** in one click, and **Post latest now** to preview
 
 **"Update incoming" warning (bot owner only)**
 - `/announce soon` sends an "Update incoming" notice to every server with updates on, with an optional `eta:` and `teaser:`. It follows each server's language and pings that server's role. Only the bot owner can use it (the Discord application's owner, or the IDs in the optional `BOT_OWNER_ID` env var, comma separated)

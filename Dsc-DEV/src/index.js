@@ -388,13 +388,15 @@ app.get('/dashboard', checkAuth, async (req, res) => {
                 : botMember.permissions.has('ManageRoles') && role.position < botMember.roles.highest.position && !role.managed;
             return { name: i.name, description: i.description, price: i.price, role_id: i.role_id, role_name: role?.name || null, assignable };
         });
+        const updErr = ['offline', 'channel', 'perms', 'nomanage', 'off', 'failed'].includes(req.query.upderr) ? req.query.upderr : null;
+        const updatesVersion = updatesCommand.currentEntry()?.version || null;
         const shopErr = ['name', 'price', 'builtin', 'limit', 'invalid', 'managed', 'dangerous', 'hierarchy'].includes(req.query.shoperr) ? req.query.shoperr : null;
 
         const editingId = req.query.edit || null;
         const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, artistCount, memberCount,
+            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, updErr, updatesVersion, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
             currentLang: settings.site_language || 'en',
@@ -897,6 +899,73 @@ app.post('/api/update-events', checkAuth, async (req, res) => {
     } catch (err) {
         console.error('❌ Error saving event settings:', err);
         res.status(500).send("DB Error.");
+    }
+});
+
+// --- Updates channel (commands/updates.js) — Dashboard > Updates tab ---
+// Explicit Save button (not autosave) so a bad channel can show an error.
+const updatesRedirect = (res, err) => res.redirect(err ? `/dashboard?tab=updates&upderr=${err}` : '/dashboard?tab=updates&status=success');
+
+app.post('/api/updates/save', checkAuth, async (req, res) => {
+    const { guild_id, updates_enabled, updates_channel_id, updates_role_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    const isId = (v) => /^\d{5,25}$/.test(v || '');
+    const enabled = updates_enabled === 'on';
+    const channelId = isId(updates_channel_id) ? updates_channel_id : null;
+    const roleId = isId(updates_role_id) ? updates_role_id : null;
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return updatesRedirect(res, 'offline');
+        if (enabled) {
+            if (!channelId) return updatesRedirect(res, 'channel');
+            const check = await updatesCommand.usableChannel(guild, channelId);
+            if (!check.ok) return updatesRedirect(res, 'perms');
+        }
+        await updatesCommand.saveSettings(guild_id, { enabled, channelId, roleId });
+        await configCommand.logAction(guild, `📣 ${req.session.user.username} ${enabled ? 'updated' : 'turned off'} the updates channel from the website.`);
+        updatesRedirect(res);
+    } catch (err) {
+        console.error('❌ Error saving updates settings:', err);
+        res.status(500).send('DB Error.');
+    }
+});
+
+app.post('/api/updates/create-channel', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return updatesRedirect(res, 'offline');
+        const { rows } = await db.query('SELECT language, updates_role_id FROM guild_settings WHERE guild_id = $1', [guild_id]);
+        const made = await updatesCommand.createUpdatesChannel(guild, rows[0] || {}, req.session.user.username);
+        if (!made.ok) return updatesRedirect(res, made.error);
+        await updatesCommand.saveSettings(guild_id, { enabled: true, channelId: made.channel.id, roleId: rows[0]?.updates_role_id || null });
+        await configCommand.logAction(guild, `📣 ${req.session.user.username} created ${made.channel} for Astra updates from the website.`);
+        updatesRedirect(res);
+    } catch (err) {
+        console.error('❌ Error creating updates channel:', err);
+        updatesRedirect(res, 'failed');
+    }
+});
+
+app.post('/api/updates/preview', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return updatesRedirect(res, 'offline');
+        const { rows } = await db.query('SELECT updates_enabled, updates_channel_id FROM guild_settings WHERE guild_id = $1', [guild_id]);
+        const s = rows[0];
+        if (!s?.updates_enabled || !s.updates_channel_id) return updatesRedirect(res, 'off');
+        const check = await updatesCommand.usableChannel(guild, s.updates_channel_id);
+        if (!check.ok) return updatesRedirect(res, 'perms');
+        const current = updatesCommand.currentEntry();
+        if (!current) return updatesRedirect(res, 'failed');
+        await updatesCommand.postEntry(check.channel, current); // no role ping on a preview
+        updatesRedirect(res);
+    } catch (err) {
+        console.error('❌ Error posting updates preview:', err);
+        updatesRedirect(res, 'failed');
     }
 });
 

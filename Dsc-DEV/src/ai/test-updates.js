@@ -16,8 +16,11 @@ const fakeDb = {
         if (/^SELECT guild_id, updates_channel_id, updates_role_id, language/.test(s)) return { rows: [...table.values()].filter((r) => r.updates_enabled).map((r) => ({ ...r })) };
         if (/^UPDATE guild_settings SET updates_last_version/.test(s)) { table.get(p[0]).updates_last_version = p[1]; return { rows: [] }; }
         if (/^INSERT INTO guild_settings \(guild_id, updates_enabled, updates_channel_id/.test(s)) {
-            const r = table.get(p[0]) || { guild_id: p[0], language: 'en' };
-            Object.assign(r, { updates_enabled: true, updates_channel_id: p[1], updates_role_id: p[2], updates_last_version: p[3] });
+            const existing = table.get(p[0]);
+            const r = existing || { guild_id: p[0], language: 'en' };
+            const startFresh = !existing || (p[1] && (r.updates_enabled !== true || r.updates_last_version == null));
+            Object.assign(r, { updates_enabled: p[1], updates_channel_id: p[2], updates_role_id: p[3] });
+            if (startFresh) r.updates_last_version = p[4];
             table.set(p[0], r); return { rows: [] };
         }
         if (/^INSERT INTO guild_settings \(guild_id, updates_enabled\) VALUES \(\$1, FALSE\)/.test(s)) {
@@ -180,6 +183,15 @@ const older = entries[entries.length - 3];
     check('role saved', table.get('X').updates_role_id === 'R9');
     i = interaction(gX, 'on', { bool: { clear_role: true } }); await updates.executeSlashUpdates(i);
     check('role cleared, channel kept', table.get('X').updates_role_id === null && table.get('X').updates_channel_id === 'cX');
+
+    // editing while already on keeps the remembered version
+    table.get('X').updates_last_version = older.version;
+    i = interaction(gX, 'on', { role: { id: 'R2' } }); await updates.executeSlashUpdates(i);
+    check('editing while on keeps the remembered version', table.get('X').updates_last_version === older.version);
+    // turning on again after off starts fresh
+    i = interaction(gX, 'off', {}); await updates.executeSlashUpdates(i);
+    i = interaction(gX, 'on', {}); await updates.executeSlashUpdates(i);
+    check('re-enabling starts from current', table.get('X').updates_last_version === current.version && table.get('X').updates_channel_id === 'cX');
 
     // not admin
     adminOk = false;
