@@ -406,5 +406,7 @@
   "help.moderation": "Moderação",
   "help.moderation_body": "`/ban`, `/kick`, `/timeout`, `/warn` — Agem sobre membros (você precisa da permissão correspondente do Discord).\n`/clear` — Apaga mensagens recentes (opcionalmente só de uma pessoa).\n`/mod warnings`, `/mod clearwarnings`, `/mod unban`, `/mod untimeout` — Histórico e desfazer.\n`/mod slowmode`, `/mod lock`, `/mod unlock` — Controle de canal.\n`/mod settings` — Canal de registro e punições automáticas para advertências repetidas.",
   "site.legal.privacy_link": "Privacidade",
-  "site.legal.terms_link": "Termos"
+  "site.legal.terms_link": "Termos",
+  "site.legal.privacy_full": "Política de Privacidade",
+  "site.legal.terms_full": "Termos de Serviço"
 }

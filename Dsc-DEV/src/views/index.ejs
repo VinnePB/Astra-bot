@@ -71,11 +71,15 @@
     <!-- TOP BAR -->
     <div class="flex items-center justify-between px-5 sm:px-8 py-5 max-w-6xl mx-auto relative z-10">
         <div class="leading-none">
-            <div class="fui-brand text-base sm:text-lg font-extrabold text-cyan-300 fui-tracked">PROJECKT V</div>
-            <div class="fui-tracked text-[10px] text-slate-500">: ASTRA</div>
+            <div class="fui-brand text-xl sm:text-2xl font-extrabold text-cyan-300 fui-tracked" style="text-shadow: 0 0 14px rgba(34,229,255,0.55);">PROJECKT V</div>
+            <div class="fui-brand text-xs sm:text-sm font-bold text-fuchsia-400 fui-tracked mt-1" style="text-shadow: 0 0 12px rgba(255,46,109,0.55);">: ASTRA</div>
         </div>
 
         <div class="flex items-center gap-4">
+            <nav class="hidden md:flex items-center gap-4 text-xs fui-tracked uppercase">
+                <a href="/privacy" class="text-cyan-200 hover:text-white transition" style="text-shadow: 0 0 10px rgba(34,229,255,0.7), 0 0 22px rgba(34,229,255,0.35);"><%= t('site.legal.privacy_link') %></a>
+                <a href="/terms" class="text-cyan-200 hover:text-white transition" style="text-shadow: 0 0 10px rgba(34,229,255,0.7), 0 0 22px rgba(34,229,255,0.35);"><%= t('site.legal.terms_link') %></a>
+            </nav>
             <a href="/support" class="fui-btn text-xs px-3 py-1.5 text-fuchsia-300 hover:text-fuchsia-200" style="border-color: rgba(255,46,109,0.5);"><span aria-hidden="true">&#9829;</span> <%= t('site.support.nav') %></a>
             <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">
                 <a href="/lang/en" class="px-2.5 py-1 transition fui-tracked <%= lang === 'en' ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-500 hover:text-cyan-300' %>">EN</a>
@@ -128,11 +132,6 @@
         <a href="#about" class="fui-btn <%= loggedIn ? '' : 'fui-btn-solid' %> inline-flex items-center gap-2 font-semibold py-3 px-8">
             <%= t('site.home.about_button') %>
         </a>
-        </div>
-        <div class="mt-6 text-sm text-slate-400 fui-tracked">
-            <a href="/privacy" class="underline underline-offset-4 text-cyan-200 hover:text-white" style="text-shadow: 0 0 10px rgba(34,229,255,0.7), 0 0 22px rgba(34,229,255,0.35);"><%= t('site.legal.privacy_full') %></a>
-            <span class="mx-3 text-slate-600">&middot;</span>
-            <a href="/terms" class="underline underline-offset-4 text-cyan-200 hover:text-white" style="text-shadow: 0 0 10px rgba(34,229,255,0.7), 0 0 22px rgba(34,229,255,0.35);"><%= t('site.legal.terms_full') %></a>
         </div>
     </div>
 

@@ -406,5 +406,7 @@
   "help.moderation": "Moderation",
   "help.moderation_body": "`/ban`, `/kick`, `/timeout`, `/warn` — act on members (you need the matching Discord permission).\n`/clear` — Delete recent messages (optionally only from one person).\n`/mod warnings`, `/mod clearwarnings`, `/mod unban`, `/mod untimeout` — History and undo tools.\n`/mod slowmode`, `/mod lock`, `/mod unlock` — Control a channel.\n`/mod settings` — Mod log channel and automatic punishments for repeat warnings.",
   "site.legal.privacy_link": "Privacy",
-  "site.legal.terms_link": "Terms"
+  "site.legal.terms_link": "Terms",
+  "site.legal.privacy_full": "Privacy Policy",
+  "site.legal.terms_full": "Terms of Service"
 }
