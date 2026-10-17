@@ -82,8 +82,8 @@
   "site.selectserver.not_added_badge": "Not added",
   "site.selectserver.invite_button": "+ Invite",
   "site.home.title": "Astra",
-  "site.home.subtitle": "Server security & commissions, handled.",
-  "site.home.tagline": "Verification, anti-scam protection, and a full commission ticket system for your Discord server — configurable from Discord or right here on the web.",
+  "site.home.subtitle": "Keep your Discord server safe, active and organized.",
+  "site.home.tagline": "Astra welcomes and verifies new members, blocks scams, runs commission tickets, and keeps your community lively with levels, an economy and a bit of personality, all set up from Discord or right here on the web.",
   "site.home.stat_servers": "Servers",
   "site.home.stat_members": "People reached",
   "site.home.login_button": "Login with Discord",
@@ -390,5 +390,15 @@
   "site.support.ai_body": "Astra was designed and is run by an independent developer, with the help of Claude, an AI assistant made by Anthropic. Claude helped write and review much of the code, while every decision about what Astra does stays with her developer. Astra's smart replies don't rely on any AI service: they run on a small model built into the bot itself, so your messages are never sent to an AI company.",
   "site.support.footer_support": "Support Astra",
   "site.support.footer_credit": "Developed with the help of Claude (Anthropic)",
-  "site.support.nav": "Support"
+  "site.support.nav": "Support",
+  "site.home.about_button": "About Astra",
+  "site.home.about_kicker": "ABOUT",
+  "site.home.about_title": "Meet Astra",
+  "site.home.about_intro": "Astra is a Discord bot with a web dashboard, built for communities that want to stay safe, organized and fun, from small art servers to growing communities.",
+  "site.home.feature_community": "Levels & Economy",
+  "site.home.feature_community_desc": "XP, level roles and a leaderboard, plus coins, a daily reward, a shop and mini-games.",
+  "site.home.feature_personality": "Personality",
+  "site.home.feature_personality_desc": "Smart replies, jokes and banter that run inside the bot, so your chats are never sent to an AI company.",
+  "site.home.feature_dashboard": "Dashboard & Updates",
+  "site.home.feature_dashboard_desc": "Configure everything from the web, and get new-version updates posted right in your server."
 }

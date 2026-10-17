@@ -82,8 +82,8 @@
   "site.selectserver.not_added_badge": "Não adicionada",
   "site.selectserver.invite_button": "+ Convidar",
   "site.home.title": "Astra",
-  "site.home.subtitle": "Segurança de servidor & comissões, resolvidas.",
-  "site.home.tagline": "Verificação, proteção anti-golpe e um sistema completo de tickets de comissão para seu servidor Discord — configurável pelo Discord ou por aqui, na web.",
+  "site.home.subtitle": "Mantenha seu servidor do Discord seguro, ativo e organizado.",
+  "site.home.tagline": "A Astra recebe e verifica novos membros, bloqueia golpes, gerencia tickets de comissão e mantém sua comunidade animada com níveis, economia e um pouco de personalidade, tudo configurável pelo Discord ou aqui mesmo na web.",
   "site.home.stat_servers": "Servidores",
   "site.home.stat_members": "Pessoas alcançadas",
   "site.home.login_button": "Entrar com Discord",
@@ -390,5 +390,15 @@
   "site.support.ai_body": "A Astra foi criada e é mantida por um desenvolvedor independente, com a ajuda do Claude, um assistente de IA da Anthropic. O Claude ajudou a escrever e revisar boa parte do código, mas todas as decisões sobre o que a Astra faz continuam com o desenvolvedor. As respostas inteligentes da Astra não dependem de nenhum serviço de IA: elas funcionam com um modelo pequeno dentro do próprio bot, então as suas mensagens nunca são enviadas a uma empresa de IA.",
   "site.support.footer_support": "Apoie a Astra",
   "site.support.footer_credit": "Desenvolvido com a ajuda do Claude (Anthropic)",
-  "site.support.nav": "Apoiar"
+  "site.support.nav": "Apoiar",
+  "site.home.about_button": "Sobre a Astra",
+  "site.home.about_kicker": "SOBRE",
+  "site.home.about_title": "Conheça a Astra",
+  "site.home.about_intro": "A Astra é um bot de Discord com painel web, feito para comunidades que querem ficar seguras, organizadas e divertidas, de pequenos servidores de arte a comunidades em crescimento.",
+  "site.home.feature_community": "Níveis e Economia",
+  "site.home.feature_community_desc": "XP, cargos por nível e ranking, além de moedas, recompensa diária, loja e minijogos.",
+  "site.home.feature_personality": "Personalidade",
+  "site.home.feature_personality_desc": "Respostas inteligentes, piadas e brincadeiras que rodam dentro do próprio bot, então suas conversas nunca são enviadas a uma empresa de IA.",
+  "site.home.feature_dashboard": "Painel e Novidades",
+  "site.home.feature_dashboard_desc": "Configure tudo pela web e receba as novidades de cada versão direto no seu servidor."
 }
