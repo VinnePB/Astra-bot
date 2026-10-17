@@ -22,6 +22,7 @@ WHAT SHE UNDERSTANDS
 FILES (inside Dsc-DEV/src/)
   ai/corpus.js      what she understands + what she answers (the file you edit)
   ai/corpus_more.js the newer intents (merged into corpus.js; edit them the same way)
+  ai/corpus_tuning.js  extra phrases added after measuring with npm run test-ai (merged into corpus.js)
   ai/spell.js       typo fixer ("verfy" -> "verify"), no dependencies
   ai/test-spell.js  checks the typo fixer on its own (npm run test-spell, no node-nlp needed)
   ai/augment.js     makes slang/typo/no-accent training variants (used by train.js)

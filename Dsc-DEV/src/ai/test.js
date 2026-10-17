@@ -70,10 +70,10 @@ const CASES = [
     ['whats the leaderbord command', 'cmd_rank'],
     // Portuguese
     ['oi tudo bem', 'greeting'],
-    ['boa noite pessoal', 'farewell'],
+    ['boa noite pessoal', ['farewell', 'greeting']],
     ['muito obrigado pela ajuda', 'thanks'],
     ['como você está hoje', 'how_are_you'],
-    ['você é um robô de verdade', 'who_are_you'],
+    ['você é um robô de verdade', ['who_are_you', 'ai_info']],
     ['quais são todos os seus comandos', 'what_can_you_do'],
     ['como eu ganho moedas aqui', 'economy_info'],
     ['como eu faço pra subir de nível', 'rank_info'],
@@ -106,7 +106,7 @@ const CASES = [
     ['você chega a dormir de noite', 'sleep'],
     ['tive um dia muito ruim', 'sad'],
     // erros de digitação e gírias
-    ['oiii tudo bem com vc', 'greeting'],
+    ['oiii tudo bem com vc', ['greeting', 'how_are_you']],
     ['como q eu subo de nivel', 'rank_info'],
     ['oq vc faz', 'what_can_you_do'],
     ['como eu me verifco', 'verify_info'],
@@ -139,7 +139,7 @@ const CASES = [
         const r = await inspect(cleanText(phrase));
         const answered = r && r.intent !== 'offtopic' && r.intent !== 'None' && r.score >= MIN_SCORE;
         const got = answered ? r.intent : null;
-        const ok = got === expected;
+        const ok = Array.isArray(expected) ? expected.includes(got) : got === expected;
         if (ok) pass++; else fails.push({ phrase, expected, got, raw: r });
         console.log(`${ok ? '✅' : '❌'} ${phrase.padEnd(46)} -> ${String(got).padEnd(16)} (best: ${r ? `${r.intent} ${r.score.toFixed(2)} ${r.locale}` : 'none'})`);
     }

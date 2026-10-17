@@ -414,7 +414,7 @@
 
 ---
 
-## b.8.19.0 — Update Channel & Announcements *(current)*
+## b.8.19.0 — Update Channel & Announcements
 **October 17, 2026**
 *Astra now posts her own changelog, one version at a time.*
 
@@ -431,6 +431,17 @@
 **Slash commands**
 - When Astra joins a new server, her commands are available right away
 - If her commands are missing from a server (usually because she was added with an old invite link), the dashboard now shows a **Re-authorize Astra** button. After re-authorizing, the commands appear within a few minutes
+
+---
+
+## b.8.19.1 — Smarter Replies, Tuned *(current)*
+**October 17, 2026**
+*First round of tuning based on real accuracy measurements.*
+
+- Astra now understands more ways of asking about levels, XP, verification, commissions, artists, the leaderboard and turning features on, in English and Portuguese
+- Fixed a few cases where she confidently answered the wrong topic, such as "como eu faço pra subir de nível" getting a reply about being bored
+- Better at recognizing scam reports ("someone keeps asking for my login code") and "the bot stopped answering me"
+- Typos are now corrected even when she thinks she already understood, so a misspelling can no longer lead her to the wrong answer
 
 ---
 

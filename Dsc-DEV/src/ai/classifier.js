@@ -95,21 +95,24 @@ async function classifyOnce(text, fallbackLocale) {
     return { best, locale: detected || fallbackLocale };
 }
 
-// Best raw match for a message. If the first try isn't confident, the typo
-// fixer (ai/spell.js) gets a second chance: "how do i verfy" -> "how do i
-// verify". The fixed text only wins if it is clearly better, so it can never
-// turn a good match into a worse one.
+// Best raw match for a message. When the message has a typo the fixer
+// (ai/spell.js) can repair ("how do i verfy" -> "how do i verify"), the
+// repaired text is classified too:
+//  - first try unsure: the repaired text wins if it is confident and clearly better
+//  - first try confident: the repaired text wins only if it scores at least as
+//    high (a typo can push the model to a wrong but confident guess, e.g.
+//    "leaderbord" landing on the generic command answer)
 // fallbackLocale: the server's own language ('en' | 'pt'), used on ties.
 async function bestMatch(text, fallbackLocale = 'en') {
     const first = await classifyOnce(text, fallbackLocale);
-    if (first.best && first.best.score >= MIN_SCORE) return first;
     const fixed = speller ? speller.fix(text) : null;
     if (!fixed) return first;
     const second = await classifyOnce(fixed, fallbackLocale);
-    if (second.best && second.best.score >= MIN_SCORE && (!first.best || second.best.score > first.best.score + 0.05)) {
-        return { ...second, fixedText: fixed };
-    }
-    return first;
+    if (!second.best || second.best.score < MIN_SCORE) return first;
+    const firstScore = first.best ? first.best.score : 0;
+    const firstConfident = firstScore >= MIN_SCORE;
+    const wins = firstConfident ? second.best.score >= firstScore : second.best.score > firstScore + 0.05;
+    return wins ? { ...second, fixedText: fixed } : first;
 }
 
 // Richer than a plain yes/no, so commands/ai.js can answer an unclear QUESTION

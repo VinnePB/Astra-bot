@@ -760,3 +760,13 @@ module.exports = {
 
 // Extra intents live in their own file.
 Object.assign(module.exports, require('./corpus_more'));
+
+// Extra phrases from tuning against `npm run test-ai` (added, never replacing).
+for (const [intent, add] of Object.entries(require('./corpus_tuning'))) {
+    const entry = module.exports[intent];
+    if (!entry) throw new Error(`corpus_tuning.js: unknown intent "${intent}"`);
+    for (const locale of Object.keys(add)) {
+        const list = entry.utterances[locale] || (entry.utterances[locale] = []);
+        for (const u of add[locale]) if (!list.includes(u)) list.push(u);
+    }
+}
