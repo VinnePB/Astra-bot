@@ -19,6 +19,7 @@ const economyCommand = require('./commands/economy');
 const shopCommand = require('./commands/shop');
 const banterCommand = require('./commands/banter');
 const updatesCommand = require('./commands/updates');
+const moderationCommand = require('./commands/moderation');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -360,10 +361,31 @@ app.get('/callback', authLimiter, async (req, res) => {
 
 // Permissions requested for the bot invite link: View Channels, Send
 // Messages, Embed Links, Read Message History, Manage Messages, Manage
-// Channels, Manage Roles, Kick Members — everything Astra's features
+// Channels, Manage Roles, Kick Members, Ban Members, Moderate Members — everything Astra's features
 // actually use. Adjust via Discord's own permission calculator if you want
 // to change this later.
-const BOT_INVITE_PERMISSIONS = '268528658';
+const BOT_INVITE_PERMISSIONS = '1099780156438';
+
+
+// How much of Astra a server has set up, as a percentage. Each item counts
+// once it is switched on AND has what it needs (a channel, a role...).
+const SETUP_CHECKS = [
+    (g) => !!(g.verify_channel_id && g.member_role_id),            // verification
+    (g) => !!(g.log_channel_id || g.admin_log_channel_id),         // log channel
+    (g) => !!g.antiscam_enabled,                                    // anti-scam
+    (g) => !!(g.ticket_channel_id && g.ticket_category_id),        // tickets
+    (g) => !!(g.welcome_enabled && g.welcome_channel_id),          // welcome messages
+    (g) => !!g.leveling_enabled,                                    // levels
+    (g) => !!g.economy_enabled,                                     // economy
+    (g) => !!g.ai_enabled,                                          // smart replies
+    (g) => !!(g.updates_enabled && g.updates_channel_id),          // updates channel
+    (g) => !!g.mod_log_channel_id,                                  // moderation log
+];
+function setupProgress(row) {
+    const g = row || {};
+    const done = SETUP_CHECKS.filter((check) => check(g)).length;
+    return { done, total: SETUP_CHECKS.length, percent: Math.round((done / SETUP_CHECKS.length) * 100) };
+}
 
 app.get('/select-server', checkAuth, async (req, res) => {
     try {
@@ -384,7 +406,14 @@ app.get('/select-server', checkAuth, async (req, res) => {
         const guildsWithoutBot = adminGuilds.filter(g => !botGuildIds.has(g.id));
 
         const siteLang = req.session.siteLang || 'en';
+        const setup = {};
+        try {
+            const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = ANY($1)', [guildsWithBot.map(g => g.id)]);
+            const byId = new Map(rows.map(r => [r.guild_id, r]));
+            for (const g of guildsWithBot) setup[g.id] = setupProgress(byId.get(g.id));
+        } catch (e) { console.error('❌ Setup progress failed:', e.message); }
         res.render('select_server', {
+            setup,
             user: req.session.user,
             guildsWithBot,
             guildsWithoutBot,
@@ -1368,7 +1397,13 @@ function allCommandsJSON() {
         shopCommand.gambleData.toJSON(),
         shopCommand.shopConfigData.toJSON(),
         updatesCommand.updatesData.toJSON(),
-        updatesCommand.announceData.toJSON()
+        updatesCommand.announceData.toJSON(),
+        moderationCommand.banData.toJSON(),
+        moderationCommand.kickData.toJSON(),
+        moderationCommand.timeoutData.toJSON(),
+        moderationCommand.warnData.toJSON(),
+        moderationCommand.clearData.toJSON(),
+        moderationCommand.modData.toJSON()
     ];
 }
 
@@ -1615,6 +1650,18 @@ client.on('interactionCreate', async (interaction) => {
             await updatesCommand.executeSlashUpdates(interaction);
         } else if (interaction.commandName === 'announce') {
             await updatesCommand.executeSlashAnnounce(interaction);
+        } else if (interaction.commandName === 'ban') {
+            await moderationCommand.executeBan(interaction);
+        } else if (interaction.commandName === 'kick') {
+            await moderationCommand.executeKick(interaction);
+        } else if (interaction.commandName === 'timeout') {
+            await moderationCommand.executeTimeout(interaction);
+        } else if (interaction.commandName === 'warn') {
+            await moderationCommand.executeWarn(interaction);
+        } else if (interaction.commandName === 'clear') {
+            await moderationCommand.executeClear(interaction);
+        } else if (interaction.commandName === 'mod') {
+            await moderationCommand.executeMod(interaction);
         }
     } else if (interaction.isAutocomplete()) {
         await shopCommand.handleAutocomplete(interaction);

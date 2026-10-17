@@ -400,5 +400,9 @@
   "site.home.feature_personality": "Personalidade",
   "site.home.feature_personality_desc": "Respostas inteligentes, piadas e brincadeiras que rodam dentro do próprio bot, então suas conversas nunca são enviadas a uma empresa de IA.",
   "site.home.feature_dashboard": "Painel e Novidades",
-  "site.home.feature_dashboard_desc": "Configure tudo pela web e receba as novidades de cada versão direto no seu servidor."
+  "site.home.feature_dashboard_desc": "Configure tudo pela web e receba as novidades de cada versão direto no seu servidor.",
+  "site.selectserver.setup_label": "Configuração",
+  "site.selectserver.setup_detail": "{done} de {total} recursos configurados",
+  "help.moderation": "Moderação",
+  "help.moderation_body": "`/ban`, `/kick`, `/timeout`, `/warn` — Agem sobre membros (você precisa da permissão correspondente do Discord).\n`/clear` — Apaga mensagens recentes (opcionalmente só de uma pessoa).\n`/mod warnings`, `/mod clearwarnings`, `/mod unban`, `/mod untimeout` — Histórico e desfazer.\n`/mod slowmode`, `/mod lock`, `/mod unlock` — Controle de canal.\n`/mod settings` — Canal de registro e punições automáticas para advertências repetidas."
 }

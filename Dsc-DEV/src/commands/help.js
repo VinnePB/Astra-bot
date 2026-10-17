@@ -145,7 +145,8 @@ module.exports = {
             embed.addFields(
                 { name: t(lang, 'help.newhere'), value: t(lang, 'help.newhere_body') },
                 { name: `🛠️ ${t(lang, 'help.admin_setup')}`, value: t(lang, 'help.admin_setup_body') },
-                { name: `🏘️ ${t(lang, 'help.admin_community')}`, value: t(lang, 'help.admin_community_body') }
+                { name: `🏘️ ${t(lang, 'help.admin_community')}`, value: t(lang, 'help.admin_community_body') },
+                { name: `🛡️ ${t(lang, 'help.moderation')}`, value: t(lang, 'help.moderation_body') }
             );
         }
 

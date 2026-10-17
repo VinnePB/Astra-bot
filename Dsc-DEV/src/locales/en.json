@@ -400,5 +400,9 @@
   "site.home.feature_personality": "Personality",
   "site.home.feature_personality_desc": "Smart replies, jokes and banter that run inside the bot, so your chats are never sent to an AI company.",
   "site.home.feature_dashboard": "Dashboard & Updates",
-  "site.home.feature_dashboard_desc": "Configure everything from the web, and get new-version updates posted right in your server."
+  "site.home.feature_dashboard_desc": "Configure everything from the web, and get new-version updates posted right in your server.",
+  "site.selectserver.setup_label": "Setup",
+  "site.selectserver.setup_detail": "{done} of {total} features set up",
+  "help.moderation": "Moderation",
+  "help.moderation_body": "`/ban`, `/kick`, `/timeout`, `/warn` — act on members (you need the matching Discord permission).\n`/clear` — Delete recent messages (optionally only from one person).\n`/mod warnings`, `/mod clearwarnings`, `/mod unban`, `/mod untimeout` — History and undo tools.\n`/mod slowmode`, `/mod lock`, `/mod unlock` — Control a channel.\n`/mod settings` — Mod log channel and automatic punishments for repeat warnings."
 }

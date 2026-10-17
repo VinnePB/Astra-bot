@@ -36,6 +36,18 @@
                             <div class="text-left overflow-hidden flex-1">
                                 <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
                                 <span class="text-xs text-cyan-400 font-medium fui-tracked uppercase"><%= t('site.selectserver.active_badge') %></span>
+                                <% const sp = setup && setup[guild.id]; %>
+                                <% if (sp) { %>
+                                    <div class="mt-2" title="<%= t('site.selectserver.setup_detail', { done: sp.done, total: sp.total }) %>">
+                                        <div class="flex items-center justify-between text-[10px] text-slate-500 fui-tracked uppercase mb-1">
+                                            <span><%= t('site.selectserver.setup_label') %></span>
+                                            <span class="<%= sp.percent >= 70 ? 'text-cyan-300' : (sp.percent >= 30 ? 'text-slate-300' : 'text-fuchsia-300') %>"><%= sp.percent %>%</span>
+                                        </div>
+                                        <div class="h-1 w-full bg-white/5">
+                                            <div class="h-1 <%= sp.percent >= 70 ? 'bg-cyan-400' : (sp.percent >= 30 ? 'bg-slate-400' : 'bg-fuchsia-400') %>" style="width: <%= sp.percent %>%;"></div>
+                                        </div>
+                                    </div>
+                                <% } %>
                             </div>
                             <span class="text-slate-600 group-hover:text-cyan-400 transition text-xl">→</span>
                         </button>

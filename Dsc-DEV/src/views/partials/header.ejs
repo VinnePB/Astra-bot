@@ -143,6 +143,9 @@
                         </div>
                     </div>
                 <% } %>
+                <a href="/" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
+                    <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.home') : 'Home' %>
+                </a>
                 <a href="/onboarding" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
                     <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.help') : 'Help & Setup' %>
                 </a>
@@ -151,6 +154,9 @@
                 </a>
                 <a href="/select-server" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
                     <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.switch_server') : 'Switch Server' %>
+                </a>
+                <a href="/support" class="flex items-center gap-2 px-4 py-2 text-sm text-fuchsia-300 hover:text-fuchsia-200 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs">
+                    <span class="w-1 h-1 bg-fuchsia-500 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.support.nav') : 'Support' %>
                 </a>
                 <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-sm text-fuchsia-400 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs mt-1 border-t border-cyan-500/15 pt-2">
                     <span class="w-1 h-1 bg-fuchsia-500 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.logout') : 'Logout' %>
@@ -169,9 +175,15 @@
               it's never ambiguous which one is on. */ %>
         <% const navCurLang = typeof currentLang !== 'undefined' ? currentLang : 'en'; %>
         <% const navLangBase = (typeof guildLangContext !== 'undefined' && guildLangContext) ? '/lang-guild/' : '/lang/'; %>
+        <div class="flex items-center gap-3">
+        <a href="/" class="fui-btn text-xs px-3 py-1.5 text-slate-400 hover:text-cyan-300" title="<%= typeof t !== 'undefined' ? t('site.nav.home') : 'Home' %>">
+            <svg class="w-4 h-4 inline -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>
+            <span class="hidden sm:inline ml-1"><%= typeof t !== 'undefined' ? t('site.nav.home') : 'Home' %></span>
+        </a>
         <div class="flex items-center gap-1 text-xs border border-cyan-500/20 p-1">
             <a href="<%= navLangBase %>en" class="px-2.5 py-1 transition fui-tracked <%= navCurLang !== 'pt-br' ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-500 hover:text-cyan-300' %>">EN</a>
             <a href="<%= navLangBase %>pt-br" class="px-2.5 py-1 transition fui-tracked <%= navCurLang === 'pt-br' ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-500 hover:text-cyan-300' %>">PT-BR</a>
+        </div>
         </div>
     </div>
 

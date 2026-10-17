@@ -339,6 +339,30 @@ pool.connect()
             `);
 
             await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS mod_log_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS mod_warn_timeout_at INTEGER DEFAULT 3,
+                ADD COLUMN IF NOT EXISTS mod_warn_timeout_min INTEGER DEFAULT 60,
+                ADD COLUMN IF NOT EXISTS mod_warn_kick_at INTEGER,
+                ADD COLUMN IF NOT EXISTS mod_warn_ban_at INTEGER;
+            `);
+
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS mod_cases (
+                    id SERIAL PRIMARY KEY,
+                    guild_id VARCHAR(30) NOT NULL,
+                    user_id VARCHAR(30) NOT NULL,
+                    moderator_id VARCHAR(30) NOT NULL,
+                    action VARCHAR(20) NOT NULL,
+                    reason TEXT,
+                    duration_seconds INTEGER,
+                    cleared BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            `);
+            await client.query(`CREATE INDEX IF NOT EXISTS mod_cases_guild_user ON mod_cases (guild_id, user_id);`);
+
+            await client.query(`
                 CREATE TABLE IF NOT EXISTS "session" (
                   "sid" varchar NOT NULL COLLATE "default",
                   "sess" json NOT NULL,

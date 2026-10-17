@@ -480,12 +480,36 @@
 
 ---
 
-## b.8.19.3 — Support Page *(current)*
+## b.8.19.3 — Support Page
 **October 17, 2026**
 *A page for people who want to support Astra, and a note about how she was built.*
 
 - New **Support Astra** page, available in English and Portuguese, with a link to the project's Ko-fi. Supporting is completely optional and every feature stays free
 - A footer on the homepage now links to the support page and credits Claude (Anthropic) for helping develop Astra
 - The page also explains that Astra's smart replies run inside the bot itself, so messages are never sent to an AI company
+
+---
+
+## b.8.20.0 — Moderation Tools *(current)*
+**October 17, 2026**
+*Astra can now help moderate your server.*
+
+**New commands**
+- `/ban`, `/kick` and `/timeout` for removing or muting members, with an optional reason that is logged and sent to the member
+- `/warn` with a full warning history. Enough warnings trigger an automatic punishment: a timeout by default after 3 warnings, with optional automatic kick and ban limits
+- `/clear` to quickly delete recent messages in a channel, optionally only from one person
+- `/mod` for the rest: unban, remove a timeout, view or clear a member's warnings, set slowmode, and lock or unlock a channel
+- `/mod settings` to choose a moderation log channel and set the automatic punishment limits. Every action is recorded as a numbered case
+
+**Safety**
+- Moderators need the matching Discord permission (for example Ban Members to ban). Astra-authorized roles alone can't be used to ban or kick
+- Nobody can punish themselves, the server owner, Astra, or someone whose top role is equal to or above their own
+- If Astra's role is too low or she lacks a permission, she explains exactly what to change instead of failing silently
+
+**Dashboard**
+- The server list now shows how much of Astra is set up on each server, as a percentage
+- Added Home and Support links to the dashboard menu
+
+**Note:** Astra's invite link now includes the Ban Members and Moderate Members permissions. Servers that added her earlier can grant them in Server Settings, under Roles
 
 ---
