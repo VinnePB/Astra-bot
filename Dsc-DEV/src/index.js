@@ -16,6 +16,7 @@ const funCommand = require('./commands/fun');
 const aiCommand = require('./commands/ai');
 const economyCommand = require('./commands/economy');
 const shopCommand = require('./commands/shop');
+const banterCommand = require('./commands/banter');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -31,6 +32,8 @@ app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
+// Logo, favicon and other public files (src/public).
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d' }));
 // Express 5 leaves req.body undefined when nothing was parsed; routes destructure
 // it, so give them an empty object instead of a crash.
 app.use((req, res, next) => { if (req.body === undefined) req.body = {}; next(); });
@@ -120,9 +123,34 @@ function respondSaved(req, res, redirectPath) {
 
 // --- ROUTES ---
 
+// Public numbers for the landing page and /api/stats: how many servers have
+// Astra and how many people they hold. Counts only, no names or ids. Cached
+// for a minute; null until the bot has connected.
+let statsCache = { at: 0, value: { servers: null, members: null } };
+function getPublicStats() {
+    if (Date.now() - statsCache.at < 60 * 1000) return statsCache.value;
+    let value = { servers: null, members: null };
+    try {
+        if (client.isReady()) {
+            let members = 0;
+            for (const g of client.guilds.cache.values()) members += g.memberCount || 0;
+            value = { servers: client.guilds.cache.size, members };
+        }
+    } catch (e) { /* client not created yet: keep nulls */ }
+    statsCache = { at: Date.now(), value };
+    return value;
+}
+
+app.get('/api/stats', (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*'); // public numbers, fine for a tracker or badge to read
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ ...getPublicStats(), updated_at: new Date(statsCache.at).toISOString() });
+});
+
 app.get('/', (req, res) => {
     const lang = req.session.siteLang || 'en';
     res.render('index', {
+        stats: getPublicStats(),
         lang,
         t: (key, vars) => t(lang, key, vars),
         loggedIn: !!(req.session.user && req.session.token),
@@ -1272,6 +1300,10 @@ client.on('messageCreate', async (message) => {
     // default) — see commands/ai.js. If it handled the message, the canned
     // fun.js reply below must NOT also fire; if it's off or unsure, fun.js
     // answers like before.
+    // NEW: rule-based banter ("guess what", "knock knock", jokes, coin, dice,
+    // fortunes), see commands/banter.js. No AI; narrow patterns that need her
+    // name, so real questions still reach the smart replies below.
+    if (await banterCommand.handleMessage(message)) return;
     const aiHandled = await aiCommand.handleMessage(message);
     if (!aiHandled) {
         // silly mention/name reply — see commands/fun.js. No AI involved.

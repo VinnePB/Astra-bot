@@ -2,7 +2,9 @@
   "scripts": {
     "train-ai": "node src/ai/train.js",
     "test-ai": "node src/ai/test.js",
-    "check-ai": "node src/ai/validate.js"
+    "check-ai": "node src/ai/validate.js",
+    "test-spell": "node src/ai/test-spell.js",
+    "test-banter": "node src/ai/test-banter.js"
   },
   "dependencies": {
     "axios": "^1.16.1",

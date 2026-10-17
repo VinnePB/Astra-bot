@@ -376,7 +376,7 @@
 
 ---
 
-## b.8.17.0 — Economy, Part 2: Random Events, Shop & Gambling *(current)*
+## b.8.17.0 — Economy, Part 2: Random Events, Shop & Gambling
 **October 17, 2026**
 *The currency finally has something to do.*
 
@@ -400,5 +400,30 @@
 - New columns `events_enabled`, `events_channel_id`, `events_interval_min` and a new table `shop_items`, all created on boot
 - 4 new commands: `/shop`, `/buy`, `/gamble`, `/shopconfig`. `/help`, `/about`, `/quickstart` and the dashboard text mention them (English and Portuguese)
 - Smart replies learned 3 new topics (51 total): what the shop sells, what the random coin drops are, and how gambling works
+
+---
+
+## b.8.18.0 — Banter, Public Stats & a Logo *(current)*
+**October 17, 2026**
+*She joins in on the dumb stuff now.*
+
+**Banter (no AI, works even with smart replies off)**
+- Say her name (or @mention her) and try: **"guess what?"** (she asks "what?", and your next message gets "chicken butt"), **"knock knock"** (she plays the whole bit and rates your joke), **"tell me a joke"**, **"flip a coin"**, **"roll a d20"**, **"rate me"**, **"predict my future"** / **"what's my fortune"** (magic 8-ball style), and **"good bot"** / **"bad bot"**
+- English and Portuguese ("adivinha", "toc toc", "me conta uma piada", "cara ou coroa", "rola um dado"...)
+- Pattern-based and deliberately narrow: only short messages that contain her name, so real questions still go to the smart replies. Follows the same switch as her other silly replies (`/config` mention replies)
+- The two back-and-forth bits are remembered for 90 seconds in memory only, per person and channel, never stored
+- `npm run test-banter` checks it without needing Discord, a database or node-nlp
+
+**Public stats**
+- The home page now shows how many servers have Astra and how many people they hold. Only counts, no names or IDs; hidden until the bot has connected
+- New `/api/stats` returns the same numbers as JSON (cached for a minute, open to any site), handy for a badge or a tracker later
+
+**Logo**
+- Placeholder logo (a cyan V with a magenta star) on the home page, as the favicon, and as `public/logo.png` (512x512) ready to upload as the bot avatar or a store listing. Replace the files in `src/public/` whenever the real one exists
+
+**Under the hood**
+- New `src/public/` folder served as static files; new file `src/commands/banter.js`
+
+---
 
 {UPCOMING UPDATE, SOON}

@@ -83,6 +83,8 @@
   "site.home.title": "Astra",
   "site.home.subtitle": "Segurança de servidor & comissões, resolvidas.",
   "site.home.tagline": "Verificação, proteção anti-golpe e um sistema completo de tickets de comissão para seu servidor Discord — configurável pelo Discord ou por aqui, na web.",
+  "site.home.stat_servers": "Servidores",
+  "site.home.stat_members": "Pessoas alcançadas",
   "site.home.login_button": "Entrar com Discord",
   "site.home.feature_verification": "Verificação",
   "site.home.feature_antiscam": "Anti-Golpe",

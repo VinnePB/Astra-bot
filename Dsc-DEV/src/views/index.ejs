@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Projeckt V: Astra</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <meta property="og:title" content="Projeckt V: Astra">
+    <meta property="og:image" content="/logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -105,6 +109,7 @@
 
     <!-- HERO -->
     <div class="max-w-3xl mx-auto px-5 sm:px-8 pt-14 pb-20 text-center relative z-10">
+        <img src="/logo.svg" alt="Projeckt V: Astra logo" width="112" height="112" class="mx-auto mb-6 w-24 h-24 sm:w-28 sm:h-28" style="filter: drop-shadow(0 0 22px rgba(34,229,255,0.35));">
         <div class="fui-tracked text-xs text-cyan-500/70 mb-5">// SERVER SECURITY &amp; COMMISSION SYSTEM</div>
         <h1 class="fui-brand text-4xl sm:text-6xl font-black text-cyan-300 tracking-tight mb-2" style="text-shadow: 0 0 30px rgba(34,229,255,0.35);">
             PROJECKT V
@@ -124,6 +129,20 @@
             </a>
         <% } %>
     </div>
+
+    <!-- PUBLIC STATS (counts only; hidden until the bot is connected) -->
+    <% if (typeof stats !== 'undefined' && stats && stats.servers !== null) { %>
+    <div class="max-w-xl mx-auto px-5 sm:px-8 pb-12 grid grid-cols-2 gap-5 relative z-10">
+        <div class="fui-panel fui-corners p-5 text-center">
+            <div class="fui-brand text-3xl font-black text-cyan-300"><%= Number(stats.servers).toLocaleString('en-US') %></div>
+            <div class="fui-tracked text-[11px] uppercase text-slate-500 mt-1"><%= t('site.home.stat_servers') %></div>
+        </div>
+        <div class="fui-panel fui-corners p-5 text-center">
+            <div class="fui-brand text-3xl font-black text-cyan-300"><%= Number(stats.members).toLocaleString('en-US') %></div>
+            <div class="fui-tracked text-[11px] uppercase text-slate-500 mt-1"><%= t('site.home.stat_members') %></div>
+        </div>
+    </div>
+    <% } %>
 
     <!-- FEATURES -->
     <div class="max-w-4xl mx-auto px-5 sm:px-8 pb-24 grid grid-cols-1 sm:grid-cols-3 gap-5 relative z-10">
