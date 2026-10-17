@@ -403,7 +403,7 @@
 
 ---
 
-## b.8.18.0 — Banter, Public Stats & a Logo *(current)*
+## b.8.18.0 — Banter, Public Stats & a Logo
 **October 17, 2026**
 *She joins in on the dumb stuff now.*
 
@@ -417,12 +417,34 @@
 **Public stats**
 - The home page now shows how many servers have Astra and how many people they hold. Only counts, no names or IDs; hidden until the bot has connected
 - New `/api/stats` returns the same numbers as JSON (cached for a minute, open to any site), handy for a badge or a tracker later
+- If the bot hasn't connected yet when someone loads the page, the numbers are simply retried on the next visit (a "not ready" result is never cached)
 
 **Logo**
 - Placeholder logo (a cyan V with a magenta star) on the home page, as the favicon, and as `public/logo.png` (512x512) ready to upload as the bot avatar or a store listing. Replace the files in `src/public/` whenever the real one exists
 
 **Under the hood**
 - New `src/public/` folder served as static files; new file `src/commands/banter.js`
+
+---
+
+## b.8.19.0 — Update Channel & Announcements *(current)*
+**October 17, 2026**
+*Astra now posts her own changelog, one version at a time.*
+
+**Updates channel (off by default)**
+- Admins turn it on with `/updates on` and either pick a channel or let her create a read-only `#astra-updates` (`create:True`, needs Manage Channels). Optional `role:` pings a role on every update (`clear_role:True` removes it)
+- After each deploy, Astra posts every version that server hasn't seen yet, **one embed per version**, oldest first (no more giant text file). Long versions are split across several embeds
+- Each server remembers the last version it was shown, so nothing is posted twice. A server that was offline for a while gets at most the 3 newest, with a note about how many were skipped. Turning updates on never dumps old history: it starts from the current version
+- `/updates view` shows the settings, `/updates preview` posts the latest version right now (handy to test the setup, never pings the role), `/updates off` turns it off
+- If she can't post (channel deleted, missing permissions) she just retries after the next start
+
+**"Update incoming" warning (bot owner only)**
+- `/announce soon` sends an "Update incoming" notice to every server with updates on, with an optional `eta:` and `teaser:`. It follows each server's language and pings that server's role. Only the bot owner can use it (the Discord application's owner, or the IDs in the optional `BOT_OWNER_ID` env var, comma separated)
+
+**Under the hood**
+- The text comes from the new `src/changelog.md` (the same content as the changelog; keep headings like `## b.8.19.0 — Title`, oldest first, newest last). Repeated headings are merged and the "upcoming update" placeholder line is ignored
+- New columns `updates_enabled`, `updates_channel_id`, `updates_role_id`, `updates_last_version`, created on boot. New file `src/commands/updates.js`
+- `npm run test-updates` checks it without Discord, a database or network
 
 ---
 

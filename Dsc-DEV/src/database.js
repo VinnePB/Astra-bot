@@ -149,6 +149,17 @@ pool.connect()
             // (Unused: the Gemini playground was dropped. Column kept; it's harmless.)
             await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ai_playground_channel_id VARCHAR(30);`);
 
+            // NEW: changelog/update posts in a channel (commands/updates.js).
+            // Off by default; updates_last_version is the last changelog entry
+            // that server was shown, so nothing is ever posted twice.
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS updates_enabled BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS updates_channel_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS updates_role_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS updates_last_version VARCHAR(20);
+            `);
+
             // NEW: remembers that Astra already introduced herself in this server
             // (guildCreate in index.js), so re-adding her never repeats it.
             await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS astra_welcomed BOOLEAN DEFAULT FALSE;`);

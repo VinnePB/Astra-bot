@@ -4,7 +4,8 @@
     "test-ai": "node src/ai/test.js",
     "check-ai": "node src/ai/validate.js",
     "test-spell": "node src/ai/test-spell.js",
-    "test-banter": "node src/ai/test-banter.js"
+    "test-banter": "node src/ai/test-banter.js",
+    "test-updates": "node src/test-updates.js"
   },
   "dependencies": {
     "axios": "^1.16.1",

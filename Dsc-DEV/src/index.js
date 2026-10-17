@@ -17,6 +17,7 @@ const aiCommand = require('./commands/ai');
 const economyCommand = require('./commands/economy');
 const shopCommand = require('./commands/shop');
 const banterCommand = require('./commands/banter');
+const updatesCommand = require('./commands/updates');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -1150,7 +1151,9 @@ client.once('ready', async () => {
             shopCommand.shopData.toJSON(),
             shopCommand.buyData.toJSON(),
             shopCommand.gambleData.toJSON(),
-            shopCommand.shopConfigData.toJSON()
+            shopCommand.shopConfigData.toJSON(),
+            updatesCommand.updatesData.toJSON(),
+            updatesCommand.announceData.toJSON()
         ];
 
         for (const [guildId, guild] of client.guilds.cache) {
@@ -1170,6 +1173,10 @@ client.once('ready', async () => {
     }
 
     console.log(`🚀 Astra online.`);
+
+    // NEW: post any changelog versions that opted-in servers haven't seen yet
+    // (commands/updates.js). Runs after the command sync, never blocks startup.
+    updatesCommand.postPendingToAll(client).catch((e) => console.error('❌ Changelog pass error:', e));
 });
 
 // NEW: cleans up the tickets table the moment a ticket channel is deleted
@@ -1361,6 +1368,10 @@ client.on('interactionCreate', async (interaction) => {
             await shopCommand.executeSlashGamble(interaction);
         } else if (interaction.commandName === 'shopconfig') {
             await shopCommand.executeSlashShopConfig(interaction);
+        } else if (interaction.commandName === 'updates') {
+            await updatesCommand.executeSlashUpdates(interaction);
+        } else if (interaction.commandName === 'announce') {
+            await updatesCommand.executeSlashAnnounce(interaction);
         }
     } else if (interaction.isAutocomplete()) {
         await shopCommand.handleAutocomplete(interaction);
