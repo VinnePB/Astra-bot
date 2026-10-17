@@ -36,15 +36,25 @@
                             <div class="text-left overflow-hidden flex-1">
                                 <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
                                 <span class="text-xs text-cyan-400 font-medium fui-tracked uppercase"><%= t('site.selectserver.active_badge') %></span>
-                                <% const sp = setup && setup[guild.id]; %>
+                                <%
+                                    const sp = (typeof setup !== 'undefined' && setup) ? setup[guild.id] : null;
+                                    let spPct = 0, spText = '', spBar = '', spDetail = '', spWidth = '';
+                                    if (sp) {
+                                        spPct = sp.percent;
+                                        spText = spPct >= 70 ? 'text-cyan-300' : (spPct >= 30 ? 'text-slate-300' : 'text-fuchsia-300');
+                                        spBar = spPct >= 70 ? 'bg-cyan-400' : (spPct >= 30 ? 'bg-slate-400' : 'bg-fuchsia-400');
+                                        spDetail = t('site.selectserver.setup_detail', { done: sp.done, total: sp.total });
+                                        spWidth = 'w-[' + spPct + '%]';
+                                    }
+                                %>
                                 <% if (sp) { %>
-                                    <div class="mt-2" title="<%= t('site.selectserver.setup_detail', { done: sp.done, total: sp.total }) %>">
+                                    <div class="mt-2" title="<%= spDetail %>">
                                         <div class="flex items-center justify-between text-[10px] text-slate-500 fui-tracked uppercase mb-1">
                                             <span><%= t('site.selectserver.setup_label') %></span>
-                                            <span class="<%= sp.percent >= 70 ? 'text-cyan-300' : (sp.percent >= 30 ? 'text-slate-300' : 'text-fuchsia-300') %>"><%= sp.percent %>%</span>
+                                            <span class="<%= spText %>"><%= spPct + '%' %></span>
                                         </div>
                                         <div class="h-1 w-full bg-white/5">
-                                            <div class="h-1 <%= sp.percent >= 70 ? 'bg-cyan-400' : (sp.percent >= 30 ? 'bg-slate-400' : 'bg-fuchsia-400') %>" style="width: <%= sp.percent %>%;"></div>
+                                            <div class="h-1 <%= spBar %> <%= spWidth %>"></div>
                                         </div>
                                     </div>
                                 <% } %>
