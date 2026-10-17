@@ -22,6 +22,10 @@ const updatesCommand = require('./commands/updates');
 const moderationCommand = require('./commands/moderation');
 const legalContent = require('./legal-content');
 const retention = require('./retention');
+const alerts = require('./alerts');
+const backup = require('./backup');
+const ownerCommand = require('./commands/owner');
+const mydataCommand = require('./commands/mydata');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
 process.on('uncaughtException', (error) => console.error('❌ Uncaught Exception:', error));
@@ -254,6 +258,13 @@ function getPublicStats() {
     return value;
 }
 
+// For uptime monitors (UptimeRobot, Better Stack...). Says only whether the bot is connected.
+app.get('/health', (req, res) => {
+    const ok = client.isReady();
+    res.set('Cache-Control', 'no-store');
+    res.status(ok ? 200 : 503).json({ ok });
+});
+
 app.get('/api/stats', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*'); // public numbers, fine for a tracker or badge to read
     res.set('Cache-Control', 'public, max-age=60');
@@ -277,7 +288,9 @@ function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 // Escapes text, then turns **bold** into <strong>. Content comes from our own file, never from users.
-const fmtLegal = (str) => escapeHtml(str).replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-200">$1</strong>');
+const fmtLegal = (str) => escapeHtml(str)
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-slate-200">$1</strong>')
+    .replace(/`(.+?)`/g, '<code class="text-cyan-300">$1</code>');
 function renderLegal(kind) {
     return (req, res) => {
         const lang = req.session.siteLang || 'en';
@@ -1386,6 +1399,7 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
     partials: [Partials.Message, Partials.Channel, Partials.User]
 });
+alerts.install(client, db.pool);
 
 // --- SLASH COMMAND SYNC ---
 // Commands are registered per server. A server where that fails (usually an
@@ -1424,7 +1438,9 @@ function allCommandsJSON() {
         moderationCommand.timeoutData.toJSON(),
         moderationCommand.warnData.toJSON(),
         moderationCommand.clearData.toJSON(),
-        moderationCommand.modData.toJSON()
+        moderationCommand.modData.toJSON(),
+        ownerCommand.data.toJSON(),
+        mydataCommand.data.toJSON()
     ];
 }
 
@@ -1459,6 +1475,9 @@ setInterval(async () => {
 
 client.once('ready', async () => {
     retention.start(client);
+    backup.start(client);
+    ownerCommand.sweepBlocked(client);
+    alerts.notify('Astra started', `Online in ${client.guilds.cache.size} server(s).`, { level: 'info', key: 'started', cooldownMs: 60 * 1000 });
     try {
         commandRest ||= new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
         await commandRest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
@@ -1492,6 +1511,7 @@ client.on('guildDelete', async (guild) => {
 });
 
 client.on('guildCreate', async (guild) => {
+    if (await ownerCommand.enforceBlock(guild)) return; // blocked server: she leaves at once
     await retention.markJoined(guild.id).catch(() => {});
     // Commands right away for a new server (before, they only came after a restart).
     await syncGuildCommands(guild.id);
@@ -1691,11 +1711,17 @@ client.on('interactionCreate', async (interaction) => {
             await moderationCommand.executeClear(interaction);
         } else if (interaction.commandName === 'mod') {
             await moderationCommand.executeMod(interaction);
+        } else if (interaction.commandName === 'owner') {
+            await ownerCommand.execute(interaction);
+        } else if (interaction.commandName === 'mydata') {
+            await mydataCommand.execute(interaction);
         }
     } else if (interaction.isAutocomplete()) {
         await shopCommand.handleAutocomplete(interaction);
     } else if (interaction.isButton()) {
-        if (interaction.customId.startsWith('astra_event_')) {
+        if (interaction.customId.startsWith('astra_mydata_')) {
+            await mydataCommand.handleButton(interaction);
+        } else if (interaction.customId.startsWith('astra_event_')) {
             await shopCommand.handleEventButton(interaction);
         } else if (interaction.customId.startsWith('astra_ticket_') || interaction.customId.startsWith('astra_panel_')) {
             await ticketsCommand.handleButton(interaction);

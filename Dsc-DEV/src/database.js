@@ -365,6 +365,21 @@ pool.connect()
             await client.query(`CREATE INDEX IF NOT EXISTS mod_cases_guild_user ON mod_cases (guild_id, user_id);`);
 
             await client.query(`
+                CREATE TABLE IF NOT EXISTS blocked_guilds (
+                    guild_id VARCHAR(30) PRIMARY KEY,
+                    reason TEXT,
+                    blocked_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            `);
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS bot_meta (
+                    key VARCHAR(50) PRIMARY KEY,
+                    value TEXT,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+            `);
+
+            await client.query(`
                 CREATE TABLE IF NOT EXISTS "session" (
                   "sid" varchar NOT NULL COLLATE "default",
                   "sess" json NOT NULL,

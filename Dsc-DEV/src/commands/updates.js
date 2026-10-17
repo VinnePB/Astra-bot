@@ -246,22 +246,7 @@ async function sendSoonNotice(client, { eta, teaser }) {
 }
 
 // ----------------------------------------------------------- owner check
-let ownerCache = null;
-async function getOwnerIds(client) {
-    const fromEnv = (process.env.BOT_OWNER_ID || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (fromEnv.length) return fromEnv;
-    if (ownerCache && Date.now() - ownerCache.at < 10 * 60 * 1000) return ownerCache.ids;
-    try {
-        const app = await client.application.fetch();
-        const o = app.owner;
-        const ids = o ? [o.members ? o.ownerId : o.id].filter(Boolean) : [];
-        ownerCache = { at: Date.now(), ids };
-        return ids;
-    } catch (err) {
-        console.error('❌ Could not look up the bot owner:', err.message);
-        return [];
-    }
-}
+const { getOwnerIds } = require('../botowner');
 
 // ------------------------------------------------------------- commands
 const updatesData = new SlashCommandBuilder()
@@ -389,7 +374,7 @@ async function executeSlashAnnounce(interaction) {
 module.exports = {
     updatesData, announceData,
     executeSlashUpdates, executeSlashAnnounce,
-    postPendingToAll,
+    postPendingToAll, getOwnerIds,
     // shared with the dashboard routes in index.js
     saveSettings, createUpdatesChannel, usableChannel, postEntry, currentEntry,
     _test: { parseChangelog, chunkText, pendingFor, postEntry, sendSoonNotice, loadChangelog, getOwnerIds, usableChannel },

@@ -514,12 +514,32 @@
 
 ---
 
-## b.8.20.1 — Privacy & Terms *(current)*
+## b.8.20.1 — Privacy & Terms
 **October 17, 2026**
 *Clear rules about your data, and automatic cleanup.*
 
 - New **Privacy Policy** and **Terms of Service** pages, in English and Portuguese, linked from the footer of the website. They explain what Astra stores, why, and your rights
 - When Astra is removed from a server, that server's data is now deleted automatically after 30 days. Adding her back within that time restores everything
 - Astra still never stores the content of messages, and her smart replies still run inside the bot, with nothing sent to an AI company
+
+---
+
+## b.8.21.0 — Reliability & Your Data *(current)*
+**October 17, 2026**
+*Safer operations behind the scenes, and more control over your own data.*
+
+**Your data**
+- New `/mydata view` command: a private file with everything Astra stores about you
+- New `/mydata delete` command: deletes your levels, coins, tickets and artist profile in every server, after a confirmation. Moderation records are kept as part of each server's safety record
+- The Privacy Policy now covers backups and these new commands
+
+**Reliability**
+- Astra now sends the developer an alert if she crashes, hits an error or loses her connection to Discord, so problems get fixed before members notice
+- Daily private backups of Astra's data, so a database problem can no longer mean starting over
+- A public status check for uptime monitoring
+
+**Server safety**
+- The developer can now review the servers Astra is in and remove her, or permanently block a server, if its use breaks the Terms of Service. The server owner is told why
+- Blocked servers can't add Astra again
 
 ---
