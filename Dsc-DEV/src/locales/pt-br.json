@@ -387,7 +387,8 @@
   "site.support.button": "Apoiar no Ko-fi",
   "site.support.optional": "Totalmente opcional. As doações não liberam nada e todos os recursos continuam gratuitos.",
   "site.support.ai_title": "Feito com ajuda de IA",
-  "site.support.ai_body": "A Astra é idealizada e mantida pelo Vinicius, e foi desenvolvida com a ajuda do Claude, um assistente de IA da Anthropic, que ajudou a escrever e revisar boa parte do código. As respostas inteligentes da Astra não usam um serviço de IA: funcionam com um classificador pequeno dentro do próprio bot, e as suas mensagens nunca são enviadas a uma empresa de IA.",
+  "site.support.ai_body": "A Astra foi criada e é mantida por um desenvolvedor independente, com a ajuda do Claude, um assistente de IA da Anthropic. O Claude ajudou a escrever e revisar boa parte do código, mas todas as decisões sobre o que a Astra faz continuam com o desenvolvedor. As respostas inteligentes da Astra não dependem de nenhum serviço de IA: elas funcionam com um modelo pequeno dentro do próprio bot, então as suas mensagens nunca são enviadas a uma empresa de IA.",
   "site.support.footer_support": "Apoie a Astra",
-  "site.support.footer_credit": "Desenvolvido com a ajuda do Claude (Anthropic)"
+  "site.support.footer_credit": "Desenvolvido com a ajuda do Claude (Anthropic)",
+  "site.support.nav": "Apoiar"
 }

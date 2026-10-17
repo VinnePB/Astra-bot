@@ -387,7 +387,8 @@
   "site.support.button": "Support on Ko-fi",
   "site.support.optional": "Completely optional. Donations don't unlock anything, and every feature stays free.",
   "site.support.ai_title": "Built with AI assistance",
-  "site.support.ai_body": "Astra is designed and run by Vinicius, and was developed with the help of Claude, an AI assistant made by Anthropic, which helped write and review much of the code. Astra's smart replies are not powered by an AI service: they run on a small classifier built into the bot, and your messages are never sent to an AI company.",
+  "site.support.ai_body": "Astra was designed and is run by an independent developer, with the help of Claude, an AI assistant made by Anthropic. Claude helped write and review much of the code, while every decision about what Astra does stays with her developer. Astra's smart replies don't rely on any AI service: they run on a small model built into the bot itself, so your messages are never sent to an AI company.",
   "site.support.footer_support": "Support Astra",
-  "site.support.footer_credit": "Developed with the help of Claude (Anthropic)"
+  "site.support.footer_credit": "Developed with the help of Claude (Anthropic)",
+  "site.support.nav": "Support"
 }
