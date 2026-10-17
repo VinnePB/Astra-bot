@@ -3,18 +3,26 @@ const assert = require('assert');
 const Module = require('module');
 
 const FLAG = { UseApplicationCommands: 1n << 31n, ManageRoles: 1n << 28n, Administrator: 8n, BanMembers: 1n << 2n, KickMembers: 1n << 1n, ModerateMembers: 1n << 40n, ManageMessages: 1n << 13n, ManageGuild: 1n << 5n, ManageChannels: 1n << 4n };
-const store = { settings: {}, admins: [], levelRoles: [], shop: [] };
+const store = { settings: {}, admins: [], levelRoles: [], shop: [], explicit: [] };
 const queries = [];
 const fakeDb = { query: async (sql, p) => {
     queries.push(sql);
     if (/FROM guild_settings/.test(sql)) return { rows: store.settings[p[0]] ? [store.settings[p[0]]] : [] };
     if (/INSERT INTO guild_settings/.test(sql)) { const col = /\(guild_id, (\w+)\)/.exec(sql)[1]; store.settings[p[0]] = { ...(store.settings[p[0]] || {}), guild_id: p[0], [col]: p[1] }; return { rows: [] }; }
     if (/INSERT INTO guild_admin_roles/.test(sql)) { store.admins.push(p[1]); return { rows: [] }; }
+    if (/FROM guild_divider_roles/.test(sql)) return { rows: store.explicit };
     if (/FROM guild_level_roles/.test(sql)) return { rows: store.levelRoles.map((role_id) => ({ role_id })) };
     if (/FROM shop_items/.test(sql)) return { rows: store.shop.map((role_id) => ({ role_id })) };
     if (/FROM guild_admin_roles/.test(sql)) return { rows: store.admins.map((role_id) => ({ role_id })) };
     return { rows: [] };
 } };
+const conn = { query: async (sql, p) => {
+    queries.push({ sql, p });
+    if (/DELETE FROM guild_divider_roles/.test(sql)) store.explicit = [];
+    if (/INSERT INTO guild_divider_roles/.test(sql)) store.explicit.push({ kind: p[1], role_id: p[2] });
+    return { rows: [] };
+}, release() {} };
+fakeDb.pool = { connect: async () => conn, on() {} };
 const orig = Module._load;
 Module._load = function (req, ...a) {
     if (req === 'discord.js') return { PermissionFlagsBits: FLAG };
@@ -28,7 +36,7 @@ function makeGuild({ canManage = true } = {}) {
     let n = 100;
     const roles = new Map();
     const guild = { id: 'g1', ownerId: 'owner', roles: { cache: { has: (id) => roles.has(id), get: (id) => roles.get(id), find: (f) => [...roles.values()].find(f) },
-        fetch: async () => {}, create: async (d) => { const r = { id: String(++n), name: d.name, position: 1, managed: false, editable: true,
+        fetch: async () => {}, create: async (d) => { const r = { id: String(110000000000000000n + BigInt(++n)), name: d.name, position: 1, managed: false, editable: true,
             permissions: { _p: new Set((d.permissions || []).map(String)), has(f) { return this._p.has(String(f)); }, add(f) { const c = { ...this, _p: new Set(this._p) }; c._p.add(String(f)); return c; } },
             setPermissions: async function (p) { this.permissions = p; }, setPosition: async function (x) { this.position = x; } }; roles.set(r.id, r); return r; } },
         members: { fetch: async () => new Map(), me: { permissions: { has: () => canManage }, roles: { highest: { position: 50 } } }, fetchMe: async () => guild.members.me } };
@@ -62,7 +70,7 @@ function makeGuild({ canManage = true } = {}) {
     const r1 = await rolekit.setupHierarchy(guild, { dividers: true });
     assert.ok(r1.ok);
     const names = [...roles.values()].map((r) => r.name);
-    for (const n of ['Verified', 'Astra Admin', 'Moderator', '━━━━ ACCESS ━━━━', '━━━━ LEVELS ━━━━', '━━━━ SPECIAL ━━━━']) assert.ok(names.includes(n), n + ' created');
+    for (const n of ['Verified', 'Astra Admin', 'Moderator', '━━━━ STAFF ━━━━', '━━━━ ACCESS ━━━━', '━━━━ LEVELS ━━━━', '━━━━ SPECIAL ━━━━']) assert.ok(names.includes(n), n + ' created');
     const verified = [...roles.values()].find((r) => r.name === 'Verified');
     assert.ok(verified.permissions.has(FLAG.UseApplicationCommands));
     assert.ok(![...roles.values()].some((r) => [FLAG.Administrator, FLAG.ManageRoles, FLAG.ManageGuild, FLAG.ManageChannels].some((f) => r.permissions.has(f))), 'no role gets role/server management');
@@ -108,5 +116,25 @@ function makeGuild({ canManage = true } = {}) {
     global.setTimeout = realSetTimeout;
     assert.strictEqual(done, 3);
     assert.ok(people.every((p) => p.h.has(divs.access)), 'everyone verified got the ACCESS divider');
+    // --- chosen groups: validated, replace the previous choice, dividers never head dividers
+    guild.roles.cache.get('999') || await guild.roles.create({ name: 'Sneak Peeks' });
+    const sneak = [...roles.values()].find((r) => r.name === 'Sneak Peeks');
+    const managed = await guild.roles.create({ name: 'BotRole' }); managed.managed = true;
+    await rolekit.saveGroups(guild, { special: [sneak.id, managed.id, guild.id, divs.access, '12', 'abc', "1'; DROP TABLE x;--"], staff: sneak.id });
+    assert.deepStrictEqual(store.explicit.filter((e) => e.kind === 'special').map((e) => e.role_id), [sneak.id], 'only real, unmanaged, non-divider roles kept');
+    assert.deepStrictEqual(store.explicit.filter((e) => e.kind === 'staff').map((e) => e.role_id), [sneak.id], 'a single value works too');
+    await rolekit.saveGroups(guild, { special: [] });
+    assert.strictEqual(store.explicit.length, 0, 'saving replaces the old choice');
+    await rolekit.saveGroups(guild, { special: [sneak.id] });
+    const g2 = await rolekit.loadGroups('g1');
+    assert.ok(g2.groups.special.has(sneak.id) && g2.explicit.special.has(sneak.id));
+    const sneakHolder = new Set([sneak.id]);
+    const sm = { user: { bot: false }, guild, roles: { cache: { has: (id) => sneakHolder.has(id) }, add: async (r) => { sneakHolder.add(r.id); }, remove: async (r) => { sneakHolder.delete(r.id); } } };
+    await rolekit.syncMember(sm);
+    assert.ok(sneakHolder.has(divs.special), 'holder of a chosen role gets SPECIAL');
+    const failed = await rolekit.arrangeDividers(guild);
+    assert.ok(Array.isArray(failed));
+    const specialDivider = roles.get(divs.special);
+    assert.ok(specialDivider.position > sneak.position || specialDivider.position === 49, 'SPECIAL sits above its group');
     console.log('✅ rolekit OK');
 })().catch((e) => { console.error(e); process.exit(1); });

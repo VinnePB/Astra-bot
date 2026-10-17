@@ -21,6 +21,7 @@ const MOD_ROLE_NAME = 'Moderator';
 const MOD_PERMS = ['BanMembers', 'KickMembers', 'ModerateMembers', 'ManageMessages'];
 
 const DIVIDERS = {
+    staff:   { col: 'divider_staff_role_id',   name: '━━━━ STAFF ━━━━' },
     access:  { col: 'divider_access_role_id',  name: '━━━━ ACCESS ━━━━' },
     levels:  { col: 'divider_levels_role_id',  name: '━━━━ LEVELS ━━━━' },
     special: { col: 'divider_special_role_id', name: '━━━━ SPECIAL ━━━━' },
@@ -131,14 +132,9 @@ async function setupHierarchy(guild, { dividers = false } = {}) {
 
     // 4) cosmetic dividers
     if (dividers) {
-        const fresh = (await getSettings(guild.id)) || {};
-        const groups = {
-            access: [fresh.member_role_id && guild.roles.cache.get(fresh.member_role_id)].filter(Boolean),
-            levels: await groupRoles(guild, 'SELECT role_id FROM guild_level_roles WHERE guild_id = $1', [guild.id]),
-            special: await groupRoles(guild, `SELECT role_id FROM shop_items WHERE guild_id = $1 AND role_id IS NOT NULL`, [guild.id]).catch(() => []),
-        };
-        for (const [kind, d] of Object.entries(DIVIDERS)) {
+        for (const d of Object.values(DIVIDERS)) {
             try {
+                const fresh = (await getSettings(guild.id)) || {};
                 let role = fresh[d.col] && guild.roles.cache.get(fresh[d.col]);
                 let created = false;
                 if (!role) {
@@ -147,11 +143,9 @@ async function setupHierarchy(guild, { dividers = false } = {}) {
                     await setCol(guild.id, d.col, role.id);
                 }
                 note(created ? 'r_created' : 'r_reused', role);
-                if (groups[kind].length) {
-                    if (!(await placeAbove(guild, role, groups[kind]))) note('r_place_fail', role);
-                }
             } catch (e) { console.error('❌ rolekit divider:', e.message); lines.push({ k: 'r_error', name: d.name }); }
         }
+        for (const name of await arrangeDividers(guild)) lines.push({ k: 'r_place_fail', name });
     }
     if (dividers) {
         lines.push({ k: 'r_backfill' });
@@ -174,45 +168,93 @@ async function giveDivider(member, kind) {
     } catch (_) { /* cosmetic only */ }
 }
 
-// ---- keeping dividers in sync for everybody ---------------------------------
-// A member should carry a divider exactly when they hold a role it heads:
-//   ACCESS  <- the Verified role      LEVELS <- any level-reward role
-//   SPECIAL <- any shop role
-// This runs when someone's roles change and (once) for everyone right after the
-// dividers are created. It only changes dividers, never other roles.
-async function loadSyncContext(guildId) {
+// ---- divider groups ------------------------------------------------------------
+// Each divider heads a group of roles. A group is made of roles Astra already
+// knows about plus the ones an admin ticks in the dashboard:
+//   STAFF   <- Astra admin roles          + chosen roles
+//   ACCESS  <- rules / verify / Verified  + chosen roles
+//   LEVELS  <- level-reward roles         + chosen roles
+//   SPECIAL <- shop roles                 + chosen roles
+async function loadGroups(guildId) {
     const settings = (await getSettings(guildId)) || {};
-    const levelIds = new Set((await db.query('SELECT role_id FROM guild_level_roles WHERE guild_id = $1', [guildId])).rows.map((r) => r.role_id));
-    const shopIds = new Set((await db.query('SELECT role_id FROM shop_items WHERE guild_id = $1', [guildId]).catch(() => ({ rows: [] }))).rows.map((r) => r.role_id));
-    return { settings, levelIds, shopIds };
+    const ids = async (sql) => (await db.query(sql, [guildId]).catch(() => ({ rows: [] }))).rows.map((r) => r.role_id);
+    const groups = {
+        staff: new Set(await ids('SELECT role_id FROM guild_admin_roles WHERE guild_id = $1')),
+        access: new Set([settings.member_role_id, settings.rules_role_id, settings.verify_role_id].filter(Boolean)),
+        levels: new Set(await ids('SELECT role_id FROM guild_level_roles WHERE guild_id = $1')),
+        special: new Set(await ids('SELECT role_id FROM shop_items WHERE guild_id = $1')),
+    };
+    const explicit = {};
+    const { rows } = await db.query('SELECT kind, role_id FROM guild_divider_roles WHERE guild_id = $1', [guildId]).catch(() => ({ rows: [] }));
+    for (const r of rows) {
+        if (!groups[r.kind]) continue;
+        (explicit[r.kind] ||= new Set()).add(r.role_id);
+        groups[r.kind].add(r.role_id);
+    }
+    const dividerIds = new Set(Object.values(DIVIDERS).map((d) => settings[d.col]).filter(Boolean));
+    for (const g of Object.values(groups)) for (const id of dividerIds) g.delete(id); // a divider never heads a divider
+    return { settings, groups, explicit, dividerIds };
 }
+const loadSyncContext = loadGroups;
 
 async function syncMember(member, ctx) {
     try {
         if (!member || member.user?.bot) return;
-        const c = ctx || await loadSyncContext(member.guild.id);
+        const c = ctx || await loadGroups(member.guild.id);
         const has = (id) => member.roles.cache.has(id);
-        const wanted = {
-            access: !!c.settings.member_role_id && has(c.settings.member_role_id),
-            levels: [...c.levelIds].some(has),
-            special: [...c.shopIds].some(has),
-        };
         for (const [kind, d] of Object.entries(DIVIDERS)) {
             const id = c.settings[d.col];
             if (!id) continue;
             const role = member.guild.roles.cache.get(id);
             if (!role || !role.editable) continue;
-            if (wanted[kind] && !has(id)) await member.roles.add(role, 'Astra: divider role');
-            else if (!wanted[kind] && has(id)) await member.roles.remove(role, 'Astra: divider role');
+            const wanted = [...c.groups[kind]].some(has);
+            if (wanted && !has(id)) await member.roles.add(role, 'Astra: divider role');
+            else if (!wanted && has(id)) await member.roles.remove(role, 'Astra: divider role');
         }
     } catch (_) { /* cosmetic only */ }
+}
+
+// Puts every divider directly above the highest role of its group. Returns the
+// names of dividers that could not be moved (Astra's own role is too low).
+async function arrangeDividers(guild, ctx) {
+    const c = ctx || await loadGroups(guild.id);
+    const failed = [];
+    for (const [kind, d] of Object.entries(DIVIDERS)) {
+        const id = c.settings[d.col];
+        const role = id && guild.roles.cache.get(id);
+        if (!role) continue;
+        const group = [...c.groups[kind]].map((rid) => guild.roles.cache.get(rid)).filter(Boolean);
+        if (!group.length) continue;
+        try { if (!(await placeAbove(guild, role, group))) failed.push(role.name); }
+        catch (_) { failed.push(role.name); }
+    }
+    return failed;
+}
+
+// Replaces the admin-chosen roles of each group. selections: { kind: [roleId, ...] }
+async function saveGroups(guild, selections) {
+    const valid = (id) => /^\d{5,25}$/.test(String(id)) && id !== guild.id && guild.roles.cache.has(id) && !guild.roles.cache.get(id).managed;
+    const settings = (await getSettings(guild.id)) || {};
+    const dividerIds = new Set(Object.values(DIVIDERS).map((d) => settings[d.col]).filter(Boolean));
+    const conn = await db.pool.connect();
+    try {
+        await conn.query('BEGIN');
+        await conn.query('DELETE FROM guild_divider_roles WHERE guild_id = $1', [guild.id]);
+        for (const kind of Object.keys(DIVIDERS)) {
+            const picked = [...new Set([].concat(selections[kind] || []).map(String))].filter((id) => valid(id) && !dividerIds.has(id)).slice(0, 60);
+            for (const id of picked) {
+                await conn.query('INSERT INTO guild_divider_roles (guild_id, kind, role_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [guild.id, kind, id]);
+            }
+        }
+        await conn.query('COMMIT');
+    } catch (e) { await conn.query('ROLLBACK').catch(() => {}); throw e; } finally { conn.release(); }
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Everyone already in the server, gently (well under Discord's rate limits).
 async function backfillDividers(guild) {
     try {
-        const ctx = await loadSyncContext(guild.id);
+        const ctx = await loadGroups(guild.id);
         if (!Object.values(DIVIDERS).some((d) => ctx.settings[d.col])) return 0;
         const members = await guild.members.fetch();
         let n = 0;
@@ -226,4 +268,4 @@ async function backfillDividers(guild) {
     } catch (e) { console.error('❌ divider backfill failed:', e.message); return 0; }
 }
 
-module.exports = { syncMember, backfillDividers, loadSyncContext, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };
+module.exports = { syncMember, backfillDividers, loadGroups, loadSyncContext, arrangeDividers, saveGroups, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };

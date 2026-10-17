@@ -351,7 +351,17 @@ pool.connect()
                 ALTER TABLE guild_settings
                 ADD COLUMN IF NOT EXISTS divider_access_role_id VARCHAR(30),
                 ADD COLUMN IF NOT EXISTS divider_levels_role_id VARCHAR(30),
-                ADD COLUMN IF NOT EXISTS divider_special_role_id VARCHAR(30);
+                ADD COLUMN IF NOT EXISTS divider_special_role_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS divider_staff_role_id VARCHAR(30);
+            `);
+
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS guild_divider_roles (
+                    guild_id VARCHAR(30) NOT NULL,
+                    kind VARCHAR(20) NOT NULL,
+                    role_id VARCHAR(30) NOT NULL,
+                    PRIMARY KEY (guild_id, kind, role_id)
+                );
             `);
 
             await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ;`);

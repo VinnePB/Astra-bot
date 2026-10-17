@@ -623,8 +623,14 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             memberRole: roleById(settings.member_role_id)?.name || null,
             modRole: roles.find((r) => r.name === rolekit.MOD_ROLE_NAME)?.name || null,
             gatingOn: !!(settings.verify_channel_id && roleById(settings.member_role_id)),
-            dividers: ['divider_access_role_id', 'divider_levels_role_id', 'divider_special_role_id'].map((c) => roleById(settings[c])?.name).filter(Boolean),
+            dividers: Object.values(rolekit.DIVIDERS).map((d) => roleById(settings[d.col])?.name).filter(Boolean),
         };
+        try {
+            const g = await rolekit.loadGroups(guildId);
+            hierarchy.hasDividers = g.dividerIds.size > 0;
+            hierarchy.dividerIds = [...g.dividerIds];
+            hierarchy.groups = Object.keys(rolekit.DIVIDERS).map((kind) => ({ kind, selected: [...(g.explicit[kind] || [])] }));
+        } catch (e) { hierarchy.hasDividers = false; hierarchy.dividerIds = []; hierarchy.groups = []; }
 
         const editingId = req.query.edit || null;
         const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
@@ -1318,6 +1324,29 @@ app.post('/api/roles/setup', checkAuth, async (req, res) => {
         req.session.save(() => res.redirect('/dashboard?tab=admins&status=success'));
     } catch (err) {
         console.error('❌ Error in role setup:', err);
+        req.session.rolesReport = [{ k: 'r_error' }];
+        req.session.save(() => res.redirect('/dashboard?tab=admins'));
+    }
+});
+
+// Which roles each divider heads (see rolekit.js). Re-places the dividers and
+// re-syncs every member in the background.
+app.post('/api/roles/groups', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return res.redirect('/dashboard?tab=admins&upderr=offline');
+        const selections = {};
+        for (const kind of Object.keys(rolekit.DIVIDERS)) selections[kind] = req.body[`group_${kind}`];
+        await rolekit.saveGroups(guild, selections);
+        const failed = await rolekit.arrangeDividers(guild);
+        req.session.rolesReport = [{ k: 'r_groups_saved' }, ...failed.map((name) => ({ k: 'r_place_fail', name })), { k: 'r_backfill' }];
+        rolekit.backfillDividers(guild).catch(() => {});
+        await configCommand.logAction(guild, `⚙️ ${req.session.user.username} changed the divider role groups from the website.`);
+        req.session.save(() => res.redirect('/dashboard?tab=admins&status=success'));
+    } catch (err) {
+        console.error('❌ Error saving divider groups:', err);
         req.session.rolesReport = [{ k: 'r_error' }];
         req.session.save(() => res.redirect('/dashboard?tab=admins'));
     }

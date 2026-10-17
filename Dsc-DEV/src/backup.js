@@ -26,7 +26,7 @@ const CHECK_MS = 6 * 60 * 60 * 1000;
 
 // Parents first, so a restore can insert in this order.
 const BACKUP_TABLES = [
-    'guild_settings', 'guild_admin_roles', 'guild_artist_roles', 'guild_level_roles', 'shop_items',
+    'guild_settings', 'guild_admin_roles', 'guild_artist_roles', 'guild_level_roles', 'guild_divider_roles', 'shop_items',
     'artists', 'artist_pricing', 'user_levels', 'user_economy', 'pending_verifications',
     'tickets', 'mod_cases', 'blocked_guilds',
 ];

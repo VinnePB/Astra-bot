@@ -14,7 +14,7 @@ const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 const GUILD_TABLES = [
     'mod_cases', 'tickets', 'pending_verifications', 'user_levels', 'user_economy',
     'artist_pricing', 'artists', 'shop_items', 'guild_level_roles', 'guild_artist_roles',
-    'guild_admin_roles', 'guild_settings',
+    'guild_admin_roles', 'guild_divider_roles', 'guild_settings',
 ];
 
 async function markLeft(guildId) {

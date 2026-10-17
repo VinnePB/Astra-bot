@@ -836,6 +836,32 @@
                 </label>
                 <button type="submit" class="fui-btn text-xs px-4 py-2 text-cyan-300 border-cyan-500/30 whitespace-nowrap"><%= t('dashboard.roles.setup_button') %></button>
             </form>
+
+            <% if (hierarchy.hasDividers) { %>
+                <div class="mt-8 pt-6 border-t border-cyan-500/15">
+                    <h3 class="fui-section-title"><%= t('dashboard.roles.groups_title') %></h3>
+                    <p class="text-xs text-slate-500 mb-4"><%= t('dashboard.roles.groups_desc') %></p>
+                    <form action="/api/roles/groups" method="POST">
+                        <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <% hierarchy.groups.forEach(g => { %>
+                                <div class="bg-black/40 border border-cyan-500/10 p-3">
+                                    <div class="text-xs font-bold text-cyan-300 fui-tracked uppercase mb-2"><%= t('dashboard.roles.group_' + g.kind) %></div>
+                                    <div class="max-h-44 overflow-y-auto space-y-1 pr-1">
+                                        <% roles.slice().sort((a, b) => b.position - a.position).filter(r => !r.managed && !hierarchy.dividerIds.includes(r.id)).forEach(r => { %>
+                                            <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                                                <input type="checkbox" name="group_<%= g.kind %>" value="<%= r.id %>" <%= g.selected.includes(r.id) ? 'checked' : '' %> class="w-4 h-4 accent-cyan-500">
+                                                <span class="truncate">@<%= r.name %></span>
+                                            </label>
+                                        <% }) %>
+                                    </div>
+                                </div>
+                            <% }) %>
+                        </div>
+                        <button type="submit" class="fui-btn text-xs px-4 py-2 mt-4 text-cyan-300 border-cyan-500/30"><%= t('dashboard.roles.groups_save') %></button>
+                    </form>
+                </div>
+            <% } %>
         </div>
     </div>
 </div>
@@ -845,7 +871,13 @@
         const buttons = document.querySelectorAll('.fui-tab-btn');
         const panels = document.querySelectorAll('.fui-tab-panel');
         const params = new URLSearchParams(window.location.search);
-        const initialTab = params.get('tab') || (params.get('edit') ? 'tickets' : '<%= activeTab %>') || 'verification';
+        // After saving something the server redirects back here. Remember which tab
+        // and how far down the page the person was, so it doesn't jump to the top
+        // (or to the first tab). Storage may be unavailable: then it just behaves as before.
+        let saved = null;
+        try { saved = JSON.parse(sessionStorage.getItem('astra_dash_pos') || 'null'); sessionStorage.removeItem('astra_dash_pos'); } catch (e) {}
+        if (saved && Date.now() - saved.at > 60000) saved = null;
+        const initialTab = params.get('tab') || (saved && saved.tab) || (params.get('edit') ? 'tickets' : '<%= activeTab %>') || 'verification';
 
         function activate(tab) {
             buttons.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
@@ -863,6 +895,14 @@
         });
 
         activate(initialTab);
+        if (saved && saved.tab === initialTab && typeof saved.y === 'number') window.scrollTo(0, saved.y);
+
+        document.addEventListener('submit', () => {
+            try {
+                const active = document.querySelector('.fui-tab-btn.active');
+                sessionStorage.setItem('astra_dash_pos', JSON.stringify({ tab: active ? active.dataset.tab : null, y: window.scrollY, at: Date.now() }));
+            } catch (e) {}
+        });
     })();
 </script>
 

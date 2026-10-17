@@ -471,5 +471,13 @@
   "site.artist.save": "Save my panel",
   "site.artist.preview_title": "Preview",
   "site.artist.preview_note": "A close look at how it appears in Discord. Link buttons and images show as clients will see them.",
-  "dashboard.roles.r_backfill": "Giving the divider roles to everyone who should have them. This runs in the background and can take a few minutes in big servers."
+  "dashboard.roles.r_backfill": "Giving the divider roles to everyone who should have them. This runs in the background and can take a few minutes in big servers.",
+  "dashboard.roles.groups_title": "Divider groups",
+  "dashboard.roles.groups_desc": "Tick the roles each divider heads. Roles Astra already knows (admin, verification, level rewards, shop) count automatically. Astra puts each divider just above the highest role of its group, so for the tidiest look drag a group's roles together right under its divider in Discord.",
+  "dashboard.roles.groups_save": "Save groups",
+  "dashboard.roles.group_staff": "━━ STAFF",
+  "dashboard.roles.group_access": "━━ ACCESS",
+  "dashboard.roles.group_levels": "━━ LEVELS",
+  "dashboard.roles.group_special": "━━ SPECIAL",
+  "dashboard.roles.r_groups_saved": "Divider groups saved."
 }
