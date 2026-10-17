@@ -137,14 +137,15 @@ function getPublicStats() {
             value = { servers: client.guilds.cache.size, members };
         }
     } catch (e) { /* client not created yet: keep nulls */ }
-    statsCache = { at: Date.now(), value };
+    // Don't remember "not connected yet": retry on the next visit instead of showing nothing for a minute.
+    if (value.servers !== null) statsCache = { at: Date.now(), value };
     return value;
 }
 
 app.get('/api/stats', (req, res) => {
     res.set('Access-Control-Allow-Origin', '*'); // public numbers, fine for a tracker or badge to read
     res.set('Cache-Control', 'public, max-age=60');
-    res.json({ ...getPublicStats(), updated_at: new Date(statsCache.at).toISOString() });
+    res.json({ ...getPublicStats(), updated_at: statsCache.at ? new Date(statsCache.at).toISOString() : null });
 });
 
 app.get('/', (req, res) => {
