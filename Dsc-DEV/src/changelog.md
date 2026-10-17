@@ -381,13 +381,10 @@
 ## b.8.16.0 — Smarter Smart Replies, round 2
 **October 16, 2026**
 
-- **Typos:** Astra now repairs misspelled words before giving up. If she isn't sure what you meant, unknown words that are one or two letters away from words she knows are fixed ("how do i verfy" -> "verify", "como funcioan o rank" -> "funciona") and she tries again. Pure JavaScript, no model, no cost. The repaired text is only used when it is clearly a better match
-- **8 new topics (48 total):** how to add her to your own server (with the dashboard link), what to do about scams and phishing, "the bot isn't working" (permissions and role order checklist), how much commissions cost, how long a commission takes or what to do when an artist doesn't reply, why a command says "no permission", and how to gain XP faster
-- **Follow-ups:** for 3 minutes she remembers the last topic she told someone, so "tell me more", "explain again" or "não entendi" gets another wording of the same answer (or points to `/about`). With no recent topic she asks what you mean. Kept in memory only, never stored
-- **Dashboard link in answers:** setup and invite answers now include your real dashboard address (taken from `REDIRECT_URI`), so they follow the domain automatically
-- `npm run test-spell` checks the typo fixer without needing the trained model; `npm run test-ai` grew to 101 phrases not in the corpus, including new topics, typos and follow-ups
-- Still not measured against the real `node-nlp` (run `npm run test-ai` after the next deploy and tune from the result)
-- Discord Developer Portal "About Me" text now mentions projeckt-v.dev (paste it by hand)
+- **Typo tolerance:** Astra now understands questions with small spelling mistakes ("how do i verfy", "como funcioan o rank") instead of giving up
+- **8 new topics:** adding Astra to your own server, what to do about scams and phishing, troubleshooting when the bot isn't responding, commission prices and wait times, "no permission" errors, and tips for gaining XP faster
+- **Follow-up questions:** for a few minutes after answering, she remembers the topic, so "tell me more" or "não entendi" gets a different explanation of the same thing
+- **Dashboard link in answers:** setup and invite answers now point to the website directly
 
 ---
 
@@ -396,26 +393,23 @@
 *The currency finally has something to do.*
 
 **Random events (off by default)**
-- While people chat, Astra now and then posts a button message. Two kinds: a **coin drop** (the first click wins a random amount, usually 25-150, sometimes a lot more, rarely a golden pouch worth 500-1500) and a **coin rain** (45 seconds, everyone can catch once for a random 5-60)
-- Never more often than the interval you set (default 45 min, 10-1440), and only when at least two different people have chatted recently, so a quiet server doesn't get spammed. The economy has to be on
-- Turn on with `/shopconfig events enabled:True` (optionally a channel and interval) or in Dashboard > Economy > Random Events
-- Clicks are race-proof: three people clicking at the same millisecond means exactly one winner and one payout
+- While people chat, Astra occasionally drops a button in the channel. A **coin drop** goes to the first person to click (usually 25–150 coins, with a rare golden pouch worth 500–1500). A **coin rain** lasts 45 seconds and everyone can catch some
+- Events respect a minimum interval (45 minutes by default) and only happen when at least two people are chatting, so quiet servers aren't spammed. Requires the economy to be on
+- Turn them on with `/shopconfig events` or in Dashboard → Economy → Random Events
+- Simultaneous clicks are handled fairly: one drop, one winner
 
 **Shop**
-- `/shop` lists what you can spend on, `/buy` buys it (start typing for the list)
-- **Cosmetic roles:** admins sell roles with `/shopconfig add-role name price role` or in Dashboard > Economy > Shop. Roles with powerful permissions (Administrator, managing roles/messages/members/channels, kick/ban, @everyone mentions...) are refused, as are roles above Astra's own or managed by an integration. Max 25 items. If giving the role fails, the buyer is refunded automatically
-- **Five built-in silly items** that need no setup: **Town crier** (Astra announces your message, no links, no pings), **Get roasted**, **Get hyped**, **Fake ban** (clearly fake) and a **Mystery box** (random payout that averages about 80% of its price, so it drains coins rather than printing them)
-- `/shopconfig view` shows items and event settings; `/shopconfig remove` takes an item out (people keep roles they bought)
+- `/shop` shows what's for sale and `/buy` purchases it
+- **Cosmetic roles:** admins can sell roles with `/shopconfig add-role` or from the dashboard. Roles with powerful permissions, roles above Astra's, and integration roles can't be sold. If a role can't be given, the purchase is refunded automatically
+- **Five fun items, no setup needed:** **Town crier** (Astra announces your message), **Get roasted**, **Get hyped**, **Fake ban** (clearly a joke) and a **Mystery box** with a random payout
+- `/shopconfig view` lists items and event settings; `/shopconfig remove` takes an item off sale (members keep roles they already bought)
 
 **Gambling**
-- `/gamble amount:` is a coin flip: 45% to win double, up to 1000 per bet, short cooldown. Slightly rigged on purpose so it removes coins from the economy
+- `/gamble` flips a coin: win and your bet doubles. Up to 1000 per bet, with a short cooldown. The odds slightly favor the house
 
-**Under the hood**
-- Every money change is one atomic SQL statement (`balance = balance + n`, or `- n` only `WHERE balance >= n`), so simultaneous buys/clicks can't overdraw or lose an update. (The older `/daily` and `/pay` still use read-then-write; they're fine for normal use and can be moved to the same pattern later)
-- New columns `events_enabled`, `events_channel_id`, `events_interval_min` and a new table `shop_items`, all created on boot
-- 4 new commands: `/shop`, `/buy`, `/gamble`, `/shopconfig`. `/help`, `/about`, `/quickstart` and the dashboard text mention them (English and Portuguese)
-- Smart replies learned 3 new topics (51 total): what the shop sells, what the random coin drops are, and how gambling works
-- Tested against a real PostgreSQL with a fake Discord (shop, buying, refunds, gambling, events, double clicks, 50 checks), but not against the live Discord API yet. Expect small things to tune after the first real run
+**Also**
+- `/help`, `/about`, `/quickstart` and the dashboard cover the new commands, in English and Portuguese
+- Smart replies can now answer questions about the shop, random events and gambling
 
 ---
 
@@ -423,23 +417,15 @@
 **October 17, 2026**
 *She joins in on the dumb stuff now.*
 
-**Banter (no AI, works even with smart replies off)**
-- Say her name (or @mention her) and try: **"guess what?"** (she asks "what?", and your next message gets "chicken butt"), **"knock knock"** (she plays the whole bit and rates your joke), **"tell me a joke"**, **"flip a coin"**, **"roll a d20"**, **"rate me"**, **"predict my future"** / **"what's my fortune"** (magic 8-ball style), and **"good bot"** / **"bad bot"**
-- English and Portuguese ("adivinha", "toc toc", "me conta uma piada", "cara ou coroa", "rola um dado"...)
-- Pattern-based and deliberately narrow: only short messages that contain her name, so real questions still go to the smart replies. Follows the same switch as her other silly replies (`/config` mention replies)
-- The two back-and-forth bits are remembered for 90 seconds in memory only, per person and channel, never stored
-- `npm run test-banter` checks it without needing Discord, a database or node-nlp
+**Banter**
+- Say her name and try **"guess what?"**, **"knock knock"**, **"tell me a joke"**, **"flip a coin"**, **"roll a d20"**, **"rate me"**, **"predict my future"**, or **"good bot"** / **"bad bot"**. Works in English and Portuguese
+- Works even with smart replies off, and follows the same on/off switch as her other playful replies (`/config` → mention replies)
 
 **Public stats**
-- The home page now shows how many servers have Astra and how many people they hold. Only counts, no names or IDs; hidden until the bot has connected
-- New `/api/stats` returns the same numbers as JSON (cached for a minute, open to any site), handy for a badge or a tracker later
-- If the bot hasn't connected yet when someone loads the page, the numbers are simply retried on the next visit (a "not ready" result is never cached)
+- The website's home page now shows how many servers use Astra and how many people they reach
 
 **Logo**
-- Placeholder logo (a cyan V with a magenta star) on the home page, as the favicon, and as `public/logo.png` (512x512) ready to upload as the bot avatar or a store listing. Replace the files in `src/public/` whenever the real one exists
-
-**Under the hood**
-- New `src/public/` folder served as static files; new file `src/commands/banter.js`
+- Astra has a (placeholder) logo, shown on the website and as the browser tab icon
 
 ---
 
@@ -448,24 +434,17 @@
 *Astra now posts her own changelog, one version at a time.*
 
 **Updates channel (off by default)**
-- Admins turn it on with `/updates on` and either pick a channel or let her create a read-only `#astra-updates` (`create:True`, needs Manage Channels). Optional `role:` pings a role on every update (`clear_role:True` removes it)
-- After each deploy, Astra posts every version that server hasn't seen yet, **one embed per version**, oldest first (no more giant text file). Long versions are split across several embeds
-- Each server remembers the last version it was shown, so nothing is posted twice. A server that was offline for a while gets at most the 3 newest, with a note about how many were skipped. Turning updates on never dumps old history: it starts from the current version
-- `/updates view` shows the settings, `/updates preview` posts the latest version right now (handy to test the setup, never pings the role), `/updates off` turns it off
-- If she can't post (channel deleted, missing permissions) she just retries after the next start
-- **Dashboard:** a new **Updates** tab does the same from the website: turn it on, pick the channel and ping role, **Create #astra-updates** in one click, and **Post latest now** to preview
+- Admins can turn it on with `/updates on`, either in an existing channel or by letting Astra create a read-only `#astra-updates`. A role can optionally be pinged on each update
+- After every update, Astra posts what's new in that channel, one post per version
+- Nothing is ever posted twice, and turning it on doesn't flood the channel with old history
+- `/updates view` shows the settings, `/updates preview` posts the latest version so you can see how it looks, and `/updates off` turns it off
+- Everything is also available in the new **Updates** tab on the dashboard, including one-click channel creation
 
-**"Update incoming" warning (bot owner only)**
-- `/announce soon` sends an "Update incoming" notice to every server with updates on, with an optional `eta:` and `teaser:`. It follows each server's language and pings that server's role. Only the bot owner can use it (the Discord application's owner, or the IDs in the optional `BOT_OWNER_ID` env var, comma separated)
+**Update notices**
+- Servers with the updates channel on now get a heads-up before a new update arrives
 
-**Under the hood**
-- The text comes from the new `src/changelog.md` (the same content as the changelog; keep headings like `## b.8.19.0 — Title`, oldest first, newest last). Repeated headings are merged and the "upcoming update" placeholder line is ignored
-- New columns `updates_enabled`, `updates_channel_id`, `updates_role_id`, `updates_last_version`, created on boot. New file `src/commands/updates.js`
-- `npm run test-updates` checks it without Discord, a database or network
-
-**Slash commands without restarts**
-- Joining a new server now adds her commands right away (before, they only showed up after her next restart)
-- A server where adding commands fails (usually an old invite missing the "applications.commands" permission) is retried every 5 minutes, so re-inviting her is enough, no restart needed
-- That server's dashboard shows a warning with a **Re-authorize Astra** button, and opening the dashboard retries immediately
+**Slash commands**
+- When Astra joins a new server, her commands are available right away
+- If her commands are missing from a server (usually because she was added with an old invite link), the dashboard now shows a **Re-authorize Astra** button. After re-authorizing, the commands appear within a few minutes
 
 ---
