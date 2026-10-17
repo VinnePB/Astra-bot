@@ -347,6 +347,13 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS mod_warn_ban_at INTEGER;
             `);
 
+            await client.query(`
+                ALTER TABLE guild_settings
+                ADD COLUMN IF NOT EXISTS divider_access_role_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS divider_levels_role_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS divider_special_role_id VARCHAR(30);
+            `);
+
             await client.query(`ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ;`);
 
             await client.query(`

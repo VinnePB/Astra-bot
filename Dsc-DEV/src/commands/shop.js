@@ -404,6 +404,7 @@ async function executeSlashBuy(interaction) {
             }
             try {
                 await member.roles.add(item.role_id, 'Bought in the Astra shop');
+                await require('../rolekit').giveDivider(member, 'special');
             } catch (err) {
                 await addBalance(guild.id, userId, Number(item.price)); // refund
                 console.error('❌ Could not give shop role, refunded:', err.message);

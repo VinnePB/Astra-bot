@@ -25,6 +25,7 @@ const retention = require('./retention');
 const alerts = require('./alerts');
 const backup = require('./backup');
 const ownerCommand = require('./commands/owner');
+const rolekit = require('./rolekit');
 const mydataCommand = require('./commands/mydata');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
@@ -602,11 +603,20 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const updatesVersion = updatesCommand.currentEntry()?.version || null;
         const shopErr = ['name', 'price', 'builtin', 'limit', 'invalid', 'managed', 'dangerous', 'hierarchy'].includes(req.query.shoperr) ? req.query.shoperr : null;
 
+        const rolesReport = req.session.rolesReport || null;
+        delete req.session.rolesReport;
+        const roleById = (id) => (id ? roles.find((r) => r.id === id) : null);
+        const hierarchy = {
+            memberRole: roleById(settings.member_role_id)?.name || null,
+            gatingOn: !!(settings.verify_channel_id && roleById(settings.member_role_id)),
+            dividers: ['divider_access_role_id', 'divider_levels_role_id', 'divider_special_role_id'].map((c) => roleById(settings[c])?.name).filter(Boolean),
+        };
+
         const editingId = req.query.edit || null;
         const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, updateChannels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, updErr, updatesVersion, commandsMissing,
+            user: req.session.user, settings, channels, updateChannels, rolesReport, hierarchy, categories, roles, adminRoles, levelRoles, shopItems, shopErr, updErr, updatesVersion, commandsMissing,
             reinviteUrl: `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&permissions=${BOT_INVITE_PERMISSIONS}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
@@ -1226,6 +1236,25 @@ app.post('/api/admins/add', checkAuth, async (req, res) => {
     } catch (err) { res.status(500).send("DB Error."); }
 });
 
+// Creates the Astra Admin / Verified roles when missing, lets Verified members
+// use Astra's everyday commands, and (optionally) creates the divider roles.
+app.post('/api/roles/setup', checkAuth, async (req, res) => {
+    const { guild_id, dividers } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return res.redirect('/dashboard?tab=admins&upderr=offline');
+        const result = await rolekit.setupHierarchy(guild, { dividers: dividers === 'on' });
+        req.session.rolesReport = result.lines;
+        await configCommand.logAction(guild, `⚙️ ${req.session.user.username} ran the role hierarchy setup from the website.`);
+        req.session.save(() => res.redirect('/dashboard?tab=admins&status=success'));
+    } catch (err) {
+        console.error('❌ Error in role setup:', err);
+        req.session.rolesReport = [{ k: 'r_error' }];
+        req.session.save(() => res.redirect('/dashboard?tab=admins'));
+    }
+});
+
 app.post('/api/admins/remove', checkAuth, async (req, res) => {
     const { guild_id, role_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
@@ -1675,6 +1704,18 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.isChatInputCommand()) {
+        // Everyday commands need the Verified role once verification is set up.
+        if (rolekit.MEMBER_COMMANDS.has(interaction.commandName)) {
+            try {
+                const gs = (await db.query('SELECT language, verify_channel_id, member_role_id FROM guild_settings WHERE guild_id = $1', [interaction.guild.id])).rows[0];
+                if (!(await rolekit.memberMayUseCommands(interaction.member, gs))) {
+                    return interaction.reply({
+                        content: t(gs?.language, 'member.need_verified', { role: `<@&${gs.member_role_id}>` }),
+                        ephemeral: true, allowedMentions: { parse: [] },
+                    });
+                }
+            } catch (e) { console.error('❌ member role check failed:', e.message); }
+        }
         if (interaction.commandName === 'config') {
             await configCommand.executeSlash(interaction);
         } else if (interaction.commandName === 'help') {

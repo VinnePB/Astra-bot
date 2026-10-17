@@ -794,6 +794,45 @@
                 <button type="submit" class="fui-btn text-xs px-4 text-cyan-300 border-cyan-500/30 whitespace-nowrap"><%= t('dashboard.admins.add_button') %></button>
             </form>
         </div>
+
+        <div class="fui-panel fui-corners p-5 md:p-8 mt-6">
+            <h2 class="fui-section-title"><%= t('dashboard.roles.title') %></h2>
+            <p class="text-sm text-slate-500 mb-5"><%= t('dashboard.roles.desc') %></p>
+
+            <% if (rolesReport && rolesReport.length) { %>
+                <div class="mb-5 border border-cyan-500/20 bg-black/40 px-4 py-3 space-y-1">
+                    <% rolesReport.forEach(line => { %>
+                        <p class="text-xs text-slate-300"><%= t('dashboard.roles.' + line.k, { name: line.name || '' }) %></p>
+                    <% }) %>
+                </div>
+            <% } %>
+
+            <div class="space-y-2 mb-5 text-sm">
+                <div class="flex items-center justify-between bg-black/40 border border-cyan-500/10 px-4 py-2.5">
+                    <span class="text-white"><%= t('dashboard.roles.tier_owner') %></span>
+                    <span class="text-xs text-slate-500"><%= t('dashboard.roles.tier_owner_note') %></span>
+                </div>
+                <div class="flex items-center justify-between bg-black/40 border border-cyan-500/10 px-4 py-2.5">
+                    <span class="text-white"><%= t('dashboard.roles.tier_admin') %></span>
+                    <span class="text-xs text-slate-500"><%= adminRoles.length ? adminRoles.map(r => '@' + r.name).join(', ') : t('dashboard.roles.not_set') %></span>
+                </div>
+                <div class="flex items-center justify-between bg-black/40 border border-cyan-500/10 px-4 py-2.5">
+                    <span class="text-white"><%= t('dashboard.roles.tier_member') %></span>
+                    <span class="text-xs text-slate-500"><%= hierarchy.memberRole ? '@' + hierarchy.memberRole : t('dashboard.roles.not_set') %></span>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 mb-1"><%= hierarchy.gatingOn ? t('dashboard.roles.gating_on', { name: hierarchy.memberRole }) : t('dashboard.roles.gating_off') %></p>
+            <p class="text-xs text-slate-500 mb-5"><%= hierarchy.dividers.length ? t('dashboard.roles.dividers_have', { names: hierarchy.dividers.join(', ') }) : t('dashboard.roles.dividers_none') %></p>
+
+            <form action="/api/roles/setup" method="POST" class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
+                <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input type="checkbox" name="dividers" class="w-5 h-5 accent-cyan-500">
+                    <%= t('dashboard.roles.dividers_label') %>
+                </label>
+                <button type="submit" class="fui-btn text-xs px-4 py-2 text-cyan-300 border-cyan-500/30 whitespace-nowrap"><%= t('dashboard.roles.setup_button') %></button>
+            </form>
+        </div>
     </div>
 </div>
 

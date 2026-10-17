@@ -2,6 +2,7 @@ const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Embed
 const db = require('../database');
 const { isServerAdministrator, isAstraAdmin, roleDelegationProblem } = require('../permissions');
 const { t } = require('../i18n');
+const rolekit = require('../rolekit');
 
 async function getSettings(guildId) {
     const { rows } = await db.query('SELECT * FROM guild_settings WHERE guild_id = $1', [guildId]);
@@ -57,6 +58,7 @@ async function checkAndGrantFinalRole(member, settings) {
 
     if (!member.roles.cache.has(settings.member_role_id)) {
         await member.roles.add(settings.member_role_id);
+        await rolekit.giveDivider(member, 'access');
     }
     return true;
 }
@@ -1191,6 +1193,7 @@ module.exports = {
                 if (!settings.rules_role_id || !settings.verify_role_id) {
                     if (!member.roles.cache.has(settings.member_role_id)) {
                         await member.roles.add(settings.member_role_id);
+                        await rolekit.giveDivider(member, 'access');
                     }
                     return interaction.reply({ content: "Verified", ephemeral: true });
                 }
@@ -1379,11 +1382,8 @@ module.exports = {
             const channel = await member.guild.channels.fetch(targetChannelId).catch(() => null);
             if (!channel || !channel.isTextBased()) return;
 
-            const nextStep = settings.rules_channel_id
-                ? `read the rules and click **I Agree**`
-                : `click **Verify**`;
-
-            const welcome = await channel.send(`👋 Welcome ${member}! Please ${nextStep} above to get access to the rest of the server.`);
+            const key = settings.rules_channel_id ? 'welcome.nudge_rules' : 'welcome.nudge_verify';
+            const welcome = await channel.send({ content: t(settings.language, key, { user: member.toString() }), allowedMentions: { users: [member.id] } });
             // Keep the channel tidy — this is a one-time nudge, not a permanent post.
             setTimeout(() => welcome.delete().catch(() => {}), 30_000);
         } catch (error) {

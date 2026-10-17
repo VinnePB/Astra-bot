@@ -524,7 +524,7 @@
 
 ---
 
-## b.8.21.0 — Reliability & Your Data *(current)*
+## b.8.21.0 — Reliability & Your Data
 **October 17, 2026**
 *Safer operations behind the scenes, and more control over your own data.*
 
@@ -541,5 +541,29 @@
 **Server safety**
 - The developer can now review the servers Astra is in and remove her, or permanently block a server, if its use breaks the Terms of Service. The server owner is told why
 - Blocked servers can't add Astra again
+
+---
+
+## b.8.22.0 — Roles, Help & Updates *(current)*
+**October 17, 2026**
+*A clearer role structure for your server, a tidier help menu, and a more flexible updates channel.*
+
+**Roles**
+- New role hierarchy: Owner, Astra Admin and Verified member. Astra can create the Astra Admin and Verified roles if your server doesn't have them yet
+- Verified members can now use Astra's everyday commands (rank, daily, shop and the rest). Until verification is set up, these stay open to everyone
+- Optional divider roles (━━━━ LEVELS ━━━━, ━━━━ SPECIAL ━━━━ and more) that Astra creates, places in order and hands out together with the roles they head
+- None of these roles carry moderation powers
+
+**Help**
+- `/help` is now split into sections you pick from a menu, and each person only sees the sections that apply to them
+- New section about your data and privacy
+
+**Updates channel**
+- Announcement channels can now be used for updates, and the dashboard shows which channels Astra can't post in yet
+- For private channels, Astra now tries to give herself access, and tells you what to change if Discord doesn't allow it
+
+**Other**
+- The welcome notice in the rules channel now follows the server's language
+- `/owner` now lives only in direct messages with Astra
 
 ---

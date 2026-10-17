@@ -187,7 +187,7 @@ module.exports = {
                 );
                 for (const { role_id } of roleRows) {
                     if (!message.member.roles.cache.has(role_id)) {
-                        await message.member.roles.add(role_id).catch(async (err) => {
+                        const gave = await message.member.roles.add(role_id).then(() => true).catch(async (err) => {
                             // Usually: the reward role sits above Astra's own role, or she
                             // lacks Manage Roles. Tell admins once per role instead of
                             // failing silently (or spamming on every level-up).
@@ -200,6 +200,7 @@ module.exports = {
                                 await logAction(message.guild, `⚠️ I couldn't give <@&${role_id}> as a level reward (to ${message.author}). Move my role **above** it in Server Settings → Roles and make sure I have Manage Roles.`);
                             } catch (_) {}
                         });
+                        if (gave) await require('../rolekit').giveDivider(message.member, 'levels');
                     }
                 }
             } catch (roleErr) {
