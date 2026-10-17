@@ -163,7 +163,11 @@
         </div>
     </div>
 
-    <%- include('partials/credit', { t }) %>
+    <footer class="relative z-10 text-center text-[11px] text-slate-600 fui-tracked uppercase pb-8 px-5">
+    <a href="/support" class="hover:text-cyan-300 transition"><%= t('site.support.footer_support') %></a>
+    <span class="mx-2">&middot;</span>
+    <span><%= t('site.support.footer_credit') %></span>
+</footer>
 
     <script>
         (function () {
