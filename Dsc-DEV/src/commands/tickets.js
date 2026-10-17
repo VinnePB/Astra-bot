@@ -267,6 +267,8 @@ async function closeTicketByChannelId(guild, channelId, closedByUser, options = 
 
 module.exports = {
     isArtist,
+    DEFAULTS: { tos: DEFAULT_TOS, wontdo: DEFAULT_WONTDO, askme: DEFAULT_ASKME, price: DEFAULT_PRICE },
+    PRICING_CATEGORIES,
     findRealOpenTicket,
     ensureArtistSetupChannel,
 

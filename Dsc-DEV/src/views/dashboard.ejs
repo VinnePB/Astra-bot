@@ -817,6 +817,10 @@
                     <span class="text-xs text-slate-500"><%= adminRoles.length ? adminRoles.map(r => '@' + r.name).join(', ') : t('dashboard.roles.not_set') %></span>
                 </div>
                 <div class="flex items-center justify-between bg-black/40 border border-cyan-500/10 px-4 py-2.5">
+                    <span class="text-white"><%= t('dashboard.roles.tier_mod') %></span>
+                    <span class="text-xs text-slate-500"><%= hierarchy.modRole ? '@' + hierarchy.modRole : t('dashboard.roles.not_set') %></span>
+                </div>
+                <div class="flex items-center justify-between bg-black/40 border border-cyan-500/10 px-4 py-2.5">
                     <span class="text-white"><%= t('dashboard.roles.tier_member') %></span>
                     <span class="text-xs text-slate-500"><%= hierarchy.memberRole ? '@' + hierarchy.memberRole : t('dashboard.roles.not_set') %></span>
                 </div>

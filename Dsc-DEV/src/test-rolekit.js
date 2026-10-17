@@ -2,7 +2,7 @@
 const assert = require('assert');
 const Module = require('module');
 
-const FLAG = { UseApplicationCommands: 1n << 31n, ManageRoles: 1n << 28n, Administrator: 8n };
+const FLAG = { UseApplicationCommands: 1n << 31n, ManageRoles: 1n << 28n, Administrator: 8n, BanMembers: 1n << 2n, KickMembers: 1n << 1n, ModerateMembers: 1n << 40n, ManageMessages: 1n << 13n, ManageGuild: 1n << 5n, ManageChannels: 1n << 4n };
 const store = { settings: {}, admins: [] };
 const queries = [];
 const fakeDb = { query: async (sql, p) => {
@@ -60,10 +60,13 @@ function makeGuild({ canManage = true } = {}) {
     const r1 = await rolekit.setupHierarchy(guild, { dividers: true });
     assert.ok(r1.ok);
     const names = [...roles.values()].map((r) => r.name);
-    for (const n of ['Verified', 'Astra Admin', '━━━━ ACCESS ━━━━', '━━━━ LEVELS ━━━━', '━━━━ SPECIAL ━━━━']) assert.ok(names.includes(n), n + ' created');
+    for (const n of ['Verified', 'Astra Admin', 'Moderator', '━━━━ ACCESS ━━━━', '━━━━ LEVELS ━━━━', '━━━━ SPECIAL ━━━━']) assert.ok(names.includes(n), n + ' created');
     const verified = [...roles.values()].find((r) => r.name === 'Verified');
     assert.ok(verified.permissions.has(FLAG.UseApplicationCommands));
-    assert.ok(![...roles.values()].some((r) => r.permissions.has(FLAG.Administrator) || r.permissions.has(FLAG.ManageRoles)), 'no powerful permissions given');
+    assert.ok(![...roles.values()].some((r) => [FLAG.Administrator, FLAG.ManageRoles, FLAG.ManageGuild, FLAG.ManageChannels].some((f) => r.permissions.has(f))), 'no role gets role/server management');
+    const mod = [...roles.values()].find((r) => r.name === 'Moderator');
+    for (const f of [FLAG.BanMembers, FLAG.KickMembers, FLAG.ModerateMembers, FLAG.ManageMessages]) assert.ok(mod.permissions.has(f), 'moderator has the 4 mod perms');
+    assert.ok(!store.admins.includes(mod.id), 'moderator is not an Astra admin');
     assert.strictEqual(store.settings.g1.member_role_id, verified.id);
     assert.strictEqual(store.admins.length, 1);
 

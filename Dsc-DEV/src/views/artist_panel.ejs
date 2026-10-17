@@ -1,0 +1,158 @@
+<%- include('partials/header') %>
+
+<div class="max-w-6xl mx-auto">
+    <header class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full overflow-hidden bg-black/60 flex-shrink-0 border border-cyan-500/20">
+                <% if (guildIcon) { %>
+                    <img src="<%= guildIcon %>" alt="" class="w-full h-full object-cover">
+                <% } else { %>
+                    <div class="w-full h-full flex items-center justify-center text-cyan-300 font-bold"><%= guildName.charAt(0) %></div>
+                <% } %>
+            </div>
+            <div>
+                <h1 class="fui-brand text-xl md:text-2xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);"><%= t('site.artist.title').toUpperCase() %></h1>
+                <p class="text-slate-400 text-sm"><%= guildName %></p>
+            </div>
+        </div>
+        <a href="/select-server" class="fui-btn text-xs px-4 py-2 text-slate-300 hover:text-cyan-300 self-start"><%= t('site.artist.back') %></a>
+    </header>
+
+    <p class="text-sm text-slate-500 mb-6"><%= t('site.artist.intro') %></p>
+
+    <% if (saved) { %>
+        <div class="mb-6 border border-cyan-500/40 bg-cyan-500/5 px-4 py-3 text-sm text-cyan-200"><%= t('site.artist.saved') %></div>
+    <% } %>
+    <% if (err) { %>
+        <div class="mb-6 border border-fuchsia-500/40 bg-fuchsia-500/5 px-4 py-3 text-sm text-fuchsia-200"><%= t('site.artist.err_' + err) %></div>
+    <% } %>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+        <!-- EDITOR -->
+        <form action="/artist-panel/<%= guildId %>" method="POST" class="fui-panel fui-corners p-5 md:p-8 space-y-6" autocomplete="off">
+            <div>
+                <label class="fui-label" for="f-tos"><%= t('site.artist.tos_label') %></label>
+                <textarea id="f-tos" name="tos_text" rows="4" maxlength="<%= limits.text %>" class="fui-input" placeholder="<%= t('site.artist.blank_default') %>"><%= profile.tos_text || '' %></textarea>
+            </div>
+            <div>
+                <label class="fui-label" for="f-wontdo"><%= t('site.artist.wontdo_label') %></label>
+                <textarea id="f-wontdo" name="wontdo_text" rows="3" maxlength="<%= limits.text %>" class="fui-input" placeholder="<%= t('site.artist.blank_default') %>"><%= profile.wontdo_text || '' %></textarea>
+            </div>
+            <div>
+                <label class="fui-label" for="f-askme"><%= t('site.artist.askme_label') %></label>
+                <textarea id="f-askme" name="askme_text" rows="3" maxlength="<%= limits.text %>" class="fui-input" placeholder="<%= t('site.artist.blank_default') %>"><%= profile.askme_text || '' %></textarea>
+            </div>
+            <div>
+                <label class="fui-label" for="f-banner"><%= t('site.artist.banner_label') %> <span class="normal-case text-slate-600"><%= t('site.artist.optional') %></span></label>
+                <input id="f-banner" type="text" name="banner_url" maxlength="<%= limits.banner %>" value="<%= profile.banner_url || '' %>" placeholder="https://example.com/your-banner.png" class="fui-input">
+            </div>
+            <div>
+                <label class="fui-label mb-3"><%= t('site.artist.links_label') %> <span class="normal-case text-slate-600"><%= t('site.artist.optional') %></span></label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1" for="f-portfolio"><%= t('site.artist.link_portfolio') %></label>
+                        <input id="f-portfolio" type="text" name="link_portfolio" maxlength="<%= limits.link %>" value="<%= profile.link_portfolio || '' %>" placeholder="https://..." class="fui-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1" for="f-twitter"><%= t('site.artist.link_twitter') %></label>
+                        <input id="f-twitter" type="text" name="link_twitter" maxlength="<%= limits.link %>" value="<%= profile.link_twitter || '' %>" placeholder="https://..." class="fui-input">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-500 mb-1" for="f-instagram"><%= t('site.artist.link_instagram') %></label>
+                        <input id="f-instagram" type="text" name="link_instagram" maxlength="<%= limits.link %>" value="<%= profile.link_instagram || '' %>" placeholder="https://..." class="fui-input">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1" for="f-olabel"><%= t('site.artist.link_other_name') %></label>
+                            <input id="f-olabel" type="text" name="link_other_label" maxlength="<%= limits.label %>" value="<%= profile.link_other_label || '' %>" placeholder="Ko-fi" class="fui-input">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1" for="f-other"><%= t('site.artist.link_other_url') %></label>
+                            <input id="f-other" type="text" name="link_other" maxlength="<%= limits.link %>" value="<%= profile.link_other || '' %>" placeholder="https://..." class="fui-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <label class="fui-label mb-3"><%= t('site.artist.pricing_label') %></label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <% pricing.forEach((p, i) => { %>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1" for="f-price-<%= i %>"><%= p.category %></label>
+                            <input id="f-price-<%= i %>" type="text" name="price_<%= i %>" maxlength="<%= limits.price %>" value="<%= p.price || '' %>" placeholder="<%= defaults.price %>" class="fui-input" data-price="<%= p.category %>">
+                        </div>
+                    <% }) %>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500"><%= t('site.artist.blank_hint') %></p>
+            <button type="submit" class="fui-btn py-3 px-6 text-sm text-cyan-300 border-cyan-500/30"><%= t('site.artist.save') %></button>
+        </form>
+
+        <!-- LIVE PREVIEW (looks like the embed clients see in Discord) -->
+        <div class="lg:sticky lg:top-24">
+            <h2 class="fui-section-title mb-1"><%= t('site.artist.preview_title') %></h2>
+            <p class="text-xs text-slate-500 mb-3"><%= t('site.artist.preview_note') %></p>
+            <div class="rounded-md p-4" style="background:#2b2d31; border-left:4px solid #5865f2; color:#dbdee1;">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="font-semibold text-white mb-3 break-words"><span aria-hidden="true">&#127912;</span> Commission Info &mdash; <span id="pv-name"><%= artistName %></span></div>
+                    </div>
+                    <img src="<%= artistAvatar %>" alt="" class="w-14 h-14 rounded-md flex-shrink-0">
+                </div>
+                <div class="space-y-3 text-sm">
+                    <div><div class="font-semibold text-white">&#128220; Terms of Service</div><div id="pv-tos" class="whitespace-pre-wrap break-words"></div></div>
+                    <div><div class="font-semibold text-white">&#128683; Won't Do</div><div id="pv-wontdo" class="whitespace-pre-wrap break-words"></div></div>
+                    <div><div class="font-semibold text-white">&#128587; Ask Me About</div><div id="pv-askme" class="whitespace-pre-wrap break-words"></div></div>
+                    <div><div class="font-semibold text-white">&#128176; Pricing</div><div id="pv-pricing" class="break-words"></div></div>
+                </div>
+                <img id="pv-banner" alt="" class="mt-4 rounded-md max-h-64 w-full object-cover" style="display:none;">
+                <div class="text-xs mt-4" style="color:#949ba4;">Astra</div>
+            </div>
+            <div id="pv-links" class="flex flex-wrap gap-2 mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="panel-defaults"><%- JSON.stringify(defaults).replace(/</g, '\\u003c') %></script>
+<script>
+(function () {
+    // Preview only ever uses textContent / setAttribute, never innerHTML.
+    var D = JSON.parse(document.getElementById('panel-defaults').textContent);
+    var $ = function (id) { return document.getElementById(id); };
+    var isUrl = function (v) { try { var u = new URL(v); return u.protocol === 'http:' || u.protocol === 'https:'; } catch (e) { return false; } };
+    var val = function (id) { return ($(id).value || '').trim(); };
+
+    function render() {
+        $('pv-tos').textContent = val('f-tos') || D.tos;
+        $('pv-wontdo').textContent = val('f-wontdo') || D.wontdo;
+        $('pv-askme').textContent = val('f-askme') || D.askme;
+
+        var box = $('pv-pricing'); box.textContent = '';
+        document.querySelectorAll('[data-price]').forEach(function (inp) {
+            var line = document.createElement('div');
+            var b = document.createElement('strong'); b.textContent = inp.getAttribute('data-price') + ': ';
+            line.appendChild(b); line.appendChild(document.createTextNode((inp.value || '').trim() || D.price));
+            box.appendChild(line);
+        });
+
+        var banner = val('f-banner'), img = $('pv-banner');
+        if (banner && isUrl(banner)) { img.src = banner; img.style.display = 'block'; } else { img.removeAttribute('src'); img.style.display = 'none'; }
+
+        var links = $('pv-links'); links.textContent = '';
+        [['Portfolio', 'f-portfolio'], ['Twitter / X', 'f-twitter'], ['Instagram', 'f-instagram'], [val('f-olabel') || 'More', 'f-other']].forEach(function (l) {
+            var u = val(l[1]);
+            if (!u || !isUrl(u)) return;
+            var chip = document.createElement('span');
+            chip.className = 'text-xs px-3 py-1.5 rounded-md';
+            chip.style.cssText = 'background:#4e5058;color:#fff;';
+            chip.textContent = '🔗 ' + l[0].slice(0, 80);
+            links.appendChild(chip);
+        });
+    }
+    document.querySelectorAll('form input, form textarea').forEach(function (el) { el.addEventListener('input', render); });
+    render();
+})();
+</script>
+
+<%- include('partials/footer') %>

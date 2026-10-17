@@ -534,10 +534,14 @@
 *A clearer role structure for your server, a tidier help menu, and a more flexible updates channel.*
 
 **Roles**
-- New role hierarchy: Owner, Astra Admin and Verified member. Astra can create the Astra Admin and Verified roles if your server doesn't have them yet
+- New role hierarchy: Owner, Astra Admin, Moderator and Verified member. Astra can create the Astra Admin, Moderator and Verified roles if your server doesn't have them yet. Moderator only carries ban, kick, timeout and message-management permissions
 - Verified members can now use Astra's everyday commands (rank, daily, shop and the rest). Until verification is set up, these stay open to everyone
 - Optional divider roles (━━━━ LEVELS ━━━━, ━━━━ SPECIAL ━━━━ and more) that Astra creates, places in order and hands out together with the roles they head
 - None of these roles carry moderation powers
+
+**Artists**
+- Artists can now edit their own commission panel on the website: terms, won't-do list, pricing, banner and links, with a live preview of how it looks in Discord
+- Each artist only sees and edits their own panel
 
 **Help**
 - `/help` is now split into sections you pick from a menu, and each person only sees the sections that apply to them
@@ -548,6 +552,7 @@
 - For private channels, Astra now tries to give herself access, and tells you what to change if Discord doesn't allow it
 
 **Other**
+- The server list on the website now shows your role in each server (Owner, Admin or Member), and servers where you can't configure Astra are listed as "No permission to configure"
 - The welcome notice in the rules channel now follows the server's language
 - `/owner` now lives only in direct messages with Astra
 

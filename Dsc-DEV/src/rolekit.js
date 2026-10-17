@@ -1,13 +1,14 @@
 // --- ROLE HIERARCHY KIT ---
-// Owner > Astra Admin > Verified member. This file:
-//   * creates the "Astra Admin" and "Verified" roles when they are missing,
+// Owner > Astra Admin / Moderator > Verified member. This file:
+//   * creates the "Astra Admin", "Moderator" and "Verified" roles when they are missing,
 //   * lets Verified members use Astra's everyday commands (Discord's own
 //     "Use Application Commands" permission on that role, plus a check inside
 //     Astra),
 //   * creates and places cosmetic divider roles (━━━━ LEVELS ━━━━ ...) and
 //     hands them out together with the roles they head.
 // Nothing here ever gives a role real moderation power: created roles carry no
-// permissions except "Use Application Commands" on Verified.
+// permissions except "Use Application Commands" on Verified and the four
+// moderation permissions on Moderator (never role or server management).
 
 const { PermissionFlagsBits } = require('discord.js');
 const db = require('./database');
@@ -15,6 +16,9 @@ const { isAstraAdmin } = require('./permissions');
 
 const ADMIN_ROLE_NAME = 'Astra Admin';
 const MEMBER_ROLE_NAME = 'Verified';
+const MOD_ROLE_NAME = 'Moderator';
+// Only what Astra's moderation commands check. No role management, no server management.
+const MOD_PERMS = ['BanMembers', 'KickMembers', 'ModerateMembers', 'ManageMessages'];
 
 const DIVIDERS = {
     access:  { col: 'divider_access_role_id',  name: '━━━━ ACCESS ━━━━' },
@@ -119,7 +123,13 @@ async function setupHierarchy(guild, { dividers = false } = {}) {
         note(made.created ? 'r_created' : 'r_reused', made.role);
     } catch (e) { console.error('❌ rolekit admin:', e.message); lines.push({ k: 'r_error', name: ADMIN_ROLE_NAME }); }
 
-    // 3) cosmetic dividers
+    // 3) Moderator: the four permissions Astra's moderation commands need, nothing else
+    try {
+        const made = await findOrCreate(guild, MOD_ROLE_NAME, { permissions: MOD_PERMS.map((p) => PermissionFlagsBits[p]), mentionable: false }, 'Astra: Moderator role');
+        note(made.created ? 'r_created' : 'r_reused', made.role);
+    } catch (e) { console.error('❌ rolekit moderator:', e.message); lines.push({ k: 'r_error', name: MOD_ROLE_NAME }); }
+
+    // 4) cosmetic dividers
     if (dividers) {
         const fresh = (await getSettings(guild.id)) || {};
         const groups = {
@@ -160,4 +170,4 @@ async function giveDivider(member, kind) {
     } catch (_) { /* cosmetic only */ }
 }
 
-module.exports = { setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, _test: { placeAbove } };
+module.exports = { setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };

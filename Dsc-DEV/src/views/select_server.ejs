@@ -35,6 +35,7 @@
                             </div>
                             <div class="text-left overflow-hidden flex-1">
                                 <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
+                                <span class="inline-block text-[10px] font-bold fui-tracked uppercase px-1.5 py-0.5 mr-1 border <%= guild.owner ? 'text-fuchsia-300 border-fuchsia-500/50' : 'text-cyan-300 border-cyan-500/40' %>"><%= guild.owner ? t('site.selectserver.role_owner') : t('site.selectserver.role_admin') %></span>
                                 <span class="text-xs text-cyan-400 font-medium fui-tracked uppercase"><%= t('site.selectserver.active_badge') %></span>
                                 <%
                                     const sp = (typeof setup !== 'undefined' && setup) ? setup[guild.id] : null;
@@ -67,6 +68,60 @@
         <% } %>
     </section>
 
+    <!-- ARTIST PANELS: servers where this person is an artist -->
+    <% if (typeof artistGuildList !== 'undefined' && artistGuildList.length > 0) { %>
+        <section class="mb-12">
+            <h2 class="fui-section-title" style="color: #ff6fa0;"><%= t('site.selectserver.artist_heading') %></h2>
+            <p class="text-xs text-slate-500 mt-1"><%= t('site.selectserver.artist_hint') %></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <% artistGuildList.forEach(guild => { %>
+                    <a href="/artist-panel/<%= guild.id %>" class="fui-panel fui-corners flex items-center gap-4 p-4 hover:border-fuchsia-400/60 transition-all group">
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-black/60 flex-shrink-0 border border-fuchsia-500/30">
+                            <% if (guild.icon) { %>
+                                <img src="https://cdn.discordapp.com/icons/<%= guild.id %>/<%= guild.icon %>.png" alt="" class="w-full h-full object-cover">
+                            <% } else { %>
+                                <div class="w-full h-full flex items-center justify-center text-fuchsia-300 font-bold bg-black/60"><%= guild.name.charAt(0) %></div>
+                            <% } %>
+                        </div>
+                        <div class="flex-1 overflow-hidden">
+                            <h3 class="font-semibold text-white truncate"><%= guild.name %></h3>
+                            <span class="inline-block text-[10px] font-bold fui-tracked uppercase px-1.5 py-0.5 mr-1 border text-fuchsia-300 border-fuchsia-500/50"><%= t('site.selectserver.role_artist') %></span>
+                            <span class="text-xs text-slate-400"><%= t('site.selectserver.artist_open') %></span>
+                        </div>
+                        <span class="text-slate-600 group-hover:text-fuchsia-400 transition text-xl">&rarr;</span>
+                    </a>
+                <% }) %>
+            </div>
+        </section>
+    <% } %>
+
+    <!-- NO PERMISSION: Astra is here, but this account can't configure it -->
+    <% if (typeof guildsNoAccess !== 'undefined' && guildsNoAccess.length > 0) { %>
+        <section class="mb-12">
+            <h2 class="fui-section-title" style="color: #94a3b8;"><%= t('site.selectserver.noaccess_heading') %></h2>
+            <p class="text-xs text-slate-500 mt-1"><%= t('site.selectserver.noaccess_hint') %></p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <% guildsNoAccess.forEach(guild => { %>
+                    <div class="fui-panel fui-corners flex items-center gap-4 p-4" style="opacity: 0.7;">
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-black/60 flex-shrink-0 border border-slate-700">
+                            <% if (guild.icon) { %>
+                                <img src="https://cdn.discordapp.com/icons/<%= guild.id %>/<%= guild.icon %>.png" alt="Icon" class="w-full h-full object-cover">
+                            <% } else { %>
+                                <div class="w-full h-full flex items-center justify-center text-slate-500 font-bold bg-black/60"><%= guild.name.charAt(0) %></div>
+                            <% } %>
+                        </div>
+                        <div class="flex-1 overflow-hidden">
+                            <h3 class="font-semibold text-slate-300 truncate"><%= guild.name %></h3>
+                            <span class="inline-block text-[10px] font-bold fui-tracked uppercase px-1.5 py-0.5 mr-1 border text-slate-400 border-slate-600"><%= t('site.selectserver.role_member') %></span>
+                            <span class="text-xs text-fuchsia-300"><%= t('site.selectserver.no_permission') %></span>
+                        </div>
+                        <span class="text-slate-600 text-lg" aria-hidden="true">&#128274;</span>
+                    </div>
+                <% }) %>
+            </div>
+        </section>
+    <% } %>
+
     <!-- NEEDS INVITE -->
     <% if (guildsWithoutBot.length > 0) { %>
         <section>
@@ -83,6 +138,7 @@
                         </div>
                         <div class="flex-1 overflow-hidden">
                             <h3 class="font-semibold text-slate-300 truncate"><%= guild.name %></h3>
+                            <span class="inline-block text-[10px] font-bold fui-tracked uppercase px-1.5 py-0.5 mr-1 border <%= guild.owner ? 'text-fuchsia-300 border-fuchsia-500/50' : 'text-slate-400 border-slate-500/40' %>"><%= guild.owner ? t('site.selectserver.role_owner') : t('site.selectserver.role_admin') %></span>
                             <span class="text-xs text-slate-500"><%= t('site.selectserver.not_added_badge') %></span>
                         </div>
                         <a href="https://discord.com/api/oauth2/authorize?client_id=<%= clientId %>&permissions=<%= botInvitePermissions %>&scope=bot%20applications.commands&guild_id=<%= guild.id %>&disable_guild_select=true"

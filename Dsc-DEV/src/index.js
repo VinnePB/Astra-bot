@@ -26,6 +26,7 @@ const alerts = require('./alerts');
 const backup = require('./backup');
 const ownerCommand = require('./commands/owner');
 const rolekit = require('./rolekit');
+const artistPortal = require('./artistportal');
 const mydataCommand = require('./commands/mydata');
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled Rejection:', reason));
@@ -439,6 +440,16 @@ app.get('/select-server', checkAuth, async (req, res) => {
         // dashboard with no explanation.
         const guildsWithBot = adminGuilds.filter(g => botGuildIds.has(g.id));
         const guildsWithoutBot = adminGuilds.filter(g => !botGuildIds.has(g.id));
+        // Servers Astra is in where this person has no Administrator permission: listed so
+        // they can see why they can't configure them (read-only, never selectable).
+        const guildsNoAccess = userGuildsResp.data.filter(g => (BigInt(g.permissions) & 8n) !== 8n && botGuildIds.has(g.id));
+
+        // Servers where this person is an artist (registered by an admin or holding an
+        // artist role): they get their own panel editor there, nothing else.
+        let artistGuildList = [];
+        try {
+            artistGuildList = await artistPortal.artistGuilds(client, req.session.user.id, userGuildsResp.data.filter(g => botGuildIds.has(g.id)));
+        } catch (e) { console.error('❌ Artist guild lookup failed:', e.message); }
 
         const siteLang = req.session.siteLang || 'en';
         const setup = {};
@@ -452,6 +463,8 @@ app.get('/select-server', checkAuth, async (req, res) => {
             user: req.session.user,
             guildsWithBot,
             guildsWithoutBot,
+            guildsNoAccess,
+            artistGuildList,
             clientId: process.env.DISCORD_CLIENT_ID,
             botInvitePermissions: BOT_INVITE_PERMISSIONS,
             currentLang: siteLang,
@@ -608,6 +621,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const roleById = (id) => (id ? roles.find((r) => r.id === id) : null);
         const hierarchy = {
             memberRole: roleById(settings.member_role_id)?.name || null,
+            modRole: roles.find((r) => r.name === rolekit.MOD_ROLE_NAME)?.name || null,
             gatingOn: !!(settings.verify_channel_id && roleById(settings.member_role_id)),
             dividers: ['divider_access_role_id', 'divider_levels_role_id', 'divider_special_role_id'].map((c) => roleById(settings[c])?.name).filter(Boolean),
         };
@@ -1234,6 +1248,60 @@ app.post('/api/admins/add', checkAuth, async (req, res) => {
         await db.query(`INSERT INTO guild_admin_roles (guild_id, role_id) VALUES ($1, $2) ON CONFLICT (guild_id, role_id) DO NOTHING`, [guild_id, role_id]);
         res.redirect('/dashboard?status=success');
     } catch (err) { res.status(500).send("DB Error."); }
+});
+
+// --- Artist portal: an artist edits ONLY their own commission panel -------------
+// The artist is always the logged-in person (never read from the form), and is
+// re-checked on every request: still in the server, still an artist there.
+async function renderArtistPanel(req, res, ctx, { profile, pricing, err = null, saved = false }) {
+    const siteLang = req.session.siteLang || 'en';
+    res.render('artist_panel', {
+        user: req.session.user,
+        guildId: ctx.guild.id, guildName: ctx.guild.name,
+        guildIcon: ctx.guild.icon ? `https://cdn.discordapp.com/icons/${ctx.guild.id}/${ctx.guild.icon}.png` : null,
+        artistName: ctx.member.displayName,
+        artistAvatar: ctx.member.displayAvatarURL({ size: 128, extension: 'png' }),
+        profile, pricing, defaults: artistPortal.DEFAULTS, limits: artistPortal.LIMITS,
+        err, saved,
+        currentLang: siteLang,
+        t: (key, vars) => t(siteLang, key, vars),
+        pageTitle: 'Projeckt V: Astra — Your Commission Panel',
+    });
+}
+
+app.get('/artist-panel/:guildId', checkAuth, async (req, res) => {
+    try {
+        const ctx = await artistPortal.artistContext(client, req.params.guildId, req.session.user.id);
+        if (!ctx) return res.status(403).redirect('/select-server');
+        const { profile, pricing } = await artistPortal.loadPanel(ctx.guild.id, req.session.user.id);
+        const err = req.query.err === 'bad_url' ? 'bad_url' : null;
+        await renderArtistPanel(req, res, ctx, { profile, pricing, err, saved: req.query.saved === '1' });
+    } catch (e) {
+        console.error('❌ Artist panel load failed:', e);
+        res.status(500).send('Could not load your panel.');
+    }
+});
+
+app.post('/artist-panel/:guildId', checkAuth, async (req, res) => {
+    try {
+        const ctx = await artistPortal.artistContext(client, req.params.guildId, req.session.user.id);
+        if (!ctx) return res.status(403).redirect('/select-server');
+        const parsed = artistPortal.parseForm(req.body);
+        if (!parsed.ok) {
+            // Show the form again with what they typed, so nothing is lost.
+            const b = req.body || {};
+            const profile = { tos_text: b.tos_text, wontdo_text: b.wontdo_text, askme_text: b.askme_text, banner_url: b.banner_url,
+                link_portfolio: b.link_portfolio, link_twitter: b.link_twitter, link_instagram: b.link_instagram, link_other: b.link_other, link_other_label: b.link_other_label };
+            const pricing = artistPortal.CATEGORIES.map((category, i) => ({ category, price: String(b[`price_${i}`] || '') }));
+            return renderArtistPanel(req, res, ctx, { profile, pricing, err: parsed.error });
+        }
+        await artistPortal.savePanel(ctx.guild.id, req.session.user.id, parsed.values);
+        await configCommand.logAction(ctx.guild, `🎨 ${ctx.member} updated their commission panel from the website.`);
+        res.redirect(`/artist-panel/${ctx.guild.id}?saved=1`);
+    } catch (e) {
+        console.error('❌ Artist panel save failed:', e);
+        res.status(500).send('Could not save your panel.');
+    }
 });
 
 // Creates the Astra Admin / Verified roles when missing, lets Verified members
