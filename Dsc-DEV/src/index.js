@@ -533,7 +533,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const settings = rows[0] || { guild_id: guildId };
         const headers = { Authorization: `Bot ${process.env.DISCORD_TOKEN}` };
 
-        let channels = [], categories = [], roles = [], memberCount = null;
+        let channels = [], updateChannels = [], categories = [], roles = [], memberCount = null;
         try {
             const [c, r, g] = await Promise.all([
                 axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
@@ -541,6 +541,15 @@ app.get('/dashboard', checkAuth, async (req, res) => {
                 axios.get(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, { headers })
             ]);
             channels = c.data.filter(ch => ch.type === 0);
+            // The updates picker also lists announcement channels (type 5) and
+            // marks the ones Astra can't post in (private channels she isn't in).
+            const gObj = client.guilds.cache.get(guildId);
+            const meMember = gObj?.members?.me;
+            updateChannels = c.data.filter(ch => ch.type === 0 || ch.type === 5).map(ch => {
+                const gc = gObj?.channels.cache.get(ch.id);
+                const perms = gc && meMember ? gc.permissionsFor(meMember) : null;
+                return { id: ch.id, name: ch.name, announcement: ch.type === 5, blocked: !perms || !perms.has(['ViewChannel', 'SendMessages', 'EmbedLinks']) };
+            });
             categories = c.data.filter(ch => ch.type === 4);
             roles = r.data.filter(role => role.name !== '@everyone');
             memberCount = g.data.approximate_member_count ?? null;
@@ -597,7 +606,7 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, updErr, updatesVersion, commandsMissing,
+            user: req.session.user, settings, channels, updateChannels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, updErr, updatesVersion, commandsMissing,
             reinviteUrl: `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&permissions=${BOT_INVITE_PERMISSIONS}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
@@ -1121,7 +1130,7 @@ app.post('/api/updates/save', checkAuth, async (req, res) => {
         if (!guild) return updatesRedirect(res, 'offline');
         if (enabled) {
             if (!channelId) return updatesRedirect(res, 'channel');
-            const check = await updatesCommand.usableChannel(guild, channelId);
+            const check = await updatesCommand.usableChannel(guild, channelId, { fix: true });
             if (!check.ok) return updatesRedirect(res, 'perms');
         }
         await updatesCommand.saveSettings(guild_id, { enabled, channelId, roleId });

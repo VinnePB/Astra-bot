@@ -98,13 +98,27 @@ function pendingFor(entries, lastVersion, cap = MAX_CATCHUP) {
 }
 
 // ------------------------------------------------------------------ posting
-async function usableChannel(guild, channelId) {
+const NEEDED = ['ViewChannel', 'SendMessages', 'EmbedLinks'];
+
+// Works for normal, private and announcement channels. When she is missing
+// access and fix is true (only when an admin is picking the channel), she tries
+// to give herself access with a channel permission for her own role. Discord
+// only allows that when she has the rights to do it there; otherwise the admin
+// has to add Astra to that channel's permissions by hand.
+async function usableChannel(guild, channelId, { fix = false } = {}) {
     if (!channelId) return { ok: false, reason: 'no channel' };
     const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (!channel || !channel.isTextBased?.()) return { ok: false, reason: 'channel missing' };
     const me = guild.members.me || await guild.members.fetchMe().catch(() => null);
-    const perms = me && channel.permissionsFor(me);
-    if (!perms || !perms.has(['ViewChannel', 'SendMessages', 'EmbedLinks'])) return { ok: false, reason: 'missing permissions' };
+    if (!me) return { ok: false, reason: 'missing permissions' };
+    let perms = channel.permissionsFor(me);
+    if ((!perms || !perms.has(NEEDED)) && fix && channel.permissionOverwrites?.edit) {
+        try {
+            await channel.permissionOverwrites.edit(me, { ViewChannel: true, SendMessages: true, EmbedLinks: true }, { reason: 'Astra: access to post updates here' });
+            perms = channel.permissionsFor(me);
+        } catch (_) { /* not allowed to: reported below */ }
+    }
+    if (!perms || !perms.has(NEEDED)) return { ok: false, reason: 'missing permissions' };
     return { ok: true, channel };
 }
 
@@ -304,9 +318,9 @@ async function executeSlashUpdates(interaction) {
             if (!channelId) {
                 return interaction.reply({ content: L(settings, '❌ Pick a channel with `channel:` or let me create one with `create:True`.', '❌ Escolha um canal com `channel:` ou deixe eu criar um com `create:True`.'), ephemeral: true });
             }
-            const check = await usableChannel(guild, channelId);
+            const check = await usableChannel(guild, channelId, { fix: true });
             if (!check.ok) {
-                return interaction.reply({ content: L(settings, `❌ I can't post in <#${channelId}> (${check.reason}). I need View Channel, Send Messages and Embed Links there.`, `❌ Não consigo postar em <#${channelId}> (${check.reason}). Preciso de Ver Canal, Enviar Mensagens e Inserir Links ali.`), ephemeral: true });
+                return interaction.reply({ content: L(settings, `❌ I can't post in <#${channelId}> (${check.reason}). I need View Channel, Send Messages and Embed Links there. If it's a private channel, add my role in that channel's Permissions.`, `❌ Não consigo postar em <#${channelId}> (${check.reason}). Preciso de Ver Canal, Enviar Mensagens e Inserir Links ali. Se for um canal privado, adicione o meu cargo nas Permissões do canal.`), ephemeral: true });
             }
             const roleId = clearRole ? null : role ? role.id : settings?.updates_role_id || null;
             await saveSettings(guild.id, { enabled: true, channelId, roleId });

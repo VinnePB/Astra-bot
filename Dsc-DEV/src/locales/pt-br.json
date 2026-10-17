@@ -369,7 +369,7 @@
   "dashboard.updates.preview_button": "Postar a mais recente",
   "dashboard.updates.err_offline": "A Astra não está conectada a este servidor agora. Tente de novo em instantes.",
   "dashboard.updates.err_channel": "Escolha um canal antes (ou use Criar #astra-updates).",
-  "dashboard.updates.err_perms": "A Astra não consegue postar nesse canal. Ela precisa de Ver Canal, Enviar Mensagens e Inserir Links ali.",
+  "dashboard.updates.err_perms": "A Astra não consegue postar nesse canal. Ela precisa de Ver Canal, Enviar Mensagens e Inserir Links ali. Se for um canal privado, abra as Permissões dele e adicione o cargo da Astra com essas três.",
   "dashboard.updates.err_nomanage": "A Astra precisa da permissão Gerenciar Canais para criar um canal. Dê a permissão a ela, ou escolha um canal existente.",
   "dashboard.updates.err_off": "Ligue as atualizações e salve antes.",
   "dashboard.updates.err_failed": "Algo deu errado. Verifique as permissões da Astra e tente de novo.",
@@ -413,5 +413,6 @@
   "help.menu_placeholder": "Escolha uma seção…",
   "help.menu_home": "Visão geral",
   "help.data": "Seus dados e privacidade",
-  "help.data_body": "`/mydata view` — Veja tudo o que a Astra guarda sobre você.\n`/mydata delete` — Apague esses dados (registros de moderação são mantidos pela segurança do servidor).\nDetalhes completos: a Política de Privacidade no site da Astra."
+  "help.data_body": "`/mydata view` — Veja tudo o que a Astra guarda sobre você.\n`/mydata delete` — Apague esses dados (registros de moderação são mantidos pela segurança do servidor).\nDetalhes completos: a Política de Privacidade no site da Astra.",
+  "dashboard.updates.channel_blocked": "(🔒 a Astra ainda não pode postar aqui)"
 }

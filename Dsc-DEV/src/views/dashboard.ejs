@@ -723,8 +723,8 @@
                         <label class="fui-label"><%= t('dashboard.updates.channel_label') %></label>
                         <select name="updates_channel_id" class="fui-input">
                             <option value="" <%= !settings.updates_channel_id ? 'selected' : '' %>><%= t('dashboard.updates.channel_none') %></option>
-                            <% channels.forEach(channel => { %>
-                                <option value="<%= channel.id %>" <%= settings.updates_channel_id === channel.id ? 'selected' : '' %>>#<%= channel.name %></option>
+                            <% updateChannels.forEach(channel => { %>
+                                <option value="<%= channel.id %>" <%= settings.updates_channel_id === channel.id ? 'selected' : '' %>><%= channel.announcement ? '📢 ' : '#' %><%= channel.name %><%= channel.blocked ? ' ' + t('dashboard.updates.channel_blocked') : '' %></option>
                             <% }) %>
                         </select>
                     </div>

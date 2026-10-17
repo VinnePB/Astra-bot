@@ -369,7 +369,7 @@
   "dashboard.updates.preview_button": "Post latest now",
   "dashboard.updates.err_offline": "Astra isn't connected to this server right now. Try again in a moment.",
   "dashboard.updates.err_channel": "Pick a channel first (or use Create #astra-updates).",
-  "dashboard.updates.err_perms": "Astra can't post in that channel. She needs View Channel, Send Messages and Embed Links there.",
+  "dashboard.updates.err_perms": "Astra can't post in that channel. She needs View Channel, Send Messages and Embed Links there. If it's a private channel, open its Permissions and add Astra's role with those three.",
   "dashboard.updates.err_nomanage": "Astra needs the Manage Channels permission to create a channel. Give it to her, or pick an existing channel.",
   "dashboard.updates.err_off": "Turn updates on and save first.",
   "dashboard.updates.err_failed": "Something went wrong. Check Astra's permissions and try again.",
@@ -413,5 +413,6 @@
   "help.menu_placeholder": "Choose a section…",
   "help.menu_home": "Overview",
   "help.data": "Your data & privacy",
-  "help.data_body": "`/mydata view` — See everything Astra stores about you.\n`/mydata delete` — Erase it (moderation records are kept for server safety).\nFull details: the Privacy Policy on the Astra website."
+  "help.data_body": "`/mydata view` — See everything Astra stores about you.\n`/mydata delete` — Erase it (moderation records are kept for server safety).\nFull details: the Privacy Policy on the Astra website.",
+  "dashboard.updates.channel_blocked": "(🔒 Astra can't post here yet)"
 }
