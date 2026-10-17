@@ -470,5 +470,6 @@
   "site.artist.blank_hint": "Um preço em branco mostra \"Message me for pricing\". Um texto em branco mostra o padrão da Astra.",
   "site.artist.save": "Salvar meu painel",
   "site.artist.preview_title": "Prévia",
-  "site.artist.preview_note": "Uma boa aproximação de como aparece no Discord. Botões de link e imagens aparecem como os clientes vão ver."
+  "site.artist.preview_note": "Uma boa aproximação de como aparece no Discord. Botões de link e imagens aparecem como os clientes vão ver.",
+  "dashboard.roles.r_backfill": "Entregando os cargos divisórios para todo mundo que deve ter. Isso roda em segundo plano e pode levar alguns minutos em servidores grandes."
 }

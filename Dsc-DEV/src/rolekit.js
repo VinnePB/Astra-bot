@@ -153,6 +153,10 @@ async function setupHierarchy(guild, { dividers = false } = {}) {
             } catch (e) { console.error('❌ rolekit divider:', e.message); lines.push({ k: 'r_error', name: d.name }); }
         }
     }
+    if (dividers) {
+        lines.push({ k: 'r_backfill' });
+        backfillDividers(guild).catch(() => {}); // runs in the background
+    }
     return { ok: true, lines };
 }
 
@@ -170,4 +174,56 @@ async function giveDivider(member, kind) {
     } catch (_) { /* cosmetic only */ }
 }
 
-module.exports = { setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };
+// ---- keeping dividers in sync for everybody ---------------------------------
+// A member should carry a divider exactly when they hold a role it heads:
+//   ACCESS  <- the Verified role      LEVELS <- any level-reward role
+//   SPECIAL <- any shop role
+// This runs when someone's roles change and (once) for everyone right after the
+// dividers are created. It only changes dividers, never other roles.
+async function loadSyncContext(guildId) {
+    const settings = (await getSettings(guildId)) || {};
+    const levelIds = new Set((await db.query('SELECT role_id FROM guild_level_roles WHERE guild_id = $1', [guildId])).rows.map((r) => r.role_id));
+    const shopIds = new Set((await db.query('SELECT role_id FROM shop_items WHERE guild_id = $1', [guildId]).catch(() => ({ rows: [] }))).rows.map((r) => r.role_id));
+    return { settings, levelIds, shopIds };
+}
+
+async function syncMember(member, ctx) {
+    try {
+        if (!member || member.user?.bot) return;
+        const c = ctx || await loadSyncContext(member.guild.id);
+        const has = (id) => member.roles.cache.has(id);
+        const wanted = {
+            access: !!c.settings.member_role_id && has(c.settings.member_role_id),
+            levels: [...c.levelIds].some(has),
+            special: [...c.shopIds].some(has),
+        };
+        for (const [kind, d] of Object.entries(DIVIDERS)) {
+            const id = c.settings[d.col];
+            if (!id) continue;
+            const role = member.guild.roles.cache.get(id);
+            if (!role || !role.editable) continue;
+            if (wanted[kind] && !has(id)) await member.roles.add(role, 'Astra: divider role');
+            else if (!wanted[kind] && has(id)) await member.roles.remove(role, 'Astra: divider role');
+        }
+    } catch (_) { /* cosmetic only */ }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Everyone already in the server, gently (well under Discord's rate limits).
+async function backfillDividers(guild) {
+    try {
+        const ctx = await loadSyncContext(guild.id);
+        if (!Object.values(DIVIDERS).some((d) => ctx.settings[d.col])) return 0;
+        const members = await guild.members.fetch();
+        let n = 0;
+        for (const [, m] of members) {
+            if (m.user?.bot) continue;
+            await syncMember(m, ctx);
+            n++;
+            await sleep(350);
+        }
+        return n;
+    } catch (e) { console.error('❌ divider backfill failed:', e.message); return 0; }
+}
+
+module.exports = { syncMember, backfillDividers, loadSyncContext, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };

@@ -1697,6 +1697,15 @@ client.on('guildMemberAdd', async (member) => {
     await logMemberEvent(member.guild, 'join', member);
 });
 
+// Keep divider roles in step with the roles people hold (cosmetic, see rolekit.js).
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+    try {
+        if (oldMember?.roles && oldMember.roles.cache.size === newMember.roles.cache.size
+            && [...newMember.roles.cache.keys()].every((id) => oldMember.roles.cache.has(id))) return; // no role change
+        await rolekit.syncMember(newMember);
+    } catch (e) { console.error('❌ divider sync failed:', e.message); }
+});
+
 client.on('guildMemberRemove', async (member) => {
     // NEW: public leave message — see /config leave.
     await configCommand.sendLeaveMessage(member);

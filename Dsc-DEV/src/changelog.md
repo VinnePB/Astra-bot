@@ -551,7 +551,7 @@
 **Roles**
 - New role hierarchy: Owner, Astra Admin, Moderator and Verified member. Astra can create the Astra Admin, Moderator and Verified roles if your server doesn't have them yet. Moderator only carries ban, kick, timeout and message-management permissions
 - Verified members can now use Astra's everyday commands (rank, daily, shop and the rest). Until verification is set up, these stay open to everyone
-- Optional divider roles (━━━━ LEVELS ━━━━, ━━━━ SPECIAL ━━━━ and more) that Astra creates, places in order and hands out together with the roles they head
+- Optional divider roles (━━━━ LEVELS ━━━━, ━━━━ SPECIAL ━━━━ and more) that Astra creates, places in order and keeps in sync for every member, now and as roles change
 - None of these roles carry moderation powers
 
 **Artists**
