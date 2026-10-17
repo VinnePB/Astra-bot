@@ -434,7 +434,7 @@
 
 ---
 
-## b.8.19.1 — Smarter Replies, Tuned *(current)*
+## b.8.19.1 — Smarter Replies, Tuned
 **October 17, 2026**
 *First round of tuning based on real accuracy measurements.*
 
@@ -442,6 +442,36 @@
 - Fixed a few cases where she confidently answered the wrong topic, such as "como eu faço pra subir de nível" getting a reply about being bored
 - Better at recognizing scam reports ("someone keeps asking for my login code") and "the bot stopped answering me"
 - Typos are now corrected even when she thinks she already understood, so a misspelling can no longer lead her to the wrong answer
+
+---
+
+## b.8.19.2 — Security Hardening
+**October 17, 2026**
+*A full security review of the website and bot, with fixes for everything it found.*
+
+**Website & dashboard**
+- Login is now protected against forged and hijacked sign-ins, and every login starts a fresh session
+- Dashboard changes can only be made from the dashboard itself, which blocks requests sent from other websites
+- Access is re-checked regularly: if you lose Administrator on a server (or leave it), the dashboard for that server closes within minutes instead of staying open
+- Added standard browser protections against clickjacking and content sniffing, plus rate limiting against automated abuse
+- Channel and role choices are now verified to belong to your server before they are saved
+- The language toggle can no longer redirect anywhere outside the site
+
+**Roles**
+- People with an Astra-authorized role (but not Administrator) can no longer set Astra to hand out powerful roles, such as ones that manage roles, messages or members, through verification or level rewards. Server Administrators are not affected
+
+**Economy**
+- `/daily` and `/pay` are now fully protected against being triggered several times at once, so coins can no longer be duplicated
+
+---
+
+## b.8.19.3 — Support Page *(current)*
+**October 17, 2026**
+*A page for people who want to support Astra, and a note about how she was built.*
+
+- New **Support Astra** page, available in English and Portuguese, with a link to the project's Ko-fi. Supporting is completely optional and every feature stays free
+- A footer on the homepage now links to the support page and credits Claude (Anthropic) for helping develop Astra
+- The page also explains that Astra's smart replies run inside the bot itself, so messages are never sent to an AI company
 
 ---
 

@@ -375,5 +375,19 @@
   "dashboard.updates.err_failed": "Algo deu errado. Verifique as permissões da Astra e tente de novo.",
   "dashboard.commands_missing.title": "⚠️ Os comandos da Astra não estão neste servidor",
   "dashboard.commands_missing.desc": "O Discord não deixou ela adicionar os comandos, geralmente porque ela foi convidada com um link antigo. Clique abaixo e autorize ela de novo (ela continua no servidor e mantém as configurações). Ela tenta de novo sozinha a cada 5 minutos, ou recarregue esta página depois de autorizar.",
-  "dashboard.commands_missing.button": "Autorizar a Astra de novo"
+  "dashboard.commands_missing.button": "Autorizar a Astra de novo",
+  "site.support.page_title": "Projeckt V: Astra — Apoie o projeto",
+  "site.support.kicker": "APOIE O PROJETO",
+  "site.support.title": "Apoie a Astra",
+  "site.support.intro": "A Astra é criada e mantida por uma pessoa só, e é gratuita. Se ela é útil para o seu servidor e você quiser ajudar a mantê-la funcionando, pode deixar uma contribuição no Ko-fi.",
+  "site.support.goes_title": "Para onde vai o seu apoio",
+  "site.support.goes_1": "Hospedagem e manter a Astra online o tempo todo",
+  "site.support.goes_2": "Novos recursos, correções e trabalho de segurança",
+  "site.support.goes_3": "Mais tempo para dedicar ao projeto",
+  "site.support.button": "Apoiar no Ko-fi",
+  "site.support.optional": "Totalmente opcional. As doações não liberam nada e todos os recursos continuam gratuitos.",
+  "site.support.ai_title": "Feito com ajuda de IA",
+  "site.support.ai_body": "A Astra é idealizada e mantida pelo Vinicius, e foi desenvolvida com a ajuda do Claude, um assistente de IA da Anthropic, que ajudou a escrever e revisar boa parte do código. As respostas inteligentes da Astra não usam um serviço de IA: funcionam com um classificador pequeno dentro do próprio bot, e as suas mensagens nunca são enviadas a uma empresa de IA.",
+  "site.support.footer_support": "Apoie a Astra",
+  "site.support.footer_credit": "Desenvolvido com a ajuda do Claude (Anthropic)"
 }

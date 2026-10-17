@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ChannelType, PermissionFlagsBits } = require('discord.js');
 const db = require('../database');
-const { isServerAdministrator, isAstraAdmin } = require('../permissions');
+const { isServerAdministrator, isAstraAdmin, roleDelegationProblem } = require('../permissions');
 const { t } = require('../i18n');
 
 async function getSettings(guildId) {
@@ -533,6 +533,8 @@ module.exports = {
         if (sub === 'add') {
             const level = interaction.options.getInteger('level');
             const role = interaction.options.getRole('role');
+            const problem = await roleDelegationProblem(interaction.member, role);
+            if (problem) return interaction.reply({ content: `❌ ${problem}`, ephemeral: true });
             try {
                 await db.query(
                     `INSERT INTO guild_level_roles (guild_id, level, role_id) VALUES ($1, $2, $3)
@@ -941,6 +943,11 @@ module.exports = {
         // If someone provides rules_channel without both roles (or vice
         // versa), that's a config mistake — reject it clearly instead of
         // silently running in a half-configured state.
+        for (const r of [memberRole, rulesRole, verifyRole].filter(Boolean)) {
+            const problem = await roleDelegationProblem(interaction.member, r);
+            if (problem) return interaction.editReply({ content: `❌ ${r.name}: ${problem}` });
+        }
+
         const dualRolePieces = [rulesChannel, rulesRole, verifyRole].filter(Boolean).length;
         if (dualRolePieces > 0 && dualRolePieces < 3) {
             return interaction.editReply({

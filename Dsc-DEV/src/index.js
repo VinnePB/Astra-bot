@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, Partials, REST, Routes } = require('discord.js');
 const express = require('express');
+const crypto = require('crypto');
 const path = require('path');
 const axios = require('axios');
 const session = require('express-session');
@@ -45,12 +46,51 @@ if (!process.env.SESSION_SECRET) {
         'Without it, anyone with a copy of this code could forge session cookies.');
 }
 
+// Without SESSION_SECRET we still never use a value that is public in the code:
+// a random one is made at boot (everyone just has to log in again after a restart).
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(48).toString('hex');
+
+// ---- Security headers ----
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+    res.set({
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'same-origin',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Content-Security-Policy': "frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://discord.com"
+    });
+    next();
+});
+
+// ---- Simple in-memory rate limiter (per IP) ----
+function rateLimit({ windowMs, max }) {
+    const hits = new Map();
+    setInterval(() => { const now = Date.now(); for (const [k, v] of hits) if (v.reset <= now) hits.delete(k); }, windowMs).unref();
+    return (req, res, next) => {
+        const now = Date.now();
+        let h = hits.get(req.ip);
+        if (!h || h.reset <= now) { h = { n: 0, reset: now + windowMs }; hits.set(req.ip, h); }
+        if (++h.n > max) {
+            res.set('Retry-After', Math.ceil((h.reset - now) / 1000));
+            return res.status(429).send('Too many requests. Please wait a moment and try again.');
+        }
+        next();
+    };
+}
+const authLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 30 });
+const writeLimiter = rateLimit({ windowMs: 60 * 1000, max: 90 });
+const generalLimiter = rateLimit({ windowMs: 60 * 1000, max: 600 });
+app.use(generalLimiter);
+
 app.use(session({
     store: new pgSession({
         pool: db.pool,
         tableName: 'session'
     }),
-    secret: process.env.SESSION_SECRET || 'fallback_secret_DO_NOT_USE_IN_PRODUCTION',
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     rolling: true, // refreshes the cookie's expiry on every request, so an
@@ -63,6 +103,33 @@ app.use(session({
         sameSite: 'lax'   // blocks cross-site requests from using the cookie, while still allowing the Discord OAuth redirect back to this site.
     }
 }));
+
+// ---- CSRF defence: every state-changing request must come from this site ----
+const SITE_HOST = (() => { try { return new URL(process.env.REDIRECT_URI).host; } catch (e) { return null; } })();
+function isSameSite(req) {
+    const origin = req.get('Origin') || req.get('Referer');
+    if (!origin) return false;
+    try {
+        const host = new URL(origin).host;
+        return host === req.get('Host') || (SITE_HOST && host === SITE_HOST);
+    } catch (e) { return false; }
+}
+app.use((req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    if (!isSameSite(req)) return res.status(403).send('Blocked: this request did not come from the Astra dashboard.');
+    writeLimiter(req, res, next);
+});
+
+// Only ever redirect back to a path on this site (never to a URL from a header).
+function safeBackPath(req, fallback) {
+    const ref = req.get('Referer');
+    if (!ref) return fallback;
+    try {
+        const u = new URL(ref);
+        if (u.host !== req.get('Host') && u.host !== SITE_HOST) return fallback;
+        return (u.pathname + u.search).startsWith('/') && !(u.pathname + u.search).startsWith('//') ? u.pathname + u.search : fallback;
+    } catch (e) { return fallback; }
+}
 
 // Discord access tokens expire (~7 days). Previously nothing refreshed
 // them, so after expiry every Discord API call (guilds/channels/roles)
@@ -106,8 +173,38 @@ const checkAuth = async (req, res, next) => {
         }
     }
 
+    // Re-confirm every few minutes that this person still administers the
+    // server they selected, so removing someone's Administrator (or kicking
+    // them) takes effect quickly instead of lasting until the session expires.
+    if (req.session.selectedGuildId && req.path !== '/select-server') {
+        const ok = await stillAdministers(req);
+        if (!ok) {
+            delete req.session.selectedGuildId;
+            return res.redirect('/select-server');
+        }
+    }
+
     next();
 };
+
+const GUILD_RECHECK_MS = 3 * 60 * 1000;
+async function stillAdministers(req) {
+    const last = req.session.guildVerifiedAt || 0;
+    if (Date.now() - last < GUILD_RECHECK_MS) return true;
+    try {
+        if (!client.isReady()) return true; // bot still starting: don't lock people out
+        const guild = client.guilds.cache.get(req.session.selectedGuildId);
+        if (!guild) return false;
+        const member = await guild.members.fetch(req.session.user.id).catch(() => null);
+        if (!member) return false;
+        const admin = member.permissions.has('Administrator') || guild.ownerId === member.id;
+        if (admin) req.session.guildVerifiedAt = Date.now();
+        return admin;
+    } catch (e) {
+        console.error('❌ Admin re-check failed:', e.message);
+        return Date.now() - last < 30 * 60 * 1000; // brief grace if Discord is unreachable
+    }
+}
 
 // NEW: lets settings forms auto-save on change (via fetch, marked with this
 // header client-side) instead of requiring a separate "click Save to
@@ -120,6 +217,17 @@ function respondSaved(req, res, redirectPath) {
         return res.json({ ok: true });
     }
     res.redirect(redirectPath);
+}
+
+// Dashboard forms send channel/role ids as plain text. Make sure each one is a
+// real id that belongs to the selected server before it is stored.
+function idsBelongToGuild(guildId, { channels = [], roles = [] }) {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return false;
+    const snow = /^\d{15,25}$/;
+    for (const id of channels) if (id && !(snow.test(id) && guild.channels.cache.has(id))) return false;
+    for (const id of roles) if (id && !(snow.test(id) && guild.roles.cache.has(id))) return false;
+    return true;
 }
 
 // --- ROUTES ---
@@ -161,9 +269,14 @@ app.get('/', (req, res) => {
     });
 });
 
+app.get('/support', (req, res) => {
+    const lang = req.session.siteLang || 'en';
+    res.render('support', { lang, t: (key, vars) => t(lang, key, vars) });
+});
+
 app.get('/lang/:lang', (req, res) => {
     req.session.siteLang = normalizeLanguage(req.params.lang);
-    res.redirect(req.get('Referer') || '/');
+    res.redirect(safeBackPath(req, '/'));
 });
 
 // Guild-context twin of /lang/:lang. The homepage/select-server toggle above
@@ -178,6 +291,7 @@ app.get('/lang/:lang', (req, res) => {
 app.get('/lang-guild/:lang', checkAuth, async (req, res) => {
     const guildId = req.session.selectedGuildId;
     if (!guildId) return res.redirect('/select-server');
+    if (!isSameSite(req)) return res.status(403).send('Blocked: this request did not come from the Astra dashboard.');
 
     const lang = normalizeLanguage(req.params.lang);
     try {
@@ -190,7 +304,7 @@ app.get('/lang-guild/:lang', checkAuth, async (req, res) => {
     } catch (err) {
         console.error('❌ Error updating site language from nav toggle:', err);
     }
-    res.redirect(req.get('Referer') || '/dashboard');
+    res.redirect(safeBackPath(req, '/dashboard'));
 });
 
 app.get('/logout', (req, res) => {
@@ -200,13 +314,24 @@ app.get('/logout', (req, res) => {
     });
 });
 
-app.get('/login', (req, res) => {
-    res.redirect(`https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds`);
+app.get('/login', authLimiter, (req, res) => {
+    // `state` ties the Discord reply to the browser that started the login,
+    // so nobody can slip their own login into someone else's session.
+    const state = crypto.randomBytes(24).toString('hex');
+    req.session.oauthState = state;
+    req.session.save(() => {
+        res.redirect(`https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.REDIRECT_URI)}&response_type=code&scope=identify%20guilds&state=${state}`);
+    });
 });
 
-app.get('/callback', async (req, res) => {
-    const { code } = req.query;
-    if (!code) return res.send('Error.');
+app.get('/callback', authLimiter, async (req, res) => {
+    const { code, state } = req.query;
+    if (!code || typeof code !== 'string') return res.status(400).send('Error.');
+    const expected = req.session.oauthState;
+    if (!expected || typeof state !== 'string' || state.length !== expected.length ||
+        !crypto.timingSafeEqual(Buffer.from(state), Buffer.from(expected))) {
+        return res.status(400).send('Login expired or invalid. Please go back and try logging in again.');
+    }
     try {
         const tokenResponse = await axios.post('https://discord.com/api/oauth2/token', new URLSearchParams({
             client_id: process.env.DISCORD_CLIENT_ID,
@@ -216,13 +341,21 @@ app.get('/callback', async (req, res) => {
             redirect_uri: process.env.REDIRECT_URI,
         }), { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
 
-        req.session.token = tokenResponse.data.access_token;
-        req.session.refreshToken = tokenResponse.data.refresh_token;
-        req.session.tokenExpiresAt = Date.now() + tokenResponse.data.expires_in * 1000;
-        const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${req.session.token}` } });
-        req.session.user = userResponse.data;
-        res.redirect('/select-server');
-    } catch (error) { res.send('Auth failed.'); }
+        const accessToken = tokenResponse.data.access_token;
+        const userResponse = await axios.get('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${accessToken}` } });
+        const siteLang = req.session.siteLang;
+
+        // Brand-new session id on login (prevents session fixation).
+        req.session.regenerate((err) => {
+            if (err) { console.error('❌ Session regenerate failed:', err.message); return res.status(500).send('Auth failed.'); }
+            if (siteLang) req.session.siteLang = siteLang;
+            req.session.token = accessToken;
+            req.session.refreshToken = tokenResponse.data.refresh_token;
+            req.session.tokenExpiresAt = Date.now() + tokenResponse.data.expires_in * 1000;
+            req.session.user = { id: userResponse.data.id, username: userResponse.data.username, global_name: userResponse.data.global_name, avatar: userResponse.data.avatar, discriminator: userResponse.data.discriminator };
+            req.session.save(() => res.redirect('/select-server'));
+        });
+    } catch (error) { res.status(400).send('Auth failed.'); }
 });
 
 // Permissions requested for the bot invite link: View Channels, Send
@@ -293,6 +426,7 @@ app.post('/select-server', checkAuth, async (req, res) => {
         }
 
         req.session.selectedGuildId = req.body.guild_id;
+        req.session.guildVerifiedAt = Date.now();
 
         // Brand-new servers (no verification set up yet) land on the
         // onboarding page instead of the full dashboard.
@@ -432,6 +566,7 @@ app.get('/tickets', checkAuth, (req, res) => {
 app.post('/api/update-verification', checkAuth, async (req, res) => {
     const { guild_id, verify_channel_id, rules_channel_id, rules_role_id, verify_role_id, member_role_id, log_channel_id, joinleave_log_enabled } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    if (!idsBelongToGuild(guild_id, { channels: [verify_channel_id, rules_channel_id, log_channel_id], roles: [rules_role_id, verify_role_id, member_role_id] })) return res.status(400).send('Invalid channel or role.');
 
     try {
         await db.query(`
@@ -1011,6 +1146,7 @@ app.post('/api/admins/add', checkAuth, async (req, res) => {
     const { guild_id, role_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
     if (!role_id) return res.redirect('/dashboard?status=success');
+    if (!idsBelongToGuild(guild_id, { roles: [role_id] })) return res.status(400).send('Invalid role.');
 
     try {
         await db.query(`INSERT INTO guild_admin_roles (guild_id, role_id) VALUES ($1, $2) ON CONFLICT (guild_id, role_id) DO NOTHING`, [guild_id, role_id]);
@@ -1037,6 +1173,7 @@ app.post('/api/admins/remove', checkAuth, async (req, res) => {
 app.post('/api/tickets/config', checkAuth, async (req, res) => {
     const { guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id } = req.body;
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    if (!idsBelongToGuild(guild_id, { channels: [ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id] })) return res.status(400).send('Invalid channel or category.');
 
     try {
         await db.query(`

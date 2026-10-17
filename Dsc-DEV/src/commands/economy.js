@@ -11,6 +11,11 @@ async function getAccount(guildId, userId) {
     return rows[0] || { guild_id: guildId, user_id: userId, balance: 0, daily_streak: 0, last_daily_at: null };
 }
 
+// Makes sure the member has a balance row so atomic UPDATEs have something to hit.
+async function ensureAccount(guildId, userId) {
+    await db.query('INSERT INTO user_economy (guild_id, user_id, balance) VALUES ($1, $2, 0) ON CONFLICT (guild_id, user_id) DO NOTHING', [guildId, userId]);
+}
+
 // Consecutive-day streak bonus is capped so it can't grow forever — 10
 // days in, the bonus is maxed out and /daily just pays the flat base rate
 // plus that ceiling from then on.
@@ -75,42 +80,39 @@ module.exports = {
         const currencySymbol = settings.currency_symbol || '🪙';
 
         try {
-            const account = await getAccount(guildId, userId);
-            const now = Date.now();
-
-            if (account.last_daily_at) {
-                const elapsed = now - new Date(account.last_daily_at).getTime();
-                const DAY_MS = 24 * 60 * 60 * 1000;
-                if (elapsed < DAY_MS) {
-                    const remaining = DAY_MS - elapsed;
-                    const hours = Math.floor(remaining / (60 * 60 * 1000));
-                    const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
-                    return interaction.reply({ content: `⏱️ You already claimed today's reward. Try again in **${hours}h ${minutes}m**.`, ephemeral: true });
-                }
-
-                // Streak continues if claimed within 24–48h of the last
-                // claim; otherwise it's been missed and resets to 1.
-                const streakStillAlive = elapsed < DAY_MS * 2;
-                account.daily_streak = streakStillAlive ? account.daily_streak + 1 : 1;
-            } else {
-                account.daily_streak = 1;
-            }
-
+            await ensureAccount(guildId, userId);
             const dailyMin = settings.daily_min || 50;
             const dailyMax = settings.daily_max || 150;
             const base = Math.floor(Math.random() * (dailyMax - dailyMin + 1)) + dailyMin;
-            const bonusDays = Math.min(account.daily_streak - 1, MAX_STREAK_BONUS_DAYS);
-            const streakBonus = bonusDays * (settings.daily_streak_bonus || 10);
+            const perDay = settings.daily_streak_bonus || 10;
+
+            // One atomic statement: the 24h check, the streak and the payout all
+            // happen together, so two simultaneous /daily can never both pay out.
+            const { rows } = await db.query(`
+                UPDATE user_economy SET
+                    daily_streak = CASE WHEN last_daily_at IS NOT NULL AND last_daily_at > NOW() - INTERVAL '48 hours'
+                                        THEN daily_streak + 1 ELSE 1 END,
+                    balance = balance + $3 + LEAST(
+                        (CASE WHEN last_daily_at IS NOT NULL AND last_daily_at > NOW() - INTERVAL '48 hours'
+                              THEN daily_streak + 1 ELSE 1 END) - 1, $4) * $5,
+                    last_daily_at = NOW()
+                WHERE guild_id = $1 AND user_id = $2
+                  AND (last_daily_at IS NULL OR last_daily_at <= NOW() - INTERVAL '24 hours')
+                RETURNING balance, daily_streak
+            `, [guildId, userId, base, MAX_STREAK_BONUS_DAYS, perDay]);
+
+            if (rows.length === 0) {
+                const { rows: cur } = await db.query('SELECT last_daily_at FROM user_economy WHERE guild_id = $1 AND user_id = $2', [guildId, userId]);
+                const remaining = Math.max(0, 24 * 60 * 60 * 1000 - (Date.now() - new Date(cur[0].last_daily_at).getTime()));
+                const hours = Math.floor(remaining / (60 * 60 * 1000));
+                const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+                return interaction.reply({ content: `⏱️ You already claimed today's reward. Try again in **${hours}h ${minutes}m**.`, ephemeral: true });
+            }
+
+            const account = { daily_streak: Number(rows[0].daily_streak) };
+            const newBalance = Number(rows[0].balance);
+            const streakBonus = Math.min(account.daily_streak - 1, MAX_STREAK_BONUS_DAYS) * perDay;
             const total = base + streakBonus;
-
-            const newBalance = Number(account.balance) + total;
-
-            await db.query(`
-                INSERT INTO user_economy (guild_id, user_id, balance, daily_streak, last_daily_at)
-                VALUES ($1, $2, $3, $4, NOW())
-                ON CONFLICT (guild_id, user_id) DO UPDATE SET
-                    balance = $3, daily_streak = $4, last_daily_at = NOW();
-            `, [guildId, userId, newBalance, account.daily_streak]);
 
             const embed = new EmbedBuilder()
                 .setColor('#22E5FF')
@@ -147,27 +149,33 @@ module.exports = {
         }
 
         try {
-            const sender = await getAccount(interaction.guild.id, interaction.user.id);
-            if (Number(sender.balance) < amount) {
+            await ensureAccount(interaction.guild.id, interaction.user.id);
+            await ensureAccount(interaction.guild.id, target.id);
+
+            // Take from the sender only if they can afford it, and give to the
+            // receiver, in one transaction: no double-spend, no lost coins.
+            const conn = await db.pool.connect();
+            let paid = false, senderBalance = 0;
+            try {
+                await conn.query('BEGIN');
+                const take = await conn.query(
+                    'UPDATE user_economy SET balance = balance - $3 WHERE guild_id = $1 AND user_id = $2 AND balance >= $3 RETURNING balance',
+                    [interaction.guild.id, interaction.user.id, amount]
+                );
+                if (take.rows.length) {
+                    await conn.query('UPDATE user_economy SET balance = balance + $3 WHERE guild_id = $1 AND user_id = $2', [interaction.guild.id, target.id, amount]);
+                    paid = true; senderBalance = Number(take.rows[0].balance);
+                }
+                await conn.query(paid ? 'COMMIT' : 'ROLLBACK');
+            } catch (e) {
+                await conn.query('ROLLBACK').catch(() => {});
+                throw e;
+            } finally { conn.release(); }
+
+            if (!paid) {
+                const sender = await getAccount(interaction.guild.id, interaction.user.id);
                 return interaction.reply({ content: `❌ You don't have enough ${currencyName}. Your balance: ${currencySymbol} ${Number(sender.balance).toLocaleString()}.`, ephemeral: true });
             }
-
-            const receiver = await getAccount(interaction.guild.id, target.id);
-            const newSenderBalance = Number(sender.balance) - amount;
-            const newReceiverBalance = Number(receiver.balance) + amount;
-
-            // Not wrapped in a DB transaction — acceptable here since each
-            // row is keyed to a different user and a partial failure just
-            // means retrying /pay, not a corrupted shared balance.
-            await db.query(`
-                INSERT INTO user_economy (guild_id, user_id, balance) VALUES ($1, $2, $3)
-                ON CONFLICT (guild_id, user_id) DO UPDATE SET balance = $3;
-            `, [interaction.guild.id, interaction.user.id, newSenderBalance]);
-
-            await db.query(`
-                INSERT INTO user_economy (guild_id, user_id, balance) VALUES ($1, $2, $3)
-                ON CONFLICT (guild_id, user_id) DO UPDATE SET balance = $3;
-            `, [interaction.guild.id, target.id, newReceiverBalance]);
 
             return interaction.reply({ content: `✅ Sent ${currencySymbol} **${amount.toLocaleString()}** ${currencyName} to ${target}.` });
         } catch (error) {

@@ -375,5 +375,19 @@
   "dashboard.updates.err_failed": "Something went wrong. Check Astra's permissions and try again.",
   "dashboard.commands_missing.title": "⚠️ Astra's slash commands aren't in this server",
   "dashboard.commands_missing.desc": "Discord didn't let her add them, usually because she was invited with an old link. Click below and authorize her again (she stays in the server and keeps her settings). She retries every 5 minutes on her own, or reload this page after authorizing.",
-  "dashboard.commands_missing.button": "Re-authorize Astra"
+  "dashboard.commands_missing.button": "Re-authorize Astra",
+  "site.support.page_title": "Projeckt V: Astra — Support the project",
+  "site.support.kicker": "SUPPORT THE PROJECT",
+  "site.support.title": "Support Astra",
+  "site.support.intro": "Astra is built and run by one person, and she is free to use. If she is useful to your server and you would like to help keep her going, you can leave a tip on Ko-fi.",
+  "site.support.goes_title": "Where your support goes",
+  "site.support.goes_1": "Hosting and keeping Astra online around the clock",
+  "site.support.goes_2": "New features, fixes and security work",
+  "site.support.goes_3": "More time to spend on the project",
+  "site.support.button": "Support on Ko-fi",
+  "site.support.optional": "Completely optional. Donations don't unlock anything, and every feature stays free.",
+  "site.support.ai_title": "Built with AI assistance",
+  "site.support.ai_body": "Astra is designed and run by Vinicius, and was developed with the help of Claude, an AI assistant made by Anthropic, which helped write and review much of the code. Astra's smart replies are not powered by an AI service: they run on a small classifier built into the bot, and your messages are never sent to an AI company.",
+  "site.support.footer_support": "Support Astra",
+  "site.support.footer_credit": "Developed with the help of Claude (Anthropic)"
 }

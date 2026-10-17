@@ -42,4 +42,32 @@ async function isAstraAdmin(member) {
     }
 }
 
-module.exports = { isServerAdministrator, isAstraAdmin };
+// Permissions that make a role "powerful". Astra hands roles out on its own
+// (verification, level rewards), so a delegated (non-administrator) manager
+// must never be able to point her at one of these: it would let them mint
+// power for themselves or others through Astra.
+const DANGEROUS_ROLE_PERMS = [
+    'Administrator', 'ManageGuild', 'ManageRoles', 'ManageChannels', 'ManageMessages', 'ManageWebhooks',
+    'ManageNicknames', 'ManageEvents', 'ManageThreads', 'KickMembers', 'BanMembers', 'ModerateMembers',
+    'MentionEveryone', 'ViewAuditLog', 'MuteMembers', 'DeafenMembers', 'MoveMembers',
+];
+
+function isPowerfulRole(role) {
+    if (!role || !role.permissions) return false;
+    return DANGEROUS_ROLE_PERMS.some(p => PermissionFlagsBits[p] !== undefined && role.permissions.has(PermissionFlagsBits[p]));
+}
+
+// Returns null when `member` may make Astra hand out `role`, otherwise a
+// short English reason. Real administrators/owner may pick any role.
+async function roleDelegationProblem(member, role) {
+    if (!role) return 'that is not a valid role.';
+    if (role.id === member.guild.id) return 'the @everyone role can\'t be used here.';
+    if (role.managed) return 'that role is managed by an integration and can\'t be handed out.';
+    if (await isServerAdministrator(member)) return null;
+    if (isPowerfulRole(role)) {
+        return 'that role has powerful permissions (like managing roles, messages or members). Only a server Administrator can set Astra to hand out a role like that.';
+    }
+    return null;
+}
+
+module.exports = { isServerAdministrator, isAstraAdmin, isPowerfulRole, roleDelegationProblem };
