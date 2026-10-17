@@ -66,6 +66,7 @@
   "quickstart.step5_desc": "`/config leveling` liga o XP, e `/config level-roles` dá cargos em níveis-marco (o painel pode criar esses cargos pra você). `/config economy` liga o `/daily`, `/pay` e companhia. `/shopconfig add-role` vende cargos cosméticos e `/shopconfig events` liga as moedas aleatórias.",
   "quickstart.footer": "Use /help a qualquer momento para ver todos os comandos.",
   "site.nav.get_started": "Começar",
+  "site.nav.home": "Início",
   "site.nav.help": "Ajuda & Configuração",
   "site.nav.configuration": "Configuração",
   "site.nav.switch_server": "Trocar Servidor",
@@ -371,5 +372,8 @@
   "dashboard.updates.err_perms": "A Astra não consegue postar nesse canal. Ela precisa de Ver Canal, Enviar Mensagens e Inserir Links ali.",
   "dashboard.updates.err_nomanage": "A Astra precisa da permissão Gerenciar Canais para criar um canal. Dê a permissão a ela, ou escolha um canal existente.",
   "dashboard.updates.err_off": "Ligue as atualizações e salve antes.",
-  "dashboard.updates.err_failed": "Algo deu errado. Verifique as permissões da Astra e tente de novo."
+  "dashboard.updates.err_failed": "Algo deu errado. Verifique as permissões da Astra e tente de novo.",
+  "dashboard.commands_missing.title": "⚠️ Os comandos da Astra não estão neste servidor",
+  "dashboard.commands_missing.desc": "O Discord não deixou ela adicionar os comandos, geralmente porque ela foi convidada com um link antigo. Clique abaixo e autorize ela de novo (ela continua no servidor e mantém as configurações). Ela tenta de novo sozinha a cada 5 minutos, ou recarregue esta página depois de autorizar.",
+  "dashboard.commands_missing.button": "Autorizar a Astra de novo"
 }

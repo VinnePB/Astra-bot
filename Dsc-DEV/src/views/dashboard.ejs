@@ -12,6 +12,14 @@
         </div>
     <% } %>
 
+    <% if (typeof commandsMissing !== 'undefined' && commandsMissing) { %>
+        <div class="bg-black/40 border border-amber-500/40 px-5 py-4 text-sm text-amber-300">
+            <p class="font-semibold mb-1"><%= t('dashboard.commands_missing.title') %></p>
+            <p class="text-amber-200/80 text-xs mb-3"><%= t('dashboard.commands_missing.desc') %></p>
+            <a href="<%= reinviteUrl %>" target="_blank" rel="noopener" class="fui-btn inline-block py-2 px-5 text-xs text-amber-300 border-amber-500/40"><%= t('dashboard.commands_missing.button') %></a>
+        </div>
+    <% } %>
+
     <!-- STATS STRIP -->
     <div class="grid grid-cols-3 gap-3 md:gap-4">
         <div class="fui-panel fui-corners p-4 text-center">

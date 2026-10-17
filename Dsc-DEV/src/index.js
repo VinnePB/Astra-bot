@@ -388,6 +388,10 @@ app.get('/dashboard', checkAuth, async (req, res) => {
                 : botMember.permissions.has('ManageRoles') && role.position < botMember.roles.highest.position && !role.managed;
             return { name: i.name, description: i.description, price: i.price, role_id: i.role_id, role_name: role?.name || null, assignable };
         });
+        // Commands missing in this server? Try again now (the usual fix is
+        // re-inviting her, which this picks up without a restart).
+        let commandsMissing = false;
+        if (commandSyncFailed.has(guildId)) commandsMissing = !(await syncGuildCommands(guildId, { quiet: true }));
         const updErr = ['offline', 'channel', 'perms', 'nomanage', 'off', 'failed'].includes(req.query.upderr) ? req.query.upderr : null;
         const updatesVersion = updatesCommand.currentEntry()?.version || null;
         const shopErr = ['name', 'price', 'builtin', 'limit', 'invalid', 'managed', 'dangerous', 'hierarchy'].includes(req.query.shoperr) ? req.query.shoperr : null;
@@ -396,7 +400,8 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         const editingArtist = editingId ? artistDetails.find(a => a.user_id === editingId) : null;
 
         res.render('dashboard', {
-            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, updErr, updatesVersion, artistCount, memberCount,
+            user: req.session.user, settings, channels, categories, roles, adminRoles, levelRoles, shopItems, shopErr, updErr, updatesVersion, commandsMissing,
+            reinviteUrl: `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&permissions=${BOT_INVITE_PERMISSIONS}&scope=bot%20applications.commands&guild_id=${guildId}&disable_guild_select=true`, artistCount, memberCount,
             artists: artistDetails, editingArtist,
             pricingCategories: ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'],
             currentLang: settings.site_language || 'en',
@@ -1195,48 +1200,78 @@ const client = new Client({
     partials: [Partials.Message, Partials.Channel, Partials.User]
 });
 
+// --- SLASH COMMAND SYNC ---
+// Commands are registered per server. A server where that fails (usually an
+// old invite without the "applications.commands" permission: Discord answers
+// "Missing Access") is remembered and retried every few minutes, so
+// re-inviting Astra is enough, no restart needed. Opening that server's
+// dashboard also retries right away, and joining a new server syncs it at once.
+const COMMAND_RETRY_MS = 5 * 60 * 1000;
+const commandSyncFailed = new Map(); // guildId -> { error, at }
+let commandRest = null;
+
+function allCommandsJSON() {
+    return [
+        configCommand.data.toJSON(),
+        helpCommand.data.toJSON(),
+        helpCommand.aboutData.toJSON(),
+        helpCommand.quickstartData.toJSON(),
+        ticketsCommand.artistData.toJSON(),
+        ticketsCommand.panelData.toJSON(),
+        ticketsCommand.ticketsOverviewData.toJSON(),
+        ticketsCommand.artistsDirectoryData.toJSON(),
+        levelingCommand.data.toJSON(),
+        levelingCommand.leaderboardData.toJSON(),
+        economyCommand.data.toJSON(),
+        economyCommand.dailyData.toJSON(),
+        economyCommand.payData.toJSON(),
+        economyCommand.richestData.toJSON(),
+        shopCommand.shopData.toJSON(),
+        shopCommand.buyData.toJSON(),
+        shopCommand.gambleData.toJSON(),
+        shopCommand.shopConfigData.toJSON(),
+        updatesCommand.updatesData.toJSON(),
+        updatesCommand.announceData.toJSON()
+    ];
+}
+
+async function syncGuildCommands(guildId, { quiet = false } = {}) {
+    commandRest ||= new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    const guild = client.guilds.cache.get(guildId);
+    try {
+        const result = await commandRest.put(
+            Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, guildId),
+            { body: allCommandsJSON() }
+        );
+        if (commandSyncFailed.has(guildId)) console.log(`✅ Commands are now in ${guild?.name || guildId} (retry worked).`);
+        else if (!quiet) console.log(`✅ Synced to guild ${guild?.name || guildId} (${guildId}):`, result.map(c => c.name));
+        commandSyncFailed.delete(guildId);
+        return true;
+    } catch (err) {
+        if (!commandSyncFailed.has(guildId) || !quiet) {
+            console.error(`❌ Failed to sync commands to guild ${guildId}:`, err.message,
+                err.code === 50001 ? '(re-invite Astra to that server from the dashboard; she will retry on her own)' : '');
+        }
+        commandSyncFailed.set(guildId, { error: err.message, code: err.code, at: Date.now() });
+        return false;
+    }
+}
+
+setInterval(async () => {
+    for (const guildId of [...commandSyncFailed.keys()]) {
+        if (!client.guilds.cache.has(guildId)) { commandSyncFailed.delete(guildId); continue; } // she left
+        await syncGuildCommands(guildId, { quiet: true });
+    }
+}, COMMAND_RETRY_MS).unref();
+
 client.once('ready', async () => {
     try {
-        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-
-        await rest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
+        commandRest ||= new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+        await commandRest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [] });
         console.log('🧹 Global commands cleared.');
 
-        const commands = [
-            configCommand.data.toJSON(),
-            helpCommand.data.toJSON(),
-            helpCommand.aboutData.toJSON(),
-            helpCommand.quickstartData.toJSON(),
-            ticketsCommand.artistData.toJSON(),
-            ticketsCommand.panelData.toJSON(),
-            ticketsCommand.ticketsOverviewData.toJSON(),
-            ticketsCommand.artistsDirectoryData.toJSON(),
-            levelingCommand.data.toJSON(),
-            levelingCommand.leaderboardData.toJSON(),
-            economyCommand.data.toJSON(),
-            economyCommand.dailyData.toJSON(),
-            economyCommand.payData.toJSON(),
-            economyCommand.richestData.toJSON(),
-            shopCommand.shopData.toJSON(),
-            shopCommand.buyData.toJSON(),
-            shopCommand.gambleData.toJSON(),
-            shopCommand.shopConfigData.toJSON(),
-            updatesCommand.updatesData.toJSON(),
-            updatesCommand.announceData.toJSON()
-        ];
-
-        for (const [guildId, guild] of client.guilds.cache) {
-            try {
-                const result = await rest.put(
-                    Routes.applicationGuildCommands(process.env.DISCORD_CLIENT_ID, guildId),
-                    { body: commands }
-                );
-                console.log(`✅ Synced to guild ${guild.name} (${guildId}):`, result.map(c => c.name));
-            } catch (guildErr) {
-                console.error(`❌ Failed to sync commands to guild ${guildId}:`, guildErr.message);
-            }
-        }
-        console.log('🔄 Command sync pass complete.');
+        for (const guildId of client.guilds.cache.keys()) await syncGuildCommands(guildId);
+        console.log(`🔄 Command sync pass complete${commandSyncFailed.size ? ` (${commandSyncFailed.size} server(s) failed, retrying every ${COMMAND_RETRY_MS / 60000} min)` : ''}.`);
     } catch (error) {
         console.error('❌ Error synchronizing commands:', error);
     }
@@ -1257,6 +1292,8 @@ client.once('ready', async () => {
 // Goes to the system channel, else the first text channel she can write in,
 // else the server owner's DMs. astra_welcomed stops it from repeating.
 client.on('guildCreate', async (guild) => {
+    // Commands right away for a new server (before, they only came after a restart).
+    await syncGuildCommands(guild.id);
     try {
         const { rows } = await db.query('SELECT astra_welcomed FROM guild_settings WHERE guild_id = $1', [guild.id]);
         if (rows[0]?.astra_welcomed) return;

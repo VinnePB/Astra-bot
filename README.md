@@ -447,6 +447,11 @@
 - New columns `updates_enabled`, `updates_channel_id`, `updates_role_id`, `updates_last_version`, created on boot. New file `src/commands/updates.js`
 - `npm run test-updates` checks it without Discord, a database or network
 
+**Slash commands without restarts**
+- Joining a new server now adds her commands right away (before, they only showed up after her next restart)
+- A server where adding commands fails (usually an old invite missing the "applications.commands" permission) is retried every 5 minutes, so re-inviting her is enough, no restart needed
+- That server's dashboard shows a warning with a **Re-authorize Astra** button, and opening the dashboard retries immediately
+
 ---
 
 {UPCOMING UPDATE, SOON}

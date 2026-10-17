@@ -66,6 +66,7 @@
   "quickstart.step5_desc": "`/config leveling` turns on XP, and `/config level-roles` gives roles at milestone levels (the dashboard can create those roles for you). `/config economy` turns on `/daily`, `/pay` and friends. `/shopconfig add-role` sells cosmetic roles and `/shopconfig events` turns on random coin drops.",
   "quickstart.footer": "Run /help anytime to see every command.",
   "site.nav.get_started": "Get Started",
+  "site.nav.home": "Home",
   "site.nav.help": "Help & Setup",
   "site.nav.configuration": "Configuration",
   "site.nav.switch_server": "Switch Server",
@@ -371,5 +372,8 @@
   "dashboard.updates.err_perms": "Astra can't post in that channel. She needs View Channel, Send Messages and Embed Links there.",
   "dashboard.updates.err_nomanage": "Astra needs the Manage Channels permission to create a channel. Give it to her, or pick an existing channel.",
   "dashboard.updates.err_off": "Turn updates on and save first.",
-  "dashboard.updates.err_failed": "Something went wrong. Check Astra's permissions and try again."
+  "dashboard.updates.err_failed": "Something went wrong. Check Astra's permissions and try again.",
+  "dashboard.commands_missing.title": "⚠️ Astra's slash commands aren't in this server",
+  "dashboard.commands_missing.desc": "Discord didn't let her add them, usually because she was invited with an old link. Click below and authorize her again (she stays in the server and keeps her settings). She retries every 5 minutes on her own, or reload this page after authorizing.",
+  "dashboard.commands_missing.button": "Re-authorize Astra"
 }
