@@ -130,6 +130,32 @@ Module._load = function (req, parent, ...a) {
     // bots are ignored
     assert.strictEqual(await owner.handleDm({ ...msg('111111111111111111', 'owner help'), author: { id: '1', bot: true } }, {}), false);
 
+    // ---------- "owner block here" typed in a server channel: owner only, silent for everyone else
+    {
+        const gid = '555555555555555555';
+        const mkGuild = () => { const g = { id: gid, name: 'Bad Server', left: false, fetchOwner: async () => ({ send: async () => {} }), leave: async () => { g.left = true; } }; return g; };
+        const run = async (uid, content) => {
+            const g = mkGuild();
+            const log = { deleted: false, dms: [] };
+            const message = { author: { id: uid, bot: false, send: async (x) => { log.dms.push(x); } }, content, guild: g, client: { guilds: { cache: new Map([[gid, g]]) } },
+                delete: async () => { log.deleted = true; } };
+            queries.length = 0;
+            const handled = await owner.handleGuildMessage(message);
+            return { handled, g, log, blockedSql: queries.some((q) => /INSERT INTO blocked_guilds/.test(q.sql)) };
+        };
+        let r = await run('222222222222222222', 'owner block here spam');
+        assert.ok(!r.handled && !r.g.left && !r.log.deleted && !r.blockedSql, 'a stranger does nothing and loses nothing');
+        r = await run('111111111111111111', 'just chatting here');
+        assert.ok(!r.handled && !r.g.left, 'ordinary owner message ignored');
+        r = await run('111111111111111111', 'owner servers');
+        assert.ok(!r.handled && !r.g.left, 'other owner words are not run in a channel');
+        r = await run('111111111111111111', 'owner block here breaking the rules');
+        assert.ok(r.handled && r.g.left && r.log.deleted && r.blockedSql, 'owner: message deleted, server blocked, Astra left');
+        assert.ok(/Blocked and left/.test(r.log.dms[0]), 'owner is told in a DM');
+        r = await run('111111111111111111', 'owner leave here');
+        assert.ok(r.handled && r.g.left && !r.blockedSql, 'leave does not block');
+    }
+
     // ---------- /invite
     const invite = require('./invite');
     const links = { inviteUrl: 'https://discord.com/x', siteUrl: 'https://projeckt-v.dev' };

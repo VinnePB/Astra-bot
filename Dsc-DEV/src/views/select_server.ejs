@@ -4,6 +4,9 @@
     <header class="mb-10 text-center sm:text-left">
         <h1 class="fui-brand text-2xl md:text-3xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);"><%= t('site.selectserver.title').toUpperCase() %></h1>
         <p class="text-slate-400 mt-2 text-sm md:text-base"><%= t('site.selectserver.subtitle', { username: user.username }) %></p>
+        <% if (typeof isBotOwner !== 'undefined' && isBotOwner) { %>
+            <a href="/dev" class="inline-block mt-3 text-xs text-slate-500 hover:text-cyan-300 fui-tracked uppercase">Developer</a>
+        <% } %>
     </header>
 
     <!-- ACTIVE SERVERS -->

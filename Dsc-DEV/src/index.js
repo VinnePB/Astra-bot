@@ -26,6 +26,7 @@ const alerts = require('./alerts');
 const backup = require('./backup');
 const ownerCommand = require('./commands/owner');
 const inviteCommand = require('./invite');
+const { getOwnerIds } = require('./botowner');
 const rolekit = require('./rolekit');
 const artistPortal = require('./artistportal');
 const mydataCommand = require('./commands/mydata');
@@ -471,6 +472,7 @@ app.get('/select-server', checkAuth, async (req, res) => {
             guildsWithoutBot,
             guildsNoAccess,
             artistGuildList,
+            isBotOwner: (await getOwnerIds(client).catch(() => [])).includes(req.session.user.id),
             clientId: process.env.DISCORD_CLIENT_ID,
             botInvitePermissions: BOT_INVITE_PERMISSIONS,
             currentLang: siteLang,
@@ -1319,6 +1321,95 @@ app.post('/artist-panel/:guildId', checkAuth, async (req, res) => {
     }
 });
 
+// ---------------------------------------------------------------- owner page
+// A private page for the bot owner (the account Discord lists as the application's
+// owner). It has no link anywhere; for anyone else, and for visitors who are not
+// logged in, the address simply does not exist (404). Same actions as the DM
+// commands, see commands/owner.js.
+const ownerGate = async (req, res, next) => {
+    try {
+        if (!req.session.user) return next('route');
+        const ids = await getOwnerIds(client);
+        if (!ids.includes(req.session.user.id)) return next('route');
+        return next();
+    } catch (e) { return next('route'); }
+};
+const devBack = (req, res, ok, text, id) => {
+    req.session.devFlash = { ok, text };
+    req.session.save(() => res.redirect('/dev' + (id && /^\d{15,25}$/.test(id) ? `?id=${id}` : '')));
+};
+const day = (ms) => (ms ? new Date(ms).toISOString().slice(0, 10) : '—');
+
+app.get('/dev', ownerGate, async (req, res) => {
+    try {
+        const all = ownerCommand.guildRows(client);
+        const per = 25;
+        const pages = Math.max(1, Math.ceil(all.length / per));
+        const page = Math.min(Math.max(parseInt(req.query.page, 10) || 1, 1), pages);
+        const selectedId = /^\d{15,25}$/.test(String(req.query.id || '')) ? String(req.query.id) : null;
+        const flash = req.session.devFlash || null; delete req.session.devFlash;
+        const siteLang = req.session.siteLang || 'en';
+        res.render('dev_panel', {
+            user: req.session.user, currentLang: siteLang, t: (key, vars) => t(siteLang, key, vars),
+            pageTitle: 'Projeckt V: Astra — Developer',
+            total: all.length, page, pages,
+            servers: all.slice((page - 1) * per, page * per).map((g) => ({ ...g, added: day(g.joinedAt) })),
+            selected: selectedId ? await ownerCommand.serverInfo(client, selectedId) : null,
+            selectedAdded: selectedId ? day(client.guilds.cache.get(selectedId)?.joinedTimestamp) : null,
+            blocked: (await ownerCommand.listBlocked()).map((b) => ({ id: b.guild_id, reason: b.reason, at: day(b.blocked_at && new Date(b.blocked_at).getTime()) })),
+            flash,
+        });
+    } catch (e) {
+        console.error('❌ Owner page failed:', e);
+        res.status(500).send('Could not load this page.');
+    }
+});
+
+const devAction = (path, fn) => app.post(path, writeLimiter, ownerGate, async (req, res) => {
+    const id = String(req.body.id || '').trim();
+    try {
+        const out = await fn(req, id);
+        if (out && out.download) return; // the handler already answered
+        return devBack(req, res, out.ok !== false, out.text, id);
+    } catch (e) {
+        console.error(`❌ Owner action ${path} failed:`, e.message);
+        return devBack(req, res, false, `Failed: ${String(e.message).slice(0, 200)}`, id);
+    }
+});
+devAction('/dev/server/leave', async (req, id) => {
+    const r = await ownerCommand.removeServer(client, id, { block: false, reason: req.body.reason, by: 'website' });
+    return { text: `Left ${r.name || id}${r.wasIn ? '' : ' (she was not in it)'}. Its data is deleted automatically after 30 days.` };
+});
+devAction('/dev/server/block', async (req, id) => {
+    const r = await ownerCommand.removeServer(client, id, { block: true, reason: req.body.reason, by: 'website' });
+    return { text: `Blocked ${r.name || id}${r.wasIn ? '' : ' (she was not in it)'}. She will refuse to rejoin.` };
+});
+devAction('/dev/server/unblock', async (req, id) => ({ text: (await ownerCommand.unblockServer(id)) ? `${id} is no longer blocked.` : 'That server was not blocked.' }));
+devAction('/dev/server/purge', async (req, id) => {
+    const r = await ownerCommand.purgeServer(client, id, req.body.confirm);
+    return r.ok ? { text: `All stored data for ${id} was deleted.` } : { ok: false, text: r.error };
+});
+devAction('/dev/user/delete', async (req) => {
+    const userId = String(req.body.user_id || '').trim();
+    if (req.body.confirm !== 'yes') return { ok: false, text: 'Tick the confirmation box to delete. Nothing was deleted.' };
+    const counts = await ownerCommand.deleteUserData(userId, { moderation: req.body.include_moderation === 'on' });
+    return { text: `Deleted data for ${userId}: ` + (Object.entries(counts).map(([k, n]) => `${k} ${n}`).join(', ') || 'nothing stored') + '.' };
+});
+devAction('/dev/user/export', async (req) => {
+    const userId = String(req.body.user_id || '').trim();
+    const out = await ownerCommand.exportUserData(userId);
+    const res = req.res;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="astra-data-${userId}.json"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(out.json);
+    return { download: true };
+});
+devAction('/dev/backup', async () => {
+    const out = await backup.sendBackup(client, { reason: 'manual' });
+    return out.ok ? { text: `Backup sent to your DMs (${out.rows} rows).` } : { ok: false, text: `Backup not sent (${out.reason}).` };
+});
+
 // Creates the Astra Admin / Verified roles when missing, lets Verified members
 // use Astra's everyday commands, and (optionally) creates the divider roles.
 app.post('/api/roles/setup', checkAuth, async (req, res) => {
@@ -1837,6 +1928,10 @@ async function logMemberEvent(guild, type, member) {
 // configured verify channel (dual-role mode only) and warns the sender.
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+    if (message.guild && /^!?owner\s/i.test(message.content || '')) {
+        // "owner leave here" / "owner block here": only the owner is listened to, nobody else notices anything.
+        try { if (await ownerCommand.handleGuildMessage(message)) return; } catch (e) { console.error('❌ owner shortcut error:', e.message); }
+    }
     if (!message.guild) {
         // Direct message: owner commands for the owner, a short "add me" note for anyone else.
         try { await ownerCommand.handleDm(message, { strangerReply: inviteCommand.strangerText(botLinks()) }); }

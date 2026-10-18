@@ -1,0 +1,143 @@
+<%- include('partials/header') %>
+
+<div class="max-w-6xl mx-auto">
+    <header class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="fui-brand text-xl md:text-2xl font-black text-cyan-300 fui-tracked" style="text-shadow: 0 0 20px rgba(34,229,255,0.3);">DEVELOPER</h1>
+            <p class="text-slate-400 text-sm">Astra is in <%= total %> server(s). Only you can see this page.</p>
+        </div>
+        <a href="/select-server" class="fui-btn text-xs px-4 py-2 text-slate-300 hover:text-cyan-300 self-start">Back</a>
+    </header>
+
+    <% if (flash) { %>
+        <div class="mb-6 border <%= flash.ok ? 'border-cyan-500/40 bg-cyan-500/5 text-cyan-200' : 'border-fuchsia-500/40 bg-fuchsia-500/5 text-fuchsia-200' %> px-4 py-3 text-sm"><%= flash.text %></div>
+    <% } %>
+
+    <!-- SELECTED SERVER -->
+    <% if (selected) { %>
+        <section class="fui-panel fui-corners p-5 md:p-8 mb-8">
+            <h2 class="fui-section-title"><%= selected.name || ('Server ' + selected.id) %></h2>
+            <p class="text-xs text-slate-500 mb-4 break-all"><%= selected.id %></p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-6">
+                <div class="bg-black/40 border border-cyan-500/10 p-3"><div class="text-xs text-slate-500">In server now</div><%= selected.inGuild ? 'yes' : 'no' %></div>
+                <div class="bg-black/40 border border-cyan-500/10 p-3"><div class="text-xs text-slate-500">Members</div><%= selected.inGuild ? selected.members : '—' %></div>
+                <div class="bg-black/40 border border-cyan-500/10 p-3"><div class="text-xs text-slate-500">Added</div><%= selectedAdded %></div>
+                <div class="bg-black/40 border border-cyan-500/10 p-3"><div class="text-xs text-slate-500">Stored data</div><%= selected.levelRows %> levels · <%= selected.tickets %> tickets · <%= selected.cases %> cases</div>
+            </div>
+            <% if (selected.blocked) { %>
+                <p class="text-sm text-fuchsia-300 mb-4">Blocked: <%= selected.blocked.reason || 'no reason given' %></p>
+            <% } %>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <% if (selected.inGuild) { %>
+                    <form action="/dev/server/leave" method="POST" class="bg-black/40 border border-cyan-500/10 p-4 space-y-3" onsubmit="return confirm('Make Astra leave this server?');">
+                        <input type="hidden" name="id" value="<%= selected.id %>">
+                        <label class="fui-label">Leave (the server owner is told why)</label>
+                        <input type="text" name="reason" maxlength="300" placeholder="Reason (optional)" class="fui-input" autocomplete="off">
+                        <button type="submit" class="fui-btn text-xs px-4 py-2 text-cyan-300 border-cyan-500/30">Leave server</button>
+                    </form>
+                <% } %>
+                <form action="/dev/server/block" method="POST" class="bg-black/40 border border-fuchsia-500/20 p-4 space-y-3" onsubmit="return confirm('Block this server? Astra leaves and will refuse to join it again.');">
+                    <input type="hidden" name="id" value="<%= selected.id %>">
+                    <label class="fui-label">Block (leave and never join again)</label>
+                    <input type="text" name="reason" maxlength="300" placeholder="Reason (also shown to the server owner)" class="fui-input" autocomplete="off">
+                    <button type="submit" class="fui-btn text-xs px-4 py-2 text-fuchsia-300 border-fuchsia-500/30">Block server</button>
+                </form>
+                <% if (selected.blocked) { %>
+                    <form action="/dev/server/unblock" method="POST" class="bg-black/40 border border-cyan-500/10 p-4 space-y-3">
+                        <input type="hidden" name="id" value="<%= selected.id %>">
+                        <label class="fui-label">Allow this server again</label>
+                        <button type="submit" class="fui-btn text-xs px-4 py-2 text-cyan-300 border-cyan-500/30">Unblock</button>
+                    </form>
+                <% } %>
+                <% if (!selected.inGuild) { %>
+                    <form action="/dev/server/purge" method="POST" class="bg-black/40 border border-fuchsia-500/20 p-4 space-y-3" onsubmit="return confirm('Delete all stored data for this server now? This cannot be undone.');">
+                        <input type="hidden" name="id" value="<%= selected.id %>">
+                        <label class="fui-label">Delete its stored data now (type the server ID to confirm)</label>
+                        <input type="text" name="confirm" placeholder="Server ID" class="fui-input" autocomplete="off">
+                        <button type="submit" class="fui-btn text-xs px-4 py-2 text-fuchsia-300 border-fuchsia-500/30">Delete data</button>
+                    </form>
+                <% } %>
+            </div>
+        </section>
+    <% } %>
+
+    <!-- SERVER LIST -->
+    <section class="fui-panel fui-corners p-5 md:p-8 mb-8">
+        <h2 class="fui-section-title">Servers</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead class="text-xs text-slate-500 uppercase fui-tracked">
+                    <tr><th class="py-2 pr-4">Name</th><th class="py-2 pr-4">ID</th><th class="py-2 pr-4">Members</th><th class="py-2 pr-4">Added</th><th class="py-2"></th></tr>
+                </thead>
+                <tbody>
+                    <% servers.forEach(g => { %>
+                        <tr class="border-t border-cyan-500/10">
+                            <td class="py-2 pr-4 text-slate-200"><%= g.name %></td>
+                            <td class="py-2 pr-4 text-slate-500 break-all"><%= g.id %></td>
+                            <td class="py-2 pr-4"><%= g.members %></td>
+                            <td class="py-2 pr-4"><%= g.added %></td>
+                            <td class="py-2 text-right"><a href="/dev?id=<%= g.id %>&page=<%= page %>" class="text-cyan-300 hover:underline">Manage</a></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+        <% if (pages > 1) { %>
+            <div class="flex gap-3 mt-4 text-xs">
+                <% if (page > 1) { %><a href="/dev?page=<%= page - 1 %>" class="text-cyan-300 hover:underline">← Previous</a><% } %>
+                <span class="text-slate-500">Page <%= page %> of <%= pages %></span>
+                <% if (page < pages) { %><a href="/dev?page=<%= page + 1 %>" class="text-cyan-300 hover:underline">Next →</a><% } %>
+            </div>
+        <% } %>
+    </section>
+
+    <!-- BLOCKED -->
+    <% if (blocked.length) { %>
+        <section class="fui-panel fui-corners p-5 md:p-8 mb-8">
+            <h2 class="fui-section-title">Blocked servers</h2>
+            <div class="space-y-2">
+                <% blocked.forEach(b => { %>
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-black/40 border border-fuchsia-500/10 p-3 text-sm">
+                        <div class="min-w-0">
+                            <div class="text-slate-300 break-all"><%= b.id %> <span class="text-slate-500">· <%= b.at %></span></div>
+                            <div class="text-xs text-slate-500"><%= b.reason || 'no reason given' %></div>
+                        </div>
+                        <form action="/dev/server/unblock" method="POST">
+                            <input type="hidden" name="id" value="<%= b.id %>">
+                            <button type="submit" class="fui-btn text-xs px-3 py-1 text-cyan-300 border-cyan-500/30">Unblock</button>
+                        </form>
+                    </div>
+                <% }) %>
+            </div>
+        </section>
+    <% } %>
+
+    <!-- PEOPLE + BACKUP -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <section class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title">A person's data</h2>
+            <form action="/dev/user/export" method="POST" class="space-y-3 mb-6">
+                <label class="fui-label">Export everything stored about someone</label>
+                <input type="text" name="user_id" placeholder="Discord user ID" class="fui-input" autocomplete="off">
+                <button type="submit" class="fui-btn text-xs px-4 py-2 text-cyan-300 border-cyan-500/30">Download JSON</button>
+            </form>
+            <form action="/dev/user/delete" method="POST" class="space-y-3" onsubmit="return confirm('Delete everything stored about this person?');">
+                <label class="fui-label">Delete everything stored about someone</label>
+                <input type="text" name="user_id" placeholder="Discord user ID" class="fui-input" autocomplete="off">
+                <label class="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" name="confirm" value="yes" class="w-4 h-4 accent-cyan-500"> I confirm</label>
+                <label class="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" name="include_moderation" class="w-4 h-4 accent-cyan-500"> Also delete their moderation cases (kept by default)</label>
+                <button type="submit" class="fui-btn text-xs px-4 py-2 text-fuchsia-300 border-fuchsia-500/30">Delete data</button>
+            </form>
+        </section>
+        <section class="fui-panel fui-corners p-5 md:p-8">
+            <h2 class="fui-section-title">Backup</h2>
+            <p class="text-xs text-slate-500 mb-4">Sends a fresh backup file to your Discord DMs.</p>
+            <form action="/dev/backup" method="POST">
+                <button type="submit" class="fui-btn text-xs px-4 py-2 text-cyan-300 border-cyan-500/30">Send backup now</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+<%- include('partials/footer') %>
