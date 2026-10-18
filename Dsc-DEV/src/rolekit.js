@@ -12,7 +12,7 @@
 
 const { PermissionFlagsBits } = require('discord.js');
 const db = require('./database');
-const { isAstraAdmin } = require('./permissions');
+const { isAstraAdmin, isPowerfulRole } = require('./permissions');
 
 const ADMIN_ROLE_NAME = 'Astra Admin';
 const MEMBER_ROLE_NAME = 'Verified';
@@ -33,14 +33,19 @@ const DIVIDERS = {
 //   the role is currently called (rename it in Discord and Astra keeps your word).
 const FILL = '\u3164'; // Hangul filler: shows as blank, and Discord does not trim it
 const DEFAULT_PAD = 14;
+const MAX_PAD = 20; // wider than this overflows Discord's profile card and pushes the label out of view
 function labelOf(name, fallback) {
     const l = String(name || '').replace(/^[━─\u3164\u2800\s]+|[━─\u3164\u2800\s]+$/g, '');
     return l || fallback;
 }
+function clampPad(pad) {
+    return Math.max(0, Math.min(MAX_PAD, Number.isFinite(+pad) ? Math.trunc(+pad) : DEFAULT_PAD));
+}
 function styled(label, style, pad) {
-    const p = Math.max(0, Math.min(30, Number.isFinite(+pad) ? Math.trunc(+pad) : DEFAULT_PAD));
+    const p = clampPad(pad);
     if (style === 'bar') {
-        let n = p;
+        // Longer labels get a little less padding so every bar ends up about the same width.
+        let n = p === 0 ? 0 : Math.min(MAX_PAD, Math.max(1, p + 3 - Math.round(label.length / 2)));
         while (n > 0 && n * 2 + label.length > 100) n--;
         return `${FILL.repeat(n)}${label}${FILL.repeat(n)}`;
     }
@@ -250,7 +255,36 @@ async function arrangeDividers(guild, ctx) {
         try { if (!(await placeAbove(guild, role, group))) failed.push(role.name); }
         catch (_) { failed.push(role.name); }
     }
+    try { await stackGroupRoles(guild, c); } catch (e) { console.error('❌ rolekit stack:', e.message); }
     return failed;
+}
+
+// Moves the roles of each group so they sit right under their divider, keeping
+// their order. Only touches roles below Astra's own role that are not managed
+// by an integration and carry no powerful permission; every other role stays
+// exactly where it is, and nothing is ever moved above Astra.
+async function stackGroupRoles(guild, ctx) {
+    const top = botHighest(guild);
+    const movable = (r) => r && r.id !== guild.id && !r.managed && r.position < top && r.editable !== false;
+    const all = [...guild.roles.cache.values()].filter(movable).sort((a, b) => b.position - a.position);
+    if (all.length < 2) return 0;
+    const slots = all.map((r) => r.position); // positions these roles occupy, high to low
+    let order = all.slice();
+    const claimed = new Set();
+    for (const [kind, d] of Object.entries(DIVIDERS)) {
+        const divider = ctx.settings[d.col] && guild.roles.cache.get(ctx.settings[d.col]);
+        if (!divider || !order.includes(divider)) continue;
+        const members = order.filter((r) => ctx.groups[kind].has(r.id) && r !== divider && !claimed.has(r.id) && !isPowerfulRole(r));
+        if (!members.length) continue;
+        members.forEach((r) => claimed.add(r.id));
+        order = order.filter((r) => !members.includes(r));
+        order.splice(order.indexOf(divider) + 1, 0, ...members);
+    }
+    const changes = [];
+    order.forEach((r, i) => { if (r.position !== slots[i]) changes.push({ role: r.id, position: slots[i] }); });
+    if (!changes.length) return 0;
+    await guild.roles.setPositions(changes);
+    return changes.length;
 }
 
 // Replaces the admin-chosen roles of each group. selections: { kind: [roleId, ...] }
@@ -275,7 +309,7 @@ async function saveGroups(guild, selections) {
 // Saves the look and the "give to every member" choices.
 async function saveOptions(guildId, { style, pad, everyone }) {
     const st = style === 'bar' ? 'bar' : 'line';
-    const p = Math.max(0, Math.min(30, Number.isFinite(+pad) ? Math.trunc(+pad) : DEFAULT_PAD));
+    const p = clampPad(pad);
     const kinds = [...new Set([].concat(everyone || []))].filter((k) => DIVIDERS[k]).join(',');
     await db.query(
         `INSERT INTO guild_settings (guild_id, divider_style, divider_pad, divider_everyone) VALUES ($1, $2, $3, $4)
@@ -352,4 +386,4 @@ async function backfillDividers(guild) {
     } catch (e) { console.error('❌ divider backfill failed:', e.message); return 0; }
 }
 
-module.exports = { syncMember, backfillDividers, startBackfill, resync, restyleDividers, saveOptions, labelOf, styled, loadGroups, loadSyncContext, arrangeDividers, saveGroups, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };
+module.exports = { syncMember, backfillDividers, startBackfill, resync, restyleDividers, saveOptions, labelOf, styled, loadGroups, loadSyncContext, arrangeDividers, saveGroups, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove, stackGroupRoles } };

@@ -540,6 +540,8 @@
 - Choose which roles each divider heads, right from the dashboard, and pick the look: a line or a wide bar
 - Dividers can be given to every member from the moment they join
 - A "Check everyone now" button re-checks every member's divider roles and positions, only when you ask for it
+- The same button also tidies the roles under each divider, so every group stays together (never touching staff, powerful or integration roles)
+- Wide bars are now capped so they always fit a profile card, and every divider ends up about the same width
 - Registering an artist now also gives them the server's artist role, and removing them takes it back
 - None of these roles carry moderation powers
 

@@ -36,8 +36,8 @@ const rolekit = require('./rolekit');
 function makeGuild({ canManage = true } = {}) {
     let n = 100;
     const roles = new Map();
-    const guild = { id: 'g1', ownerId: 'owner', roles: { cache: { has: (id) => roles.has(id), get: (id) => roles.get(id), find: (f) => [...roles.values()].find(f) },
-        fetch: async () => {}, create: async (d) => { const r = { id: String(110000000000000000n + BigInt(++n)), name: d.name, position: 1, managed: false, editable: true,
+    const guild = { id: 'g1', ownerId: 'owner', roles: { cache: { has: (id) => roles.has(id), get: (id) => roles.get(id), find: (f) => [...roles.values()].find(f), values: () => roles.values() },
+        fetch: async () => {}, setPositions: async () => {}, create: async (d) => { const r = { id: String(110000000000000000n + BigInt(++n)), name: d.name, position: 1, managed: false, editable: true,
             permissions: { _p: new Set((d.permissions || []).map(String)), has(f) { return this._p.has(String(f)); }, add(f) { const c = { ...this, _p: new Set(this._p) }; c._p.add(String(f)); return c; } },
             setPermissions: async function (p) { this.permissions = p; }, setName: async function (n) { this.name = n; }, setPosition: async function (x) { this.position = x; } }; roles.set(r.id, r); return r; } },
         members: { fetch: async () => new Map(), me: { permissions: { has: () => canManage }, roles: { highest: { position: 50 } } }, fetchMe: async () => guild.members.me } };
@@ -152,7 +152,33 @@ function makeGuild({ canManage = true } = {}) {
     const lv = roles.get(divs.levels); lv.name = '━━━━ MISC ━━━━'; lv.setName = async function (n) { this.name = n; };
     store.settings.g1.divider_style = 'bar'; store.settings.g1.divider_pad = 3;
     await rolekit.restyleDividers(guild);
-    assert.strictEqual(lv.name, '\u3164\u3164\u3164MISC\u3164\u3164\u3164', 'custom label kept, bar look applied');
+    assert.strictEqual(lv.name, '\u3164'.repeat(4) + 'MISC' + '\u3164'.repeat(4), 'custom label kept, bar look applied');
+
+    // --- width: capped, and equal-looking regardless of label length
+    const wide = (l) => styled(l, 'bar', 999);
+    assert.ok([...wide('A')].filter((c) => c === '\u3164').length <= 40, 'pad is capped');
+    assert.strictEqual(styled('X', 'bar', 0), 'X', 'pad 0 means no padding');
+    const filler = (l) => [...styled(l, 'bar', 14)].filter((c) => c === '\u3164').length;
+    assert.ok(filler('STAFF') >= filler('SPECIAL'), 'longer labels get less padding');
+
+    // --- group roles are stacked right under their divider; powerful, managed and too-high roles stay put
+    {
+        const mkRole = (id, position, extra = {}) => ({ id, name: id, position, managed: false, editable: true, permissions: { has: () => false }, ...extra });
+        const dv = mkRole('d1', 40), a = mkRole('a', 30), x = mkRole('x', 25), b = mkRole('b', 20), c = mkRole('c', 10);
+        const boost = mkRole('boost', 22, { managed: true }), high = mkRole('high', 60), pw = mkRole('pw', 5);
+        const map = new Map([dv, a, x, b, c, boost, high, pw].map((r) => [r.id, r]));
+        let applied = null;
+        const g = { id: 'ev', roles: { cache: { values: () => map.values(), get: (id) => map.get(id), has: (id) => map.has(id) }, setPositions: async (ch) => { applied = ch; } }, members: { me: { roles: { highest: { position: 50 } } } } };
+        const ctx = { settings: { divider_special_role_id: 'd1' }, groups: { staff: new Set(), access: new Set(), levels: new Set(), special: new Set(['a', 'b', 'c', 'boost', 'high', 'pw']) } };
+        const changed = await rolekit._test.stackGroupRoles(g, ctx);
+        assert.ok(changed > 0 && applied, 'something was moved');
+        const pos = Object.fromEntries(applied.map((e) => [e.role, e.position]));
+        for (const id of ['boost', 'high']) assert.ok(!(id in pos), id + ' untouched');
+        const final = (id) => (id in pos ? pos[id] : map.get(id).position);
+        assert.ok(final('d1') > final('a') && final('a') > final('b') && final('b') > final('c'), 'group stays in order under the divider');
+        assert.ok(final('x') < final('c') || final('x') > final('d1') || final('x') < final('a'), 'unrelated role pushed out of the block');
+        assert.ok(final('a') < final('d1') && final('x') < final('c'), 'x ends up below the whole block');
+    }
 
     // --- "give to every member" puts a divider on someone with no roles at all (a new joiner)
     store.settings.g1.divider_everyone = 'staff,access';
@@ -165,7 +191,7 @@ function makeGuild({ canManage = true } = {}) {
     // --- saving options validates
     await rolekit.saveOptions('g1', { style: 'evil', pad: 999, everyone: ['staff', 'nonsense', 'levels'] });
     assert.strictEqual(store.settings.g1.divider_style, 'line');
-    assert.strictEqual(store.settings.g1.divider_pad, 30);
+    assert.strictEqual(store.settings.g1.divider_pad, 20);
     assert.strictEqual(store.settings.g1.divider_everyone, 'staff,levels');
 
     // --- Discord's member-list rate limit: wait and retry instead of failing
