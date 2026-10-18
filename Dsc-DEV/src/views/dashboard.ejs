@@ -585,6 +585,16 @@
                             </select>
                         </div>
                     </div>
+                    <div>
+                        <label class="fui-label"><%= t('dashboard.tickets.staff_role_label') %> <span class="normal-case text-slate-600"><%= t('dashboard.verification.optional_tag') %></span></label>
+                        <select name="ticket_staff_role_id" class="fui-input">
+                            <option value=""><%= t('dashboard.tickets.staff_role_none') %></option>
+                            <% roles.slice().sort((a, b) => b.position - a.position).filter(r => !r.managed).forEach(r => { %>
+                                <option value="<%= r.id %>" <%= settings.ticket_staff_role_id === r.id ? 'selected' : '' %>>@<%= r.name %></option>
+                            <% }) %>
+                        </select>
+                        <p class="text-xs text-slate-500 mt-1"><%= t('dashboard.tickets.staff_role_hint') %></p>
+                    </div>
                     <p class="text-xs text-slate-600 text-center fui-tracked"><%= t('dashboard.autosave_note') %></p>
                 </form>
                 <form action="/api/send-ticket-panel" method="POST" class="mt-4">

@@ -11,7 +11,7 @@ const en = {
         sections: [
             { h: 'What Astra collects', p: ['Astra only keeps what its features need.'], ul: [
                 '**When you log in to the website:** your Discord user ID, username, display name and avatar, plus a temporary access token from Discord. The list of servers you belong to is read live to show the ones you manage and is not stored.',
-                '**In servers that use Astra:** the settings an administrator chooses (channel and role IDs, custom messages), and, per member, the data of the features they use: XP and level, coin balance and daily streak, pending verification, open tickets, and moderation cases (member ID, moderator ID, action, reason, date).',
+                '**In servers that use Astra:** the settings an administrator chooses (channel and role IDs, custom messages), and, per member, the data of the features they use: XP and level, coin balance and daily streak, pending verification, open tickets, and moderation cases (member ID, moderator ID, action, reason, date). When a commission ticket is closed, Astra sends a copy of its conversation as a text file privately to the ticket\'s artist; Astra does not keep that copy.',
                 '**Commission artists:** the profile an artist writes themselves (terms of service, "won\'t do" list, prices, links and banner image link).',
                 '**Technical logs:** the hosting provider keeps operational logs (errors and request records) that may include IP addresses and Discord IDs for a limited time.'
             ] },
@@ -65,7 +65,7 @@ const pt = {
         sections: [
             { h: 'O que a Astra coleta', p: ['A Astra guarda apenas o que os recursos dela precisam.'], ul: [
                 '**Ao entrar no site:** seu ID de usuário do Discord, nome de usuário, nome de exibição e avatar, além de um token de acesso temporário do Discord. A lista de servidores em que você está é lida na hora para mostrar os que você administra e não é armazenada.',
-                '**Em servidores que usam a Astra:** as configurações escolhidas pelos administradores (IDs de canais e cargos, mensagens personalizadas) e, por membro, os dados dos recursos que ele usa: XP e nível, saldo de moedas e sequência diária, verificação pendente, tickets abertos e casos de moderação (ID do membro, ID do moderador, ação, motivo, data).',
+                '**Em servidores que usam a Astra:** as configurações escolhidas pelos administradores (IDs de canais e cargos, mensagens personalizadas) e, por membro, os dados dos recursos que ele usa: XP e nível, saldo de moedas e sequência diária, verificação pendente, tickets abertos e casos de moderação (ID do membro, ID do moderador, ação, motivo, data). Quando um ticket de comissão é fechado, a Astra envia uma cópia da conversa, em arquivo de texto, em privado para o artista do ticket; a Astra não guarda essa cópia.',
                 '**Artistas de comissão:** o perfil que o próprio artista escreve (termos de serviço, lista do que não faz, preços, links e link da imagem de banner).',
                 '**Registros técnicos:** o provedor de hospedagem mantém registros operacionais (erros e requisições) que podem incluir endereços IP e IDs do Discord por tempo limitado.'
             ] },

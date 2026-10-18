@@ -319,6 +319,19 @@ pool.connect()
                 );
             `);
 
+            // Closing a ticket you opened needs the artist's or an admin's approval.
+            await client.query(`
+                ALTER TABLE tickets
+                ADD COLUMN IF NOT EXISTS close_reason TEXT,
+                ADD COLUMN IF NOT EXISTS close_requested_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS close_message_id VARCHAR(30),
+                ADD COLUMN IF NOT EXISTS close_denied_at TIMESTAMP,
+                ADD COLUMN IF NOT EXISTS staff_called BOOLEAN DEFAULT FALSE;
+            `);
+            await client.query(`
+                ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS ticket_staff_role_id VARCHAR(30);
+            `);
+
             await client.query(`
                 CREATE TABLE IF NOT EXISTS pending_verifications (
                     guild_id VARCHAR(30) NOT NULL,

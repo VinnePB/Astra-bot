@@ -557,6 +557,12 @@
 - A "Check everyone now" button re-checks every member's divider roles and positions, only when you ask for it
 - The same button also tidies the roles under each divider, so every group stays together (never touching staff, powerful or integration roles)
 - Wide bars are now capped so they always fit a profile card, and every divider ends up about the same width
+- Tickets: the person who opened a ticket can no longer close it on the spot. They press Close Ticket, give a reason, and the artist or the server owner approves it or keeps the ticket open (a declined request can be sent again after 10 minutes). The artist and the owner still close right away
+- Tickets are now private: only the person who opened one and its artist can see it (plus the server owner and Discord Administrators, who see every channel). Astra Admin roles no longer see tickets
+- New optional ticket staff (middleman) role: when the person who opened the ticket or the artist presses "Call middleman", that role joins that one ticket and can help close it. Choose the role in the dashboard
+- Ticket events (opened, middleman called, closed with the reason) are sent to the server owner by private message, and still appear in the log channel if you have one set
+- When a ticket closes, Astra sends the artist a private copy of the conversation as a text file, and tells everyone in the ticket that this will happen. Astra does not keep the copy. If the artist's DMs are closed, it goes to the server owner instead
+- The top menu on the website now adapts to the visitor: people who don't manage a server (or are only artists) see just the options that apply to them
 - Custom dividers: write your own look with any characters you like (for example ═══ NAME ═══), with ready-made presets and a live preview in the dashboard
 - Registering an artist now also gives them the server's artist role, and removing them takes it back
 - None of these roles carry moderation powers

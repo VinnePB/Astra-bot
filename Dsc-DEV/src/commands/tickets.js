@@ -1,10 +1,10 @@
 const {
     SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
     StringSelectMenuBuilder, ChannelType, PermissionFlagsBits,
-    ModalBuilder, TextInputBuilder, TextInputStyle
+    ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder
 } = require('discord.js');
 const db = require('../database');
-const { isAstraAdmin } = require('../permissions');
+const { isAstraAdmin, isServerAdministrator } = require('../permissions');
 const { t } = require('../i18n');
 const { logAction } = require('./config');
 
@@ -14,7 +14,36 @@ const DEFAULT_ASKME = 'Feel free to ask about styles, turnaround time, or anythi
 const PRICING_CATEGORIES = ['Headshot', 'Bust', 'Full Body', 'Colored', 'Flat / Lineart'];
 const DEFAULT_PRICE = 'Message me for pricing';
 
+const CLOSE_REASON_MIN = 10;
+const CLOSE_REASON_MAX = 300;
+const CLOSE_RETRY_MS = 10 * 60 * 1000; // how long the opener waits after a declined request
+
 // --- SHARED HELPERS ---
+
+// Who may close a ticket and answer close requests: the ticket's artist, the server
+// owner / a Discord Administrator, and the server's ticket staff (middleman) role.
+// An Astra Admin role on its own is deliberately NOT enough: it does not see tickets.
+async function isTicketStaff(member, ticket) {
+    if (!member || !ticket) return false;
+    if (member.id === ticket.artist_id) return true;
+    if (await isServerAdministrator(member)) return true;
+    const gs = (await db.query('SELECT ticket_staff_role_id FROM guild_settings WHERE guild_id = $1', [ticket.guild_id])).rows[0];
+    return !!(gs?.ticket_staff_role_id && member.roles?.cache?.has(gs.ticket_staff_role_id));
+}
+
+// Ticket events (opened / middleman called / closed) go to the server owner by DM
+// and, when one is set, to the log channel. Never the conversation itself.
+async function ticketLog(guild, text) {
+    try {
+        const gs = (await db.query('SELECT log_channel_id FROM guild_settings WHERE guild_id = $1', [guild.id])).rows[0];
+        if (gs?.log_channel_id) {
+            const ch = await guild.channels.fetch(gs.log_channel_id).catch(() => null);
+            if (ch) await ch.send({ content: text, allowedMentions: { parse: [] } }).catch(() => {});
+        }
+        const owner = await guild.fetchOwner().catch(() => null);
+        if (owner) await owner.send({ content: `**${guild.name}**\n${text}`, allowedMentions: { parse: [] } }).catch(() => {});
+    } catch (e) { console.error('⚠️ Ticket log failed:', e.message); }
+}
 
 async function isArtist(member) {
     if (!member || !member.guild) return false;
@@ -265,23 +294,19 @@ async function closeTicketByChannelId(guild, channelId, closedByUser, options = 
     const ticket = rows[0];
     if (!ticket) return { ok: false, message: '❌ That ticket is already closed.' };
 
-    const canClose = closedByUser.id === ticket.user_id
-        || closedByUser.id === ticket.artist_id
-        || await isAstraAdmin(options.member || null);
-
-    if (!canClose) {
-        return { ok: false, message: '❌ Only the ticket opener, the artist, or an admin can close this.' };
+    // The person who opened a ticket cannot close it themselves: they ask, with a
+    // reason, and the artist or an admin decides (see requestClose / approve below).
+    if (!(await isTicketStaff(options.member || null, ticket))) {
+        return { ok: false, message: '❌ Only the ticket\'s artist or an admin can close this. If you opened it, press Close Ticket inside the ticket and give a reason.' };
     }
 
     const channel = await guild.channels.fetch(channelId).catch(() => null);
 
-    const settings = (await db.query('SELECT log_channel_id FROM guild_settings WHERE guild_id = $1', [guild.id])).rows[0];
-    if (settings?.log_channel_id) {
-        const logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
-        if (logChannel) {
-            await logChannel.send(`🎫 Ticket closed: #${channel ? channel.name : 'unknown'} (opener: <@${ticket.user_id}>, artist: <@${ticket.artist_id}>, closed by: ${closedByUser})`).catch(() => {});
-        }
-    }
+    const why = ticket.close_reason ? `, reason: ${String(ticket.close_reason).slice(0, 300)}` : '';
+    await ticketLog(guild, `🎫 Ticket closed: #${channel ? channel.name : 'unknown'} (opener: <@${ticket.user_id}>, artist: <@${ticket.artist_id}>, closed by: ${closedByUser}${why})`);
+
+    // A copy of the conversation goes privately to the artist before the channel is deleted.
+    if (channel && channel.messages) await deliverTranscript(guild, channel, ticket, closedByUser);
 
     await db.query('DELETE FROM tickets WHERE channel_id = $1', [channelId]);
     if (channel) setTimeout(() => channel.delete().catch(() => {}), 5000);
@@ -289,7 +314,161 @@ async function closeTicketByChannelId(guild, channelId, closedByUser, options = 
     return { ok: true, message: `✅ Closed <#${channelId}>.` };
 }
 
+const TRANSCRIPT_MAX_MESSAGES = 3000;
+const TRANSCRIPT_MAX_CHARS = 7_000_000; // stays well under Discord's attachment limit
+const stamp = (ms) => new Date(ms).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+
+// Reads the ticket channel (oldest first) and writes it as a plain text file.
+// Nothing is stored: the file is only sent to the artist when the ticket closes.
+async function buildTranscript(channel, ticket, { guild, closedBy, reason }) {
+    const all = [];
+    let before;
+    while (all.length < TRANSCRIPT_MAX_MESSAGES) {
+        const batch = await channel.messages.fetch(before ? { limit: 100, before } : { limit: 100 }).catch(() => null);
+        if (!batch || batch.size === 0) break;
+        all.push(...batch.values());
+        before = batch.last().id;
+        if (batch.size < 100) break;
+    }
+    all.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    const lines = [];
+    for (const m of all) {
+        if (m.system) continue;
+        const name = m.member?.displayName || m.author?.username || 'unknown';
+        const head = `[${stamp(m.createdTimestamp)}] ${name} (${m.author?.id || '?'}): `;
+        const body = String(m.cleanContent || m.content || '').replace(/\r/g, '');
+        const extra = [];
+        for (const a of m.attachments?.values?.() || []) extra.push(`[attachment] ${a.name || 'file'} ${a.url || ''}`.trim());
+        for (const e of m.embeds || []) if (e.title || e.description) extra.push(`[embed] ${[e.title, e.description].filter(Boolean).join(' - ').slice(0, 300)}`);
+        const text = [body, ...extra].filter(Boolean).join('\n').split('\n').join('\n    ');
+        if (text) lines.push(head + text);
+    }
+
+    const header = [
+        `Ticket transcript - #${channel.name || 'ticket'}`,
+        `Server: ${guild.name}`,
+        `Opened by: ${ticket.user_id}`,
+        `Artist: ${ticket.artist_id}`,
+        `Opened: ${ticket.created_at ? stamp(new Date(ticket.created_at).getTime()) : 'unknown'}`,
+        `Closed: ${stamp(Date.now())} by ${closedBy?.username || closedBy?.id || 'unknown'}`,
+        `Close reason: ${ticket.close_reason || '-'}`,
+        `Messages: ${lines.length}`,
+        '(Attachment links may stop working after a while, since Discord removes files from deleted channels.)',
+        '', '',
+    ].join('\n');
+    let text = header + lines.join('\n');
+    if (text.length > TRANSCRIPT_MAX_CHARS) text = text.slice(0, TRANSCRIPT_MAX_CHARS) + '\n[transcript cut: too long]';
+    return { text, count: lines.length };
+}
+
+// Sends the transcript privately to the ticket's artist. If their DMs are closed it
+// goes to the server owner instead; either way it never blocks closing.
+async function deliverTranscript(guild, channel, ticket, closedBy) {
+    try {
+        const { text, count } = await buildTranscript(channel, ticket, { guild, closedBy, reason: ticket.close_reason });
+        if (count === 0) return;
+        const file = () => new AttachmentBuilder(Buffer.from(text, 'utf8'), { name: `ticket-${String(channel.name || 'ticket').slice(0, 40)}-${new Date().toISOString().slice(0, 10)}.txt` });
+        const note = `📄 Transcript of **#${channel.name || 'ticket'}** in **${guild.name}**: ${count} message(s), closed by ${closedBy?.username || 'staff'}.`;
+        let sent = false;
+        try {
+            const user = await (guild.client || channel.client).users.fetch(ticket.artist_id);
+            await user.send({ content: note, files: [file()] });
+            sent = true;
+        } catch (_) { /* DMs closed or user gone */ }
+        if (!sent) {
+            // The artist can't be reached: the server owner gets it (the log channel is visible to staff, so not there).
+            const owner = await guild.fetchOwner().catch(() => null);
+            if (owner) await owner.send({ content: `${note} (The artist's DMs are closed, so it is sent to you.)`, files: [file()] }).catch(() => {});
+        }
+    } catch (e) {
+        console.error('❌ Ticket transcript failed:', e.message);
+    }
+}
+
+// The opener or the artist asks for the server's ticket staff (middleman) to join.
+// Only then does that role get to see this ticket.
+async function callMiddleman(interaction) {
+    const lang = await getGuildLanguage(interaction.guild.id);
+    const { rows } = await db.query('SELECT * FROM tickets WHERE channel_id = $1', [interaction.channel.id]);
+    const ticket = rows[0];
+    if (!ticket) return interaction.reply({ content: '❌ This doesn\'t look like an active ticket channel.', ephemeral: true });
+    if (interaction.user.id !== ticket.user_id && interaction.user.id !== ticket.artist_id) {
+        return interaction.reply({ content: t(lang, 'tickets.middleman_parties_only'), ephemeral: true });
+    }
+    if (ticket.staff_called) return interaction.reply({ content: t(lang, 'tickets.middleman_already'), ephemeral: true });
+    const gs = (await db.query('SELECT ticket_staff_role_id FROM guild_settings WHERE guild_id = $1', [interaction.guild.id])).rows[0];
+    const role = gs?.ticket_staff_role_id && interaction.guild.roles.cache.get(gs.ticket_staff_role_id);
+    if (!role) return interaction.reply({ content: t(lang, 'tickets.middleman_none'), ephemeral: true });
+
+    await interaction.channel.permissionOverwrites.edit(role, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
+    await db.query('UPDATE tickets SET staff_called = TRUE WHERE channel_id = $1', [ticket.channel_id]);
+    await interaction.reply({ content: t(lang, 'tickets.middleman_called', { user: interaction.user.toString(), role: `<@&${role.id}>` }), allowedMentions: { roles: [role.id] } });
+    await ticketLog(interaction.guild, `🎫 Middleman called in ${interaction.channel} by ${interaction.user}`);
+}
+
+// The opener asked to close: show the artist/admin the reason with Approve / Keep open.
+async function requestClose(interaction, reason) {
+    const lang = await getGuildLanguage(interaction.guild.id);
+    const { rows } = await db.query('SELECT * FROM tickets WHERE channel_id = $1', [interaction.channel.id]);
+    const ticket = rows[0];
+    if (!ticket) return interaction.reply({ content: '❌ This doesn\'t look like an active ticket channel.', ephemeral: true });
+    if (interaction.user.id !== ticket.user_id) return interaction.reply({ content: t(lang, 'tickets.close_only_staff'), ephemeral: true });
+    const problem = closeRequestProblem(ticket, lang);
+    if (problem) return interaction.reply({ content: problem, ephemeral: true });
+
+    const text = String(reason || '').trim().replace(/\s+/g, ' ');
+    if (text.length < CLOSE_REASON_MIN) return interaction.reply({ content: t(lang, 'tickets.close_reason_short', { min: CLOSE_REASON_MIN }), ephemeral: true });
+
+    const embed = new EmbedBuilder().setColor('#F59E0B')
+        .setTitle(t(lang, 'tickets.close_request_title'))
+        .setDescription(t(lang, 'tickets.close_request_body', { user: `<@${ticket.user_id}>`, reason: text.slice(0, CLOSE_REASON_MAX) }));
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('astra_ticket_close_approve').setLabel(t(lang, 'tickets.close_approve_button')).setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('astra_ticket_close_deny').setLabel(t(lang, 'tickets.close_deny_button')).setStyle(ButtonStyle.Secondary)
+    );
+    await interaction.reply({ content: t(lang, 'tickets.close_sent'), ephemeral: true });
+    const msg = await interaction.channel.send({
+        content: `<@${ticket.artist_id}>`, embeds: [embed], components: [row],
+        allowedMentions: { users: [ticket.artist_id] },
+    });
+    await db.query(
+        'UPDATE tickets SET close_reason = $2, close_requested_at = NOW(), close_message_id = $3, close_denied_at = NULL WHERE channel_id = $1',
+        [ticket.channel_id, text.slice(0, CLOSE_REASON_MAX), msg.id]
+    );
+}
+
+// Why the opener cannot ask right now (a request is already waiting, or one was just declined). null = fine.
+function closeRequestProblem(ticket, lang) {
+    if (ticket.close_message_id) return t(lang, 'tickets.close_pending');
+    const denied = ticket.close_denied_at ? new Date(ticket.close_denied_at).getTime() : 0;
+    const left = denied + CLOSE_RETRY_MS - Date.now();
+    if (denied && left > 0) return t(lang, 'tickets.close_cooldown', { minutes: Math.max(1, Math.ceil(left / 60000)) });
+    return null;
+}
+
+// The artist/admin pressed Approve or Keep open on a request.
+async function answerCloseRequest(interaction, approve) {
+    const lang = await getGuildLanguage(interaction.guild.id);
+    const { rows } = await db.query('SELECT * FROM tickets WHERE channel_id = $1', [interaction.channel.id]);
+    const ticket = rows[0];
+    if (!ticket) return interaction.reply({ content: t(lang, 'tickets.close_gone'), ephemeral: true });
+    if (!(await isTicketStaff(interaction.member, ticket))) return interaction.reply({ content: t(lang, 'tickets.close_only_staff'), ephemeral: true });
+    if (!ticket.close_message_id || ticket.close_message_id !== interaction.message.id) {
+        return interaction.reply({ content: t(lang, 'tickets.close_gone'), ephemeral: true });
+    }
+    await interaction.update({ components: [] });
+    if (approve) {
+        await interaction.channel.send({ content: t(lang, 'tickets.close_approved', { staff: interaction.user.toString() }), allowedMentions: { parse: [] } });
+        await closeTicketByChannelId(interaction.guild, interaction.channel.id, interaction.user, { member: interaction.member });
+        return;
+    }
+    await db.query('UPDATE tickets SET close_message_id = NULL, close_requested_at = NULL, close_denied_at = NOW() WHERE channel_id = $1', [ticket.channel_id]);
+    await interaction.channel.send({ content: t(lang, 'tickets.close_denied', { staff: interaction.user.toString() }), allowedMentions: { parse: [] } });
+}
+
 module.exports = {
+    _test: { close: closeTicketByChannelId, requestClose, answer: answerCloseRequest, buildTranscript, callMiddleman },
     isArtist,
     grantArtistRole,
     revokeArtistRole,
@@ -338,11 +517,12 @@ module.exports = {
         }
         if (asOpener.length > 0) {
             description += '**Your own open ticket(s):**\n' + asOpener.map(r => `<#${r.channel_id}> — artist <@${r.artist_id}>`).join('\n');
+            description += '\n*' + t(await getGuildLanguage(guild.id), 'tickets.opener_close_hint') + '*';
         }
 
         // Discord caps at 5 buttons/row and 5 rows — 25 tickets max, plenty
         // of headroom for this use case.
-        const allChannelIds = [...asArtist.map(r => r.channel_id), ...asOpener.map(r => r.channel_id)].slice(0, 25);
+        const allChannelIds = asArtist.map(r => r.channel_id).slice(0, 25); // only the artist side can close from here
         const rows = [];
         for (let i = 0; i < allChannelIds.length; i += 5) {
             const chunk = allChannelIds.slice(i, i + 5);
@@ -354,7 +534,7 @@ module.exports = {
             ));
         }
 
-        return interaction.reply({ content: description, components: rows, ephemeral: true });
+        return interaction.reply({ content: description, components: rows, ephemeral: true, allowedMentions: { parse: [] } });
     },
 
     // --- /artists — public, browsable artist directory. Anyone can run it:
@@ -753,19 +933,32 @@ module.exports = {
             const { rows } = await db.query('SELECT * FROM tickets WHERE channel_id = $1', [interaction.channel.id]);
             const ticket = rows[0];
             if (!ticket) return interaction.reply({ content: '❌ This doesn\'t look like an active ticket channel.', ephemeral: true });
-
-            const canClose = interaction.user.id === ticket.user_id
-                || interaction.user.id === ticket.artist_id
-                || await isAstraAdmin(interaction.member);
-
-            if (!canClose) {
-                return interaction.reply({ content: '❌ Only the ticket opener, the artist, or an admin can close this.', ephemeral: true });
-            }
-
             const lang = await getGuildLanguage(interaction.guild.id);
-            await interaction.reply({ content: t(lang, 'tickets.closing') });
-            await closeTicketByChannelId(interaction.guild, interaction.channel.id, interaction.user, { member: interaction.member });
-            return;
+
+            // The artist and admins close right away.
+            if (await isTicketStaff(interaction.member, ticket)) {
+                await interaction.reply({ content: t(lang, 'tickets.closing') });
+                await closeTicketByChannelId(interaction.guild, interaction.channel.id, interaction.user, { member: interaction.member });
+                return;
+            }
+            // The person who opened it must give a reason; the artist/admin decides.
+            if (interaction.user.id === ticket.user_id) {
+                const problem = closeRequestProblem(ticket, lang);
+                if (problem) return interaction.reply({ content: problem, ephemeral: true });
+                const modal = new ModalBuilder().setCustomId('astra_ticket_close_reason').setTitle(t(lang, 'tickets.close_modal_title').slice(0, 45));
+                modal.addComponents(new ActionRowBuilder().addComponents(
+                    new TextInputBuilder().setCustomId('reason').setLabel(t(lang, 'tickets.close_modal_label').slice(0, 45))
+                        .setStyle(TextInputStyle.Paragraph).setMinLength(CLOSE_REASON_MIN).setMaxLength(CLOSE_REASON_MAX).setRequired(true)
+                ));
+                return interaction.showModal(modal);
+            }
+            return interaction.reply({ content: '❌ Only the ticket\'s artist or an admin can close this.', ephemeral: true });
+        }
+
+        if (interaction.customId === 'astra_ticket_middleman') return callMiddleman(interaction);
+
+        if (interaction.customId === 'astra_ticket_close_approve' || interaction.customId === 'astra_ticket_close_deny') {
+            return answerCloseRequest(interaction, interaction.customId === 'astra_ticket_close_approve');
         }
 
         if (interaction.customId.startsWith('astra_ticket_remote_close_')) {
@@ -885,7 +1078,7 @@ module.exports = {
             return interaction.update({ content: t(lang, 'tickets.already_open', { channel: `<#${openChannelId}>` }), components: [] });
         }
 
-        const settingsRows = (await db.query('SELECT ticket_category_id, log_channel_id FROM guild_settings WHERE guild_id = $1', [guild.id])).rows;
+        const settingsRows = (await db.query('SELECT ticket_category_id, log_channel_id, ticket_staff_role_id FROM guild_settings WHERE guild_id = $1', [guild.id])).rows;
         const settings = settingsRows[0];
         if (!settings || !settings.ticket_category_id) {
             return interaction.update({ content: '❌ Tickets aren\'t configured yet — ask an admin to run `/config tickets`.', components: [] });
@@ -905,10 +1098,9 @@ module.exports = {
                 { id: artistId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
             ];
 
-            const { rows: adminRoleRows } = await db.query('SELECT role_id FROM guild_admin_roles WHERE guild_id = $1', [guild.id]);
-            for (const row of adminRoleRows) {
-                overwrites.push({ id: row.role_id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] });
-            }
+            // Tickets are private: only the opener and the artist (plus Discord Administrators,
+            // who see every channel). Astra Admin roles are not added; the ticket staff role is
+            // only added when one of the two asks for a middleman.
 
             const channelName = `ticket-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 90);
             const ticketChannel = await guild.channels.create({
@@ -928,19 +1120,18 @@ module.exports = {
             const closeRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('astra_ticket_close').setLabel('Close Ticket').setStyle(ButtonStyle.Danger)
             );
+            // "Call middleman" only appears when the server has a ticket staff role set up.
+            if (settings.ticket_staff_role_id && guild.roles.cache.has(settings.ticket_staff_role_id)) {
+                closeRow.addComponents(new ButtonBuilder().setCustomId('astra_ticket_middleman').setLabel(t(lang, 'tickets.middleman_button')).setStyle(ButtonStyle.Primary));
+            }
 
             await ticketChannel.send({
-                content: t(lang, 'tickets.welcome', { user: interaction.user.toString(), artist: artistMember.toString() }),
+                content: t(lang, 'tickets.welcome', { user: interaction.user.toString(), artist: artistMember.toString() }) + '\n' + t(lang, 'tickets.transcript_notice'),
                 embeds: [buildPanelEmbed(artistMember, profile, pricing)],
                 components: linkRow ? [linkRow, closeRow] : [closeRow]
             });
 
-            if (settings.log_channel_id) {
-                const logChannel = await guild.channels.fetch(settings.log_channel_id).catch(() => null);
-                if (logChannel) {
-                    await logChannel.send(`🎫 Ticket opened: ${ticketChannel} (opener: ${interaction.user}, artist: ${artistMember})`).catch(() => {});
-                }
-            }
+            await ticketLog(guild, `🎫 Ticket opened: ${ticketChannel} (opener: ${interaction.user}, artist: ${artistMember})`);
         } catch (error) {
             console.error('❌ Error creating ticket channel:', error);
             await interaction.followUp({ content: '❌ Something went wrong creating your ticket channel. An admin may need to check my permissions (Manage Channels).', ephemeral: true }).catch(() => {});
@@ -948,6 +1139,9 @@ module.exports = {
     },
 
     async handleModalSubmit(interaction) {
+        if (interaction.customId === 'astra_ticket_close_reason') {
+            return requestClose(interaction, interaction.fields.getTextInputValue('reason'));
+        }
         if (!interaction.customId.startsWith('astra_panel_modal_')) return;
 
         const guildId = interaction.guild.id;

@@ -1507,18 +1507,21 @@ app.post('/api/admins/remove', checkAuth, async (req, res) => {
 // this dashboard's existing trust model.
 app.post('/api/tickets/config', checkAuth, async (req, res) => {
     const { guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id } = req.body;
+    const ticket_staff_role_id = req.body.ticket_staff_role_id || '';
     if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
-    if (!idsBelongToGuild(guild_id, { channels: [ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id] })) return res.status(400).send('Invalid channel or category.');
+    if (ticket_staff_role_id === guild_id) return res.status(400).send('Invalid role.'); // @everyone
+    if (!idsBelongToGuild(guild_id, { channels: [ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id], roles: ticket_staff_role_id ? [ticket_staff_role_id] : [] })) return res.status(400).send('Invalid channel, category or role.');
 
     try {
         await db.query(`
-            INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO guild_settings (guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id, ticket_staff_role_id)
+            VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''))
             ON CONFLICT (guild_id) DO UPDATE SET
                 ticket_channel_id = $2, ticket_category_id = $3,
                 log_channel_id = COALESCE(NULLIF($4, ''), guild_settings.log_channel_id),
-                artist_setup_category_id = NULLIF($5, '')
-        `, [guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id]);
+                artist_setup_category_id = NULLIF($5, ''),
+                ticket_staff_role_id = NULLIF($6, '')
+        `, [guild_id, ticket_channel_id, ticket_category_id, log_channel_id, artist_setup_category_id, ticket_staff_role_id]);
 
         const guild = client.guilds.cache.get(guild_id);
         if (guild) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} updated ticket settings from the website.`);
@@ -2081,7 +2084,7 @@ client.on('interactionCreate', async (interaction) => {
             await configCommand.handleMenu(interaction);
         }
     } else if (interaction.isModalSubmit()) {
-        if (interaction.customId.startsWith('astra_panel_modal_')) {
+        if (interaction.customId.startsWith('astra_panel_modal_') || interaction.customId === 'astra_ticket_close_reason') {
             await ticketsCommand.handleModalSubmit(interaction);
         }
     }
