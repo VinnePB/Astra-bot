@@ -577,6 +577,6 @@
 - The dashboard now keeps your place after saving: you stay on the same tab and scroll position instead of jumping back to the top
 - The server list on the website now shows your role in each server (Owner, Admin or Member), and servers where you can't configure Astra are listed as "No permission to configure"
 - The welcome notice in the rules channel now follows the server's language
-- `/owner` now lives only in direct messages with Astra
+- New `/invite` command, open to everyone (also in direct messages), with an "add Astra" button and a link to the website
 
 ---

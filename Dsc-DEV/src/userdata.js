@@ -1,7 +1,7 @@
 // --- PERSON-LEVEL DATA ---
 // Everything Astra stores about one Discord user, across all servers: used for
 // "show me my data" (/mydata view) and "delete my data" (/mydata delete, or the
-// owner's /owner userdelete).
+// owner's "owner userdelete" DM command).
 //
 // Moderation cases are special: they are a server's safety record, so a person
 // can SEE them but self-service deletion does not remove them (otherwise anyone

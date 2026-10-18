@@ -1,24 +1,22 @@
 // --- OWNER TOOLS ---
-// Only the bot owner can use /owner (see botowner.js). Everything is private
-// (only you see the replies) and every destructive action is also sent to the
-// alerts channel as a record.
+// There is NO slash command for this. The owner talks to Astra in a direct
+// message with plain text, so nobody else can ever see these commands in
+// Discord's command picker. Anyone who is not the owner just gets the normal
+// "add me / website" reply (see handleDm), and the owner check below still
+// runs on every call.
 //
-//   /owner servers [page]              every server Astra is in
-//   /owner server <id>                 details about one server
-//   /owner leave <id> [reason]         make Astra leave (the server owner is told why)
-//   /owner block <id> [reason]         leave AND refuse to ever join again
-//   /owner unblock <id>
-//   /owner purge <id> <confirm>        delete a server's data now (she must have left)
-//   /owner userdata <user_id>          export everything stored about one person
-//   /owner userdelete <user_id> <confirm> [include_moderation]
-//   /owner backup                      send a backup to your DMs right now
-//
-// It only exists in direct messages with Astra (not in any server), and it
-// refuses anyone who is not the owner regardless.
+//   owner servers [page]               every server Astra is in
+//   owner server <id>                  details about one server
+//   owner leave <id> [reason]          make Astra leave (the server owner is told why)
+//   owner block <id> [reason]          leave AND refuse to ever join again
+//   owner unblock <id>
+//   owner purge <id> <id again>        delete a server's data now (she must have left)
+//   owner userdata <user_id>           export everything stored about one person
+//   owner userdelete <user_id> confirm [moderation]
+//   owner backup                       send a backup to your DMs right now
+//   owner help
 
-const {
-    SlashCommandBuilder, EmbedBuilder, AttachmentBuilder, InteractionContextType,
-} = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const db = require('../database');
 const { getOwnerIds } = require('../botowner');
 const alerts = require('../alerts');
@@ -30,38 +28,100 @@ const PAGE = 15;
 const isGuildId = (s) => /^\d{15,25}$/.test(String(s || ''));
 const clip = (s, n) => String(s || '').slice(0, n);
 
-const data = new SlashCommandBuilder()
-    .setName('owner').setDescription('Bot owner only: manage servers and data.')
-    // Direct messages with Astra only: this command is registered globally for
-    // the DM context and is never registered in any server, so nobody sees it
-    // in a server's command list.
-    .setContexts(InteractionContextType.BotDM)
-    .addSubcommand((s) => s.setName('servers').setDescription('List the servers Astra is in')
-        .addIntegerOption((o) => o.setName('page').setDescription('Page number').setMinValue(1).setRequired(false)))
-    .addSubcommand((s) => s.setName('server').setDescription('Details about one server')
-        .addStringOption((o) => o.setName('id').setDescription('Server ID').setRequired(true)))
-    .addSubcommand((s) => s.setName('leave').setDescription('Make Astra leave a server')
-        .addStringOption((o) => o.setName('id').setDescription('Server ID').setRequired(true))
-        .addStringOption((o) => o.setName('reason').setDescription('Shown to the server owner').setMaxLength(300).setRequired(false)))
-    .addSubcommand((s) => s.setName('block').setDescription('Leave a server and never join it again')
-        .addStringOption((o) => o.setName('id').setDescription('Server ID').setRequired(true))
-        .addStringOption((o) => o.setName('reason').setDescription('Why (private note; also shown to the server owner)').setMaxLength(300).setRequired(false)))
-    .addSubcommand((s) => s.setName('unblock').setDescription('Allow a blocked server again')
-        .addStringOption((o) => o.setName('id').setDescription('Server ID').setRequired(true)))
-    .addSubcommand((s) => s.setName('purge').setDescription('Delete a server\'s stored data now (Astra must not be in it)')
-        .addStringOption((o) => o.setName('id').setDescription('Server ID').setRequired(true))
-        .addStringOption((o) => o.setName('confirm').setDescription('Type the server ID again to confirm').setRequired(true)))
-    .addSubcommand((s) => s.setName('userdata').setDescription('Export everything stored about a person')
-        .addStringOption((o) => o.setName('user_id').setDescription('Discord user ID').setRequired(true)))
-    .addSubcommand((s) => s.setName('userdelete').setDescription('Delete everything stored about a person')
-        .addStringOption((o) => o.setName('user_id').setDescription('Discord user ID').setRequired(true))
-        .addBooleanOption((o) => o.setName('confirm').setDescription('Set to true to confirm').setRequired(true))
-        .addBooleanOption((o) => o.setName('include_moderation').setDescription('Also delete their moderation cases (default: keep)').setRequired(false)))
-    .addSubcommand((s) => s.setName('backup').setDescription('Send a backup to your DMs now'));
-
 async function isOwner(interaction) {
     const ids = await getOwnerIds(interaction.client);
     return ids.includes(interaction.user.id);
+}
+
+// ---- plain-text front end (direct messages only)
+const USAGE = [
+    '**Owner commands** (only you can use these)',
+    '`owner servers [page]`',
+    '`owner server <id>`',
+    '`owner leave <id> [reason]`',
+    '`owner block <id> [reason]`',
+    '`owner unblock <id>`',
+    '`owner purge <id> <id again>`',
+    '`owner userdata <user_id>`',
+    '`owner userdelete <user_id> confirm [moderation]`',
+    '`owner backup`',
+].join('\n');
+
+// "owner leave 123 spam server" -> { sub: 'leave', opts: { id: '123', reason: 'spam server' } }
+// Returns null when the text is not an owner command at all.
+function parseText(content) {
+    const text = String(content || '').trim();
+    const m = /^!?owner(?:\s+(\S+))?(?:\s+([\s\S]*))?$/i.exec(text);
+    if (!m) return null;
+    const sub = (m[1] || 'help').toLowerCase();
+    const rest = (m[2] || '').trim();
+    const words = rest ? rest.split(/\s+/) : [];
+    const opts = {};
+    switch (sub) {
+        case 'servers': if (words[0]) opts.page = parseInt(words[0], 10); break;
+        case 'server': case 'unblock': opts.id = words[0]; break;
+        case 'leave': case 'block': opts.id = words[0]; opts.reason = words.slice(1).join(' ') || null; break;
+        case 'purge': opts.id = words[0]; opts.confirm = words[1] || ''; break;
+        case 'userdata': opts.user_id = words[0]; break;
+        case 'userdelete':
+            opts.user_id = words[0];
+            opts.confirm = /^(confirm|yes|true|sim)$/i.test(words[1] || '');
+            opts.include_moderation = /^(mod|moderation|moderacao|moderação)$/i.test(words[2] || '');
+            break;
+        case 'backup': case 'help': break;
+        default: return { sub: 'help', opts: {} };
+    }
+    return { sub, opts };
+}
+
+// Lets the slash-style handler below run on a plain message.
+function fromMessage(message, { sub, opts }) {
+    const send = (o) => {
+        const { ephemeral, ...rest } = o || {};
+        return message.reply({ ...rest, allowedMentions: { parse: [], repliedUser: false } });
+    };
+    const i = {
+        client: message.client, user: message.author, deferred: false,
+        options: {
+            getSubcommand: () => sub,
+            getString: (n) => (opts[n] === undefined || opts[n] === null || typeof opts[n] === 'boolean' ? null : String(opts[n])),
+            getInteger: (n) => (Number.isFinite(opts[n]) ? opts[n] : null),
+            getBoolean: (n) => (typeof opts[n] === 'boolean' ? opts[n] : null),
+        },
+        reply: send,
+        deferReply: async () => { i.deferred = true; await message.channel.sendTyping().catch(() => {}); },
+        editReply: send,
+    };
+    return i;
+}
+
+const lastStranger = new Map(); // user id -> time of the last "add me" reply
+const STRANGER_COOLDOWN_MS = 10 * 60 * 1000;
+
+// Called for every direct message. Runs owner commands for the owner; gives
+// everyone else (and the owner's non-commands) a short, harmless answer, and
+// never says that owner commands exist.
+async function handleDm(message, { strangerReply } = {}) {
+    if (message.author.bot) return false;
+    const parsed = parseText(message.content);
+    const owner = parsed && (await getOwnerIds(message.client)).includes(message.author.id);
+    if (owner) {
+        if (parsed.sub === 'help') { await message.reply({ content: USAGE, allowedMentions: { parse: [] } }).catch(() => {}); return true; }
+        try { await execute(fromMessage(message, parsed)); }
+        catch (e) {
+            console.error('❌ owner command error:', e);
+            await message.reply({ content: `❌ ${clip(e.message, 200)}`, allowedMentions: { parse: [] } }).catch(() => {});
+        }
+        return true;
+    }
+    if (parsed === null && (await getOwnerIds(message.client)).includes(message.author.id)) return false; // the owner just chatting
+    if (!strangerReply) return false;
+    const now = Date.now();
+    if (now - (lastStranger.get(message.author.id) || 0) < STRANGER_COOLDOWN_MS) return false;
+    if (lastStranger.size > 5000) lastStranger.clear();
+    lastStranger.set(message.author.id, now);
+    await message.reply(strangerReply).catch(() => {});
+    return true;
 }
 
 // ---- blocklist helpers (also used from index.js)
@@ -115,6 +175,7 @@ async function execute(interaction) {
     const sub = interaction.options.getSubcommand();
     const client = interaction.client;
     const reply = (content) => interaction.reply({ content, ephemeral: true, allowedMentions: { parse: [] } });
+    if (sub === 'help') return reply(USAGE);
     const id = interaction.options.getString('id');
     if (id !== null && !isGuildId(id)) return reply('❌ That doesn\'t look like a server ID.');
 
@@ -181,7 +242,7 @@ async function execute(interaction) {
 
     if (sub === 'purge') {
         if (interaction.options.getString('confirm').trim() !== id) return reply('❌ The confirmation must match the server ID exactly. Nothing was deleted.');
-        if (client.guilds.cache.has(id)) return reply('❌ Astra is still in that server. Use `/owner leave` first.');
+        if (client.guilds.cache.has(id)) return reply('❌ Astra is still in that server. Use `owner leave` first.');
         await retention.purgeGuild(id);
         alerts.notify('Owner action: purge', `Deleted all stored data for server ${id}.`, { level: 'info', key: 'owner-purge-' + id, cooldownMs: 0 });
         return reply(`✅ All stored data for \`${id}\` was deleted.`);
@@ -214,4 +275,4 @@ async function execute(interaction) {
     }
 }
 
-module.exports = { data, execute, enforceBlock, sweepBlocked, isBlocked };
+module.exports = { execute, handleDm, parseText, enforceBlock, sweepBlocked, isBlocked };

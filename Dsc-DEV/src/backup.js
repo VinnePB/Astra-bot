@@ -3,7 +3,7 @@
 // file. Why: Render's free databases have no backups at all.
 //
 //   Automatic: once a day (checked every 6 hours, remembered across restarts).
-//   Manual:    /owner backup
+//   Manual:    "owner backup" in a DM with Astra
 //   Restore:   node src/restore-backup.js <file.json.gz>    (see that file)
 //
 // The file holds personal data (Discord user IDs). Keep it private, and delete

@@ -25,6 +25,7 @@ const retention = require('./retention');
 const alerts = require('./alerts');
 const backup = require('./backup');
 const ownerCommand = require('./commands/owner');
+const inviteCommand = require('./invite');
 const rolekit = require('./rolekit');
 const artistPortal = require('./artistportal');
 const mydataCommand = require('./commands/mydata');
@@ -401,6 +402,11 @@ app.get('/callback', authLimiter, async (req, res) => {
 // actually use. Adjust via Discord's own permission calculator if you want
 // to change this later.
 const BOT_INVITE_PERMISSIONS = '1099780156438';
+const SITE_URL = (() => { try { return new URL(process.env.REDIRECT_URI).origin; } catch (e) { return 'https://projeckt-v.dev'; } })();
+const botLinks = () => ({
+    inviteUrl: `https://discord.com/api/oauth2/authorize?client_id=${process.env.DISCORD_CLIENT_ID}&permissions=${BOT_INVITE_PERMISSIONS}&scope=bot%20applications.commands`,
+    siteUrl: SITE_URL,
+});
 
 
 // How much of Astra a server has set up, as a percentage. Each item counts
@@ -1564,7 +1570,7 @@ app.listen(PORT, () => console.log(`🌐 Dashboard on ${PORT}`));
 // --- BOT ---
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.DirectMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
     partials: [Partials.Message, Partials.Channel, Partials.User]
 });
 alerts.install(client, db.pool);
@@ -1644,12 +1650,12 @@ client.once('clientReady', async () => {
     retention.start(client);
     backup.start(client);
     ownerCommand.sweepBlocked(client);
-    alerts.notify('Astra started', `Online in ${client.guilds.cache.size} server(s).`, { level: 'info', key: 'started', cooldownMs: 60 * 1000 });
     try {
         commandRest ||= new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        // Global registration holds only /owner, and only for DMs with Astra.
-        await commandRest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [ownerCommand.data.toJSON()] });
-        console.log('🔒 /owner registered for DMs only.');
+        // Global registration holds only /invite (works in servers and in DMs).
+        // This also removes the old /owner command from Discord everywhere.
+        await commandRest.put(Routes.applicationCommands(process.env.DISCORD_CLIENT_ID), { body: [inviteCommand.data.toJSON()] });
+        console.log('🔗 /invite registered globally; /owner is gone from Discord (owner commands now work by DM text).');
 
         for (const guildId of client.guilds.cache.keys()) await syncGuildCommands(guildId);
         console.log(`🔄 Command sync pass complete${commandSyncFailed.size ? ` (${commandSyncFailed.size} server(s) failed, retrying every ${COMMAND_RETRY_MS / 60000} min)` : ''}.`);
@@ -1661,8 +1667,36 @@ client.once('clientReady', async () => {
 
     // NEW: post any changelog versions that opted-in servers haven't seen yet
     // (commands/updates.js). Runs after the command sync, never blocks startup.
-    updatesCommand.postPendingToAll(client).catch((e) => console.error('❌ Changelog pass error:', e));
+    const changelogPass = updatesCommand.postPendingToAll(client).catch((e) => { console.error('❌ Changelog pass error:', e); return null; });
+
+    // One startup message to the alerts channel with the version and a quick health
+    // summary, so a restart is a useful report and not just "I'm online".
+    changelogPass.then((pass) => sendStartupReport(pass)).catch((e) => console.error('⚠️ Startup report failed:', e.message));
 });
+
+async function sendStartupReport(pass) {
+    let dbLine = '✅ Database: OK';
+    let problems = 0;
+    try { const t0 = Date.now(); await db.query('SELECT 1'); dbLine = `✅ Database: OK (${Date.now() - t0} ms)`; }
+    catch (e) { dbLine = '❌ Database: not answering'; problems++; }
+    const current = updatesCommand.currentEntry();
+    const guilds = [...client.guilds.cache.values()];
+    const members = guilds.reduce((n, g) => n + (g.memberCount || 0), 0);
+    const failedSync = commandSyncFailed.size;
+    if (failedSync) problems++;
+    if (pass && pass.failed) problems++;
+    const lines = [
+        `**Version:** ${current ? `${current.version} — ${current.title}` : 'unknown'}`,
+        `**Servers:** ${guilds.length} (${members} members)`,
+        dbLine,
+        failedSync ? `⚠️ Commands: ${failedSync} server(s) still waiting, retrying on their own` : '✅ Commands: synced in every server',
+        pass && pass.guilds
+            ? `${pass.failed ? '⚠️' : '✅'} Changelog: ${pass.posted} post(s) sent, ${pass.failed} failed, ${pass.guilds} server(s) checked`
+            : '✅ Changelog: nothing to post',
+        `**Booted in:** ${Math.round(process.uptime())} s · Node ${process.version} · ${Math.round(process.memoryUsage().rss / 1048576)} MB`,
+    ];
+    await alerts.notify(`Astra online${current ? ` · ${current.version}` : ''}`, lines.join('\n'), { level: problems ? 'warn' : 'info', key: 'started', cooldownMs: 60 * 1000 });
+}
 
 // NEW: cleans up the tickets table the moment a ticket channel is deleted
 // directly (dragged to trash, cleaned up by hand) instead of via the Close
@@ -1802,7 +1836,13 @@ async function logMemberEvent(guild, type, member) {
 // NEW: Chat B moderation — deletes anything that isn't "!verify" in the
 // configured verify channel (dual-role mode only) and warns the sender.
 client.on('messageCreate', async (message) => {
-    if (message.author.bot || !message.guild) return;
+    if (message.author.bot) return;
+    if (!message.guild) {
+        // Direct message: owner commands for the owner, a short "add me" note for anyone else.
+        try { await ownerCommand.handleDm(message, { strangerReply: inviteCommand.strangerText(botLinks()) }); }
+        catch (e) { console.error('❌ DM handler error:', e.message); }
+        return;
+    }
     await configCommand.executeMessage(message);
     // NEW: XP/leveling — see commands/leveling.js. Independent of the
     // verify-channel moderation above; runs on every eligible message.
@@ -1835,14 +1875,13 @@ setTimeout(() => configCommand.runAutoKickSweep(client), 60_000);
 setInterval(() => configCommand.runAutoKickSweep(client), 60 * 60 * 1000);
 
 client.on('interactionCreate', async (interaction) => {
-    // The only thing that works outside a server is /owner in DMs with Astra.
-    if (!interaction.guild) {
-        if (interaction.isChatInputCommand() && interaction.commandName === 'owner') {
-            try { await ownerCommand.execute(interaction); }
-            catch (e) { console.error('❌ /owner error:', e); }
-        }
+    // /invite works everywhere; it is the only slash command outside a server.
+    if (interaction.isChatInputCommand() && interaction.commandName === 'invite') {
+        try { await inviteCommand.execute(interaction, botLinks()); }
+        catch (e) { console.error('❌ /invite error:', e.message); }
         return;
     }
+    if (!interaction.guild) return;
 
     if (interaction.isChatInputCommand()) {
         // Everyday commands need the Verified role once verification is set up.
