@@ -355,7 +355,8 @@ pool.connect()
                 ADD COLUMN IF NOT EXISTS divider_staff_role_id VARCHAR(30),
                 ADD COLUMN IF NOT EXISTS divider_style VARCHAR(10) DEFAULT 'line',
                 ADD COLUMN IF NOT EXISTS divider_pad INTEGER DEFAULT 14,
-                ADD COLUMN IF NOT EXISTS divider_everyone TEXT;
+                ADD COLUMN IF NOT EXISTS divider_everyone TEXT,
+                ADD COLUMN IF NOT EXISTS divider_template VARCHAR(80);
             `);
 
             await client.query(`

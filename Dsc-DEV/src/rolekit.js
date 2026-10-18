@@ -34,24 +34,50 @@ const DIVIDERS = {
 const FILL = '\u3164'; // Hangul filler: shows as blank, and Discord does not trim it
 const DEFAULT_PAD = 14;
 const MAX_PAD = 20; // wider than this overflows Discord's profile card and pushes the label out of view
-function labelOf(name, fallback) {
-    const l = String(name || '').replace(/^[━─\u3164\u2800\s]+|[━─\u3164\u2800\s]+$/g, '');
+// Characters that only ever decorate a divider; stripped when reading a label back from a role name.
+const DECOR = /^[\s\u3164\u2800━─═▬▭▰▱│┃┆┊╌╍·•●○◦◆◇◈✦✧✩★☆♦▪▫~\-_=*+|<>«»‹›()[\]{}꧁꧂༺༻⋆❖➤►▸]+|[\s\u3164\u2800━─═▬▭▰▱│┃┆┊╌╍·•●○◦◆◇◈✦✧✩★☆♦▪▫~\-_=*+|<>«»‹›()[\]{}꧁꧂༺༻⋆❖➤►▸]+$/gu;
+const DEFAULT_TEMPLATE = '━━━━ {label} ━━━━';
+
+// A custom look is a short text with {label} in it, e.g. "═══ {label} ═══".
+function cleanTemplate(t) {
+    const v = String(t ?? '').replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!v.includes('{label}')) return null;
+    if (v.replace('{label}', '').trim().length < 1) return null; // nothing but the label is not a divider
+    return v;
+}
+
+function labelOf(name, fallback, template) {
+    const n = String(name || '');
+    const tpl = cleanTemplate(template);
+    if (tpl) {
+        const i = tpl.indexOf('{label}');
+        const pre = tpl.slice(0, i), suf = tpl.slice(i + 7);
+        if (n.length > pre.length + suf.length && n.startsWith(pre) && n.endsWith(suf)) {
+            const l = n.slice(pre.length, n.length - suf.length).trim();
+            if (l) return l;
+        }
+    }
+    const l = n.replace(DECOR, '');
     return l || fallback;
 }
 function clampPad(pad) {
     return Math.max(0, Math.min(MAX_PAD, Number.isFinite(+pad) ? Math.trunc(+pad) : DEFAULT_PAD));
 }
-function styled(label, style, pad) {
+function styled(label, style, pad, template) {
     const p = clampPad(pad);
+    if (style === 'custom') {
+        const tpl = cleanTemplate(template);
+        if (tpl) return tpl.replace('{label}', () => label).slice(0, 100);
+    }
     if (style === 'bar') {
         // Longer labels get a little less padding so every bar ends up about the same width.
         let n = p === 0 ? 0 : Math.min(MAX_PAD, Math.max(1, p + 3 - Math.round(label.length / 2)));
         while (n > 0 && n * 2 + label.length > 100) n--;
         return `${FILL.repeat(n)}${label}${FILL.repeat(n)}`;
     }
-    return `━━━━ ${label} ━━━━`.slice(0, 100);
+    return DEFAULT_TEMPLATE.replace('{label}', label).slice(0, 100);
 }
-const dividerName = (kind, settings) => styled(DIVIDERS[kind].label, settings?.divider_style, settings?.divider_pad ?? DEFAULT_PAD);
+const dividerName = (kind, settings) => styled(DIVIDERS[kind].label, settings?.divider_style, settings?.divider_pad ?? DEFAULT_PAD, settings?.divider_template);
 
 // Everyday commands that need the Verified role once verification is set up.
 // /help, /about and /mydata stay open to everybody on purpose.
@@ -307,15 +333,18 @@ async function saveGroups(guild, selections) {
 }
 
 // Saves the look and the "give to every member" choices.
-async function saveOptions(guildId, { style, pad, everyone }) {
-    const st = style === 'bar' ? 'bar' : 'line';
+async function saveOptions(guildId, { style, pad, template, everyone }) {
+    const tpl = cleanTemplate(template);
+    const templateInvalid = style === 'custom' && !tpl;
+    const st = style === 'bar' ? 'bar' : (style === 'custom' && tpl ? 'custom' : 'line');
     const p = clampPad(pad);
     const kinds = [...new Set([].concat(everyone || []))].filter((k) => DIVIDERS[k]).join(',');
     await db.query(
-        `INSERT INTO guild_settings (guild_id, divider_style, divider_pad, divider_everyone) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (guild_id) DO UPDATE SET divider_style = $2, divider_pad = $3, divider_everyone = $4`,
-        [guildId, st, p, kinds || null]
+        `INSERT INTO guild_settings (guild_id, divider_style, divider_pad, divider_everyone, divider_template) VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (guild_id) DO UPDATE SET divider_style = $2, divider_pad = $3, divider_everyone = $4, divider_template = $5`,
+        [guildId, st, p, kinds || null, tpl]
     );
+    return { templateInvalid };
 }
 
 // Renames the divider roles to the chosen look, keeping each one's own label.
@@ -324,7 +353,7 @@ async function restyleDividers(guild) {
     for (const [kind, d] of Object.entries(DIVIDERS)) {
         const role = settings[d.col] && guild.roles.cache.get(settings[d.col]);
         if (!role || !role.editable) continue;
-        const target = styled(labelOf(role.name, d.label), settings.divider_style, settings.divider_pad ?? DEFAULT_PAD);
+        const target = styled(labelOf(role.name, d.label, settings.divider_template), settings.divider_style, settings.divider_pad ?? DEFAULT_PAD, settings.divider_template);
         if (role.name !== target) await role.setName(target, 'Astra: divider style').catch(() => {});
     }
 }
@@ -386,4 +415,4 @@ async function backfillDividers(guild) {
     } catch (e) { console.error('❌ divider backfill failed:', e.message); return 0; }
 }
 
-module.exports = { syncMember, backfillDividers, startBackfill, resync, restyleDividers, saveOptions, labelOf, styled, loadGroups, loadSyncContext, arrangeDividers, saveGroups, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove, stackGroupRoles } };
+module.exports = { cleanTemplate, DEFAULT_TEMPLATE, syncMember, backfillDividers, startBackfill, resync, restyleDividers, saveOptions, labelOf, styled, loadGroups, loadSyncContext, arrangeDividers, saveGroups, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove, stackGroupRoles } };

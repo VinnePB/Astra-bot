@@ -630,7 +630,8 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             hierarchy.hasDividers = g.dividerIds.size > 0;
             hierarchy.dividerIds = [...g.dividerIds];
             hierarchy.groups = Object.keys(rolekit.DIVIDERS).map((kind) => ({ kind, selected: [...(g.explicit[kind] || [])], everyone: g.everyone.has(kind) }));
-            hierarchy.style = settings.divider_style === 'bar' ? 'bar' : 'line';
+            hierarchy.style = ['bar', 'custom'].includes(settings.divider_style) ? settings.divider_style : 'line';
+            hierarchy.template = rolekit.cleanTemplate(settings.divider_template) || rolekit.DEFAULT_TEMPLATE;
             hierarchy.pad = Number.isFinite(+settings.divider_pad) ? +settings.divider_pad : 14;
         } catch (e) { hierarchy.hasDividers = false; hierarchy.dividerIds = []; hierarchy.groups = []; }
 
@@ -1346,11 +1347,11 @@ app.post('/api/roles/groups', checkAuth, async (req, res) => {
             if (req.body[`everyone_${kind}`] === 'on') everyone.push(kind);
         }
         await rolekit.saveGroups(guild, selections);
-        await rolekit.saveOptions(guild_id, { style: req.body.divider_style, pad: req.body.divider_pad, everyone });
+        const opts = await rolekit.saveOptions(guild_id, { style: req.body.divider_style, pad: req.body.divider_pad, template: req.body.divider_template, everyone });
         await rolekit.restyleDividers(guild);
         const failed = await rolekit.arrangeDividers(guild);
         const started = rolekit.startBackfill(guild);
-        req.session.rolesReport = [{ k: 'r_groups_saved' }, ...failed.map((name) => ({ k: 'r_place_fail', name })), { k: started ? 'r_backfill' : 'r_resync_busy' }];
+        req.session.rolesReport = [{ k: 'r_groups_saved' }, ...(opts.templateInvalid ? [{ k: 'r_template_invalid' }] : []), ...failed.map((name) => ({ k: 'r_place_fail', name })), { k: started ? 'r_backfill' : 'r_resync_busy' }];
         await configCommand.logAction(guild, `⚙️ ${req.session.user.username} changed the divider role settings from the website.`);
         req.session.save(() => res.redirect('/dashboard?tab=admins&status=success'));
     } catch (err) {

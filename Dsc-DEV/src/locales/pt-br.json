@@ -483,11 +483,16 @@
   "dashboard.roles.style_label": "Aparência das divisórias",
   "dashboard.roles.style_line": "Linha  ━━━━ NOME ━━━━",
   "dashboard.roles.style_bar": "Barra larga (espaço em branco)",
-  "dashboard.roles.pad_label": "Largura da barra (0 a 20, 14 é um bom começo)",
+  "dashboard.roles.pad_label": "Largura da barra larga (0 a 20, só para a barra em branco)",
   "dashboard.roles.everyone_label": "Dar a todos os membros, mesmo sem cargo neste grupo",
   "dashboard.roles.resync_desc": "Confere todos os membros agora e corrige as divisórias deles e organiza os cargos de cada divisória. Só roda quando você aperta o botão, e no máximo a cada 5 minutos.",
   "dashboard.roles.resync_button": "Conferir todos agora",
   "dashboard.roles.r_resync_started": "Conferindo todos os membros em segundo plano. Pode levar alguns minutos em servidores grandes.",
   "dashboard.roles.r_resync_busy": "Já existe uma conferência rodando neste servidor. Tente de novo em alguns minutos.",
-  "dashboard.roles.r_resync_cooldown": "Uma conferência rodou há pouco. Espere alguns minutos e tente de novo."
+  "dashboard.roles.r_resync_cooldown": "Uma conferência rodou há pouco. Espere alguns minutos e tente de novo.",
+  "dashboard.roles.style_custom": "Personalizada (seus próprios caracteres)",
+  "dashboard.roles.template_label": "Texto da divisória personalizada",
+  "dashboard.roles.template_hint": "Escreva a divisória do jeito que quiser e coloque {label} onde vai o nome, por exemplo ═══ {label} ═══. Vale quando o visual acima for \"Personalizada\". Até 60 caracteres.",
+  "dashboard.roles.template_preview": "Prévia:",
+  "dashboard.roles.r_template_invalid": "O texto personalizado precisa ter {label} e pelo menos mais um caractere, então usei a linha normal."
 }

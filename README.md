@@ -542,6 +542,7 @@
 - A "Check everyone now" button re-checks every member's divider roles and positions, only when you ask for it
 - The same button also tidies the roles under each divider, so every group stays together (never touching staff, powerful or integration roles)
 - Wide bars are now capped so they always fit a profile card, and every divider ends up about the same width
+- Custom dividers: write your own look with any characters you like (for example ═══ NAME ═══), with ready-made presets and a live preview in the dashboard
 - Registering an artist now also gives them the server's artist role, and removing them takes it back
 - None of these roles carry moderation powers
 

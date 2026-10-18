@@ -483,11 +483,16 @@
   "dashboard.roles.style_label": "Divider look",
   "dashboard.roles.style_line": "Line  ━━━━ NAME ━━━━",
   "dashboard.roles.style_bar": "Wide bar (blank padding)",
-  "dashboard.roles.pad_label": "Wide bar padding (0 to 20, 14 is a good start)",
+  "dashboard.roles.pad_label": "Wide bar padding (0 to 20, only for the blank bar)",
   "dashboard.roles.everyone_label": "Give to every member, even without a role in this group",
   "dashboard.roles.resync_desc": "Check every member now and fix their divider roles, and tidy the roles under each divider. Only runs when you press the button, and at most once every 5 minutes.",
   "dashboard.roles.resync_button": "Check everyone now",
   "dashboard.roles.r_resync_started": "Checking every member in the background. This can take a few minutes in big servers.",
   "dashboard.roles.r_resync_busy": "A check is already running for this server. Try again in a few minutes.",
-  "dashboard.roles.r_resync_cooldown": "A check ran very recently. Wait a few minutes and try again."
+  "dashboard.roles.r_resync_cooldown": "A check ran very recently. Wait a few minutes and try again.",
+  "dashboard.roles.style_custom": "Custom (your own characters)",
+  "dashboard.roles.template_label": "Custom divider text",
+  "dashboard.roles.template_hint": "Write the divider the way you want it and put {label} where the name goes, e.g. ═══ {label} ═══. Used when the look above is \"Custom\". Up to 60 characters.",
+  "dashboard.roles.template_preview": "Preview:",
+  "dashboard.roles.r_template_invalid": "The custom text needs {label} in it plus at least one other character, so the normal line was used instead."
 }

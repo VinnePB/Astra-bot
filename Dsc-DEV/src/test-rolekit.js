@@ -8,7 +8,7 @@ const queries = [];
 const fakeDb = { query: async (sql, p) => {
     queries.push(sql);
     if (/FROM guild_settings/.test(sql)) return { rows: store.settings[p[0]] ? [store.settings[p[0]]] : [] };
-    if (/INSERT INTO guild_settings \(guild_id, divider_style/.test(sql)) { store.settings[p[0]] = { ...(store.settings[p[0]] || {}), guild_id: p[0], divider_style: p[1], divider_pad: p[2], divider_everyone: p[3] }; return { rows: [] }; }
+    if (/INSERT INTO guild_settings \(guild_id, divider_style/.test(sql)) { store.settings[p[0]] = { ...(store.settings[p[0]] || {}), guild_id: p[0], divider_style: p[1], divider_pad: p[2], divider_everyone: p[3], divider_template: p[4] }; return { rows: [] }; }
     if (/INSERT INTO guild_settings/.test(sql)) { const col = /\(guild_id, (\w+)\)/.exec(sql)[1]; store.settings[p[0]] = { ...(store.settings[p[0]] || {}), guild_id: p[0], [col]: p[1] }; return { rows: [] }; }
     if (/INSERT INTO guild_admin_roles/.test(sql)) { store.admins.push(p[1]); return { rows: [] }; }
     if (/FROM guild_divider_roles/.test(sql)) return { rows: store.explicit };
@@ -153,6 +153,32 @@ function makeGuild({ canManage = true } = {}) {
     store.settings.g1.divider_style = 'bar'; store.settings.g1.divider_pad = 3;
     await rolekit.restyleDividers(guild);
     assert.strictEqual(lv.name, '\u3164'.repeat(4) + 'MISC' + '\u3164'.repeat(4), 'custom label kept, bar look applied');
+
+    // --- custom look: your own characters around {label}
+    {
+        const T = '═══ {label} ═══', C = rolekit.cleanTemplate;
+        assert.strictEqual(styled('STAFF', 'custom', 14, T), '═══ STAFF ═══');
+        assert.strictEqual(styled('STAFF', 'custom', 14, '✦ ━━ {label} ━━ ✦'), '✦ ━━ STAFF ━━ ✦');
+        assert.strictEqual(styled('STAFF', 'custom', 14, 'no placeholder'), '━━━━ STAFF ━━━━', 'invalid template falls back to the line');
+        assert.strictEqual(C('{label}'), null, 'label alone is not a divider');
+        assert.strictEqual(C('a\nb {label}\u202e'), 'ab {label}', 'control and bidi characters removed');
+        assert.ok(C('x'.repeat(200) + '{label}') === null && C('{label}' + 'y'.repeat(200)).length <= 60, 'length capped');
+        assert.strictEqual(styled('Q', 'custom', 0, '$& {label} $1'), '$& Q $1', 'no replacement-pattern surprises');
+        assert.strictEqual(labelOf('═══ STAFF ═══', 'X', T), 'STAFF');
+        assert.strictEqual(labelOf('═══ 🎨 ARTISTS ═══', 'X', T), '🎨 ARTISTS', 'emoji in a label survives');
+        assert.strictEqual(labelOf('✦ ━━ STAFF ━━ ✦', 'X'), 'STAFF', 'old custom look is still read after switching');
+        assert.strictEqual(labelOf('🎨 ARTISTS', 'X'), '🎨 ARTISTS');
+        const r = await rolekit.saveOptions('g1', { style: 'custom', pad: 14, template: T, everyone: [] });
+        assert.strictEqual(r.templateInvalid, false);
+        assert.strictEqual(store.settings.g1.divider_style, 'custom'); assert.strictEqual(store.settings.g1.divider_template, T);
+        const bad = await rolekit.saveOptions('g1', { style: 'custom', pad: 14, template: 'nothing', everyone: [] });
+        assert.strictEqual(bad.templateInvalid, true); assert.strictEqual(store.settings.g1.divider_style, 'line');
+        await rolekit.saveOptions('g1', { style: 'custom', pad: 14, template: T, everyone: [] });
+        const stf = roles.get(divs.staff); stf.setName = async function (n) { this.name = n; };
+        await rolekit.restyleDividers(guild);
+        assert.ok(/^═══ .+ ═══$/.test(stf.name), 'restyle applies the custom text: ' + stf.name);
+        await rolekit.saveOptions('g1', { style: 'line', pad: 14, template: T, everyone: [] });
+    }
 
     // --- width: capped, and equal-looking regardless of label length
     const wide = (l) => styled(l, 'bar', 999);

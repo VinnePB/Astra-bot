@@ -849,11 +849,23 @@
                                 <select name="divider_style" class="fui-input">
                                     <option value="line" <%= hierarchy.style === 'line' ? 'selected' : '' %>><%= t('dashboard.roles.style_line') %></option>
                                     <option value="bar" <%= hierarchy.style === 'bar' ? 'selected' : '' %>><%= t('dashboard.roles.style_bar') %></option>
+                                    <option value="custom" <%= hierarchy.style === 'custom' ? 'selected' : '' %>><%= t('dashboard.roles.style_custom') %></option>
                                 </select>
                             </div>
                             <div>
                                 <label class="fui-label"><%= t('dashboard.roles.pad_label') %></label>
                                 <input type="number" name="divider_pad" min="0" max="20" value="<%= hierarchy.pad %>" class="fui-input">
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label class="fui-label"><%= t('dashboard.roles.template_label') %></label>
+                                <input type="text" id="divider-template" name="divider_template" maxlength="60" value="<%= hierarchy.template %>" class="fui-input" autocomplete="off">
+                                <p class="text-xs text-slate-500 mt-1"><%= t('dashboard.roles.template_hint') %></p>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <% ['━━━━ {label} ━━━━', '──── {label} ────', '═══ {label} ═══', '▬▬▬ {label} ▬▬▬', '••••• {label} •••••', '✦ ━━ {label} ━━ ✦', '꧁ {label} ꧂', '▰▰▰ {label} ▰▰▰'].forEach(preset => { %>
+                                        <button type="button" data-preset="<%= preset %>" class="fui-btn text-xs px-2 py-1 text-slate-300 border-cyan-500/20"><%= preset.replace('{label}', 'NAME') %></button>
+                                    <% }) %>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-2"><%= t('dashboard.roles.template_preview') %> <span id="divider-preview" class="font-bold text-cyan-300"></span></p>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -876,6 +888,20 @@
                             <% }) %>
                         </div>
                         <button type="submit" class="fui-btn text-xs px-4 py-2 mt-4 text-cyan-300 border-cyan-500/30"><%= t('dashboard.roles.groups_save') %></button>
+                        <script>
+                            (function () {
+                                var input = document.getElementById('divider-template'), out = document.getElementById('divider-preview');
+                                if (!input || !out) return;
+                                function show() { out.textContent = input.value.indexOf('{label}') === -1 ? '—' : input.value.replace('{label}', 'LEVELS'); }
+                                input.addEventListener('input', show); show();
+                                document.querySelectorAll('[data-preset]').forEach(function (b) {
+                                    b.addEventListener('click', function () {
+                                        input.value = b.getAttribute('data-preset'); show();
+                                        var sel = document.querySelector('select[name="divider_style"]'); if (sel) sel.value = 'custom';
+                                    });
+                                });
+                            })();
+                        </script>
                     </form>
                     <form action="/api/roles/resync" method="POST" class="mt-6 pt-4 border-t border-cyan-500/10 flex flex-col gap-3 sm:flex-row sm:items-center">
                         <input type="hidden" name="guild_id" value="<%= settings.guild_id %>">
