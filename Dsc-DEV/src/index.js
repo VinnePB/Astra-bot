@@ -1639,7 +1639,7 @@ setInterval(async () => {
     }
 }, COMMAND_RETRY_MS).unref();
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
     retention.start(client);
     backup.start(client);
     ownerCommand.sweepBlocked(client);

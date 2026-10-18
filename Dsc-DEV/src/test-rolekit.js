@@ -168,6 +168,21 @@ function makeGuild({ canManage = true } = {}) {
     assert.strictEqual(store.settings.g1.divider_pad, 30);
     assert.strictEqual(store.settings.g1.divider_everyone, 'staff,levels');
 
+    // --- Discord's member-list rate limit: wait and retry instead of failing
+    let tries = 0;
+    guild.members.fetch = async () => { tries++; if (tries < 3) throw new Error('Request with opcode 8 was rate limited. Retry after 0.01 seconds.'); return new Map(people.map((p, i) => [String(i), p.m])); };
+    const rs = global.setTimeout; global.setTimeout = (f) => rs(f, 0);
+    const again = await rolekit.backfillDividers(guild);
+    global.setTimeout = rs;
+    assert.strictEqual(tries, 3, 'retried after the rate limit');
+    assert.strictEqual(again, 3, 'and then finished the job');
+    guild.memberCount = 3; guild.members.cache = new Map(people.map((p, i) => [String(i), p.m]));
+    let fetched = false; guild.members.fetch = async () => { fetched = true; return new Map(); };
+    global.setTimeout = (f) => rs(f, 0);
+    await rolekit.backfillDividers(guild);
+    global.setTimeout = rs;
+    assert.ok(!fetched, 'a complete cache is used without asking Discord again');
+
     // --- re-check button: once per cooldown, never two sweeps at once
     const r1b = await rolekit.resync(guild);
     assert.ok(r1b.ok);

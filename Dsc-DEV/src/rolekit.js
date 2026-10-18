@@ -318,12 +318,29 @@ async function resync(guild, { cooldownMs = 5 * 60 * 1000 } = {}) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Discord limits how often a bot may ask for the full member list. Use the
+// cache when it is already complete, and when Discord says "retry after N
+// seconds" simply wait that long and try again (a few times) instead of failing.
+async function fetchAllMembers(guild) {
+    if (guild.memberCount && guild.members.cache.size >= guild.memberCount) return guild.members.cache;
+    for (let attempt = 1; ; attempt++) {
+        try { return await guild.members.fetch(); }
+        catch (e) {
+            if (attempt >= 4) throw e;
+            const fromData = e && e.data && Number(e.data.retry_after);
+            const fromText = /retry after ([\d.]+)/i.exec(String(e && e.message));
+            const seconds = Number.isFinite(fromData) && fromData > 0 ? fromData : (fromText ? Number(fromText[1]) : 30);
+            await sleep(Math.min(seconds * 1000 + 1000, 90_000));
+        }
+    }
+}
+
 // Everyone already in the server, gently (well under Discord's rate limits).
 async function backfillDividers(guild) {
     try {
         const ctx = await loadGroups(guild.id);
         if (!Object.values(DIVIDERS).some((d) => ctx.settings[d.col])) return 0;
-        const members = await guild.members.fetch();
+        const members = await fetchAllMembers(guild);
         let n = 0;
         for (const [, m] of members) {
             if (m.user?.bot) continue;
