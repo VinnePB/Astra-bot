@@ -494,5 +494,6 @@
   "dashboard.roles.template_label": "Custom divider text",
   "dashboard.roles.template_hint": "Write the divider the way you want it and put {label} where the name goes, e.g. ═══ {label} ═══. Used when the look above is \"Custom\". Up to 60 characters.",
   "dashboard.roles.template_preview": "Preview:",
-  "dashboard.roles.r_template_invalid": "The custom text needs {label} in it plus at least one other character, so the normal line was used instead."
+  "dashboard.roles.r_template_invalid": "The custom text needs {label} in it plus at least one other character, so the normal line was used instead.",
+  "site.selectserver.no_admin_servers": "You don't manage a server with Astra. Servers where you are an artist or a member are listed below."
 }

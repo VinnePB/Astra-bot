@@ -21,7 +21,7 @@
 
         <% if (guildsWithBot.length === 0) { %>
             <div class="fui-panel fui-corners p-8 text-center text-slate-500 text-sm mt-4">
-                <%= t('site.selectserver.no_active_servers') %>
+                <%= (typeof noAdminServers !== 'undefined' && noAdminServers) ? t('site.selectserver.no_admin_servers') : t('site.selectserver.no_active_servers') %>
             </div>
         <% } else { %>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

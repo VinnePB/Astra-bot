@@ -146,18 +146,25 @@
                 <a href="/" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
                     <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.home') : 'Home' %>
                 </a>
+                <% const navFull = (typeof navAccess === 'undefined') || navAccess === 'full'; const navSwitch = navFull || navAccess === 'artist'; %>
+                <% if (navFull) { %>
                 <a href="/onboarding" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
                     <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.help') : 'Help & Setup' %>
                 </a>
                 <a href="/dashboard" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
                     <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.configuration') : 'Configuration' %>
                 </a>
+ <% } %>
+                <% if (navSwitch) { %>
                 <a href="/select-server" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-cyan-300 hover:bg-cyan-500/10 transition fui-tracked uppercase text-xs">
                     <span class="w-1 h-1 bg-slate-600 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.switch_server') : 'Switch Server' %>
                 </a>
+                <% } %>
+                <% if (navFull) { %>
                 <a href="/support" class="flex items-center gap-2 px-4 py-2 text-sm text-fuchsia-300 hover:text-fuchsia-200 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs">
                     <span class="w-1 h-1 bg-fuchsia-500 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.support.nav') : 'Support' %>
                 </a>
+                <% } %>
                 <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-sm text-fuchsia-400 hover:bg-fuchsia-500/10 transition fui-tracked uppercase text-xs mt-1 border-t border-cyan-500/15 pt-2">
                     <span class="w-1 h-1 bg-fuchsia-500 rotate-45 shrink-0"></span> <%= typeof t !== 'undefined' ? t('site.nav.logout') : 'Logout' %>
                 </a>

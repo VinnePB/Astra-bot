@@ -115,6 +115,11 @@ app.use(session({
     }
 }));
 
+// What the top menu shows: 'full' for people who manage a server (or the developer),
+// 'artist' for people who only have an artist panel, 'basic' for everyone else.
+// Worked out on the server-select page and remembered in the session.
+app.use((req, res, next) => { res.locals.navAccess = (req.session && req.session.navAccess) || 'full'; next(); });
+
 // ---- CSRF defence: every state-changing request must come from this site ----
 const SITE_HOST = (() => { try { return new URL(process.env.REDIRECT_URI).host; } catch (e) { return null; } })();
 function isSameSite(req) {
@@ -458,6 +463,10 @@ app.get('/select-server', checkAuth, async (req, res) => {
             artistGuildList = await artistPortal.artistGuilds(client, req.session.user.id, userGuildsResp.data.filter(g => botGuildIds.has(g.id)));
         } catch (e) { console.error('❌ Artist guild lookup failed:', e.message); }
 
+        const isDev = (await getOwnerIds(client).catch(() => [])).includes(req.session.user.id);
+        req.session.navAccess = (isDev || guildsWithBot.length || guildsWithoutBot.length) ? 'full' : (artistGuildList.length ? 'artist' : 'basic');
+        res.locals.navAccess = req.session.navAccess;
+
         const siteLang = req.session.siteLang || 'en';
         const setup = {};
         try {
@@ -472,7 +481,8 @@ app.get('/select-server', checkAuth, async (req, res) => {
             guildsWithoutBot,
             guildsNoAccess,
             artistGuildList,
-            isBotOwner: (await getOwnerIds(client).catch(() => [])).includes(req.session.user.id),
+            isBotOwner: isDev,
+            noAdminServers: guildsWithBot.length === 0 && guildsWithoutBot.length === 0,
             clientId: process.env.DISCORD_CLIENT_ID,
             botInvitePermissions: BOT_INVITE_PERMISSIONS,
             currentLang: siteLang,

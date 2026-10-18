@@ -494,5 +494,6 @@
   "dashboard.roles.template_label": "Texto da divisória personalizada",
   "dashboard.roles.template_hint": "Escreva a divisória do jeito que quiser e coloque {label} onde vai o nome, por exemplo ═══ {label} ═══. Vale quando o visual acima for \"Personalizada\". Até 60 caracteres.",
   "dashboard.roles.template_preview": "Prévia:",
-  "dashboard.roles.r_template_invalid": "O texto personalizado precisa ter {label} e pelo menos mais um caractere, então usei a linha normal."
+  "dashboard.roles.r_template_invalid": "O texto personalizado precisa ter {label} e pelo menos mais um caractere, então usei a linha normal.",
+  "site.selectserver.no_admin_servers": "Você não administra nenhum servidor com a Astra. Os servidores em que você é artista ou membro aparecem abaixo."
 }
