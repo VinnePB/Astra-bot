@@ -473,11 +473,21 @@
   "site.artist.preview_note": "Uma boa aproximação de como aparece no Discord. Botões de link e imagens aparecem como os clientes vão ver.",
   "dashboard.roles.r_backfill": "Entregando os cargos divisórios para todo mundo que deve ter. Isso roda em segundo plano e pode levar alguns minutos em servidores grandes.",
   "dashboard.roles.groups_title": "Grupos de divisórias",
-  "dashboard.roles.groups_desc": "Marque os cargos que cada divisória encabeça. Os cargos que a Astra já conhece (admin, verificação, recompensas de nível, loja) contam automaticamente. A Astra coloca cada divisória logo acima do cargo mais alto do grupo; para ficar o mais arrumado possível, arraste os cargos de um grupo juntos para logo abaixo da divisória no Discord.",
+  "dashboard.roles.groups_desc": "Marque os cargos que cada divisória encabeça. Os cargos que a Astra já conhece (admin, verificação, recompensas de nível, loja) contam automaticamente. A Astra coloca cada divisória logo acima do cargo mais alto do grupo; para ficar o mais arrumado possível, arraste os cargos de um grupo juntos para logo abaixo da divisória no Discord. Para mudar o nome de uma divisória, é só renomear o cargo no Discord: a Astra mantém o seu nome e só ajusta o estilo.",
   "dashboard.roles.groups_save": "Salvar grupos",
   "dashboard.roles.group_staff": "━━ STAFF",
   "dashboard.roles.group_access": "━━ ACCESS",
   "dashboard.roles.group_levels": "━━ LEVELS",
   "dashboard.roles.group_special": "━━ SPECIAL",
-  "dashboard.roles.r_groups_saved": "Grupos de divisórias salvos."
+  "dashboard.roles.r_groups_saved": "Grupos de divisórias salvos.",
+  "dashboard.roles.style_label": "Aparência das divisórias",
+  "dashboard.roles.style_line": "Linha  ━━━━ NOME ━━━━",
+  "dashboard.roles.style_bar": "Barra larga (espaço em branco)",
+  "dashboard.roles.pad_label": "Largura da barra (0 a 30)",
+  "dashboard.roles.everyone_label": "Dar a todos os membros, mesmo sem cargo neste grupo",
+  "dashboard.roles.resync_desc": "Confere todos os membros agora e corrige as divisórias deles e as posições. Só roda quando você aperta o botão, e no máximo a cada 5 minutos.",
+  "dashboard.roles.resync_button": "Conferir todos agora",
+  "dashboard.roles.r_resync_started": "Conferindo todos os membros em segundo plano. Pode levar alguns minutos em servidores grandes.",
+  "dashboard.roles.r_resync_busy": "Já existe uma conferência rodando neste servidor. Tente de novo em alguns minutos.",
+  "dashboard.roles.r_resync_cooldown": "Uma conferência rodou há pouco. Espere alguns minutos e tente de novo."
 }

@@ -629,7 +629,9 @@ app.get('/dashboard', checkAuth, async (req, res) => {
             const g = await rolekit.loadGroups(guildId);
             hierarchy.hasDividers = g.dividerIds.size > 0;
             hierarchy.dividerIds = [...g.dividerIds];
-            hierarchy.groups = Object.keys(rolekit.DIVIDERS).map((kind) => ({ kind, selected: [...(g.explicit[kind] || [])] }));
+            hierarchy.groups = Object.keys(rolekit.DIVIDERS).map((kind) => ({ kind, selected: [...(g.explicit[kind] || [])], everyone: g.everyone.has(kind) }));
+            hierarchy.style = settings.divider_style === 'bar' ? 'bar' : 'line';
+            hierarchy.pad = Number.isFinite(+settings.divider_pad) ? +settings.divider_pad : 14;
         } catch (e) { hierarchy.hasDividers = false; hierarchy.dividerIds = []; hierarchy.groups = []; }
 
         const editingId = req.query.edit || null;
@@ -1338,15 +1340,42 @@ app.post('/api/roles/groups', checkAuth, async (req, res) => {
         const guild = client.guilds.cache.get(guild_id);
         if (!guild) return res.redirect('/dashboard?tab=admins&upderr=offline');
         const selections = {};
-        for (const kind of Object.keys(rolekit.DIVIDERS)) selections[kind] = req.body[`group_${kind}`];
+        const everyone = [];
+        for (const kind of Object.keys(rolekit.DIVIDERS)) {
+            selections[kind] = req.body[`group_${kind}`];
+            if (req.body[`everyone_${kind}`] === 'on') everyone.push(kind);
+        }
         await rolekit.saveGroups(guild, selections);
+        await rolekit.saveOptions(guild_id, { style: req.body.divider_style, pad: req.body.divider_pad, everyone });
+        await rolekit.restyleDividers(guild);
         const failed = await rolekit.arrangeDividers(guild);
-        req.session.rolesReport = [{ k: 'r_groups_saved' }, ...failed.map((name) => ({ k: 'r_place_fail', name })), { k: 'r_backfill' }];
-        rolekit.backfillDividers(guild).catch(() => {});
-        await configCommand.logAction(guild, `⚙️ ${req.session.user.username} changed the divider role groups from the website.`);
+        const started = rolekit.startBackfill(guild);
+        req.session.rolesReport = [{ k: 'r_groups_saved' }, ...failed.map((name) => ({ k: 'r_place_fail', name })), { k: started ? 'r_backfill' : 'r_resync_busy' }];
+        await configCommand.logAction(guild, `⚙️ ${req.session.user.username} changed the divider role settings from the website.`);
         req.session.save(() => res.redirect('/dashboard?tab=admins&status=success'));
     } catch (err) {
         console.error('❌ Error saving divider groups:', err);
+        req.session.rolesReport = [{ k: 'r_error' }];
+        req.session.save(() => res.redirect('/dashboard?tab=admins'));
+    }
+});
+
+// "Check everyone now": re-style and re-place the dividers, then re-check every
+// member's dividers. Only when asked from the site, and at most every 5 minutes.
+app.post('/api/roles/resync', checkAuth, async (req, res) => {
+    const { guild_id } = req.body;
+    if (guild_id !== req.session.selectedGuildId) return res.status(403).send('Invalid Guild.');
+    try {
+        const guild = client.guilds.cache.get(guild_id);
+        if (!guild) return res.redirect('/dashboard?tab=admins&upderr=offline');
+        const r = await rolekit.resync(guild);
+        req.session.rolesReport = r.ok
+            ? [{ k: 'r_resync_started' }, ...r.failed.map((name) => ({ k: 'r_place_fail', name }))]
+            : [{ k: r.reason === 'busy' ? 'r_resync_busy' : 'r_resync_cooldown' }];
+        if (r.ok) await configCommand.logAction(guild, `⚙️ ${req.session.user.username} asked Astra to re-check divider roles for all members from the website.`);
+        req.session.save(() => res.redirect('/dashboard?tab=admins&status=success'));
+    } catch (err) {
+        console.error('❌ Error in resync:', err);
         req.session.rolesReport = [{ k: 'r_error' }];
         req.session.save(() => res.redirect('/dashboard?tab=admins'));
     }
@@ -1431,6 +1460,7 @@ app.post('/api/artists/add', checkAuth, async (req, res) => {
         const guild = client.guilds.cache.get(guild_id);
         if (guild) {
             await ticketsCommand.ensureArtistSetupChannel(guild, user_id).catch(err => console.error('❌ Error creating setup channel from site:', err));
+            await ticketsCommand.grantArtistRole(guild, user_id);
         }
 
         res.redirect('/dashboard?tab=tickets&status=success');
@@ -1459,6 +1489,8 @@ app.post('/api/artists/remove', checkAuth, async (req, res) => {
     try {
         await db.query('DELETE FROM artists WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
         await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guild_id, user_id]);
+        const g = client.guilds.cache.get(guild_id);
+        if (g && /^\d{15,25}$/.test(user_id || '')) await ticketsCommand.revokeArtistRole(g, user_id);
         res.redirect('/dashboard?tab=tickets&status=success');
     } catch (err) { res.status(500).send("DB Error."); }
 });
@@ -1723,6 +1755,8 @@ client.on('guildMemberAdd', async (member) => {
         // above and from the admin-only log below) — see /config welcome.
         await configCommand.sendWelcomeMessage(member);
     }
+    // Dividers set to "every member" go on right at join (see rolekit.js).
+    await rolekit.syncMember(member);
     await logMemberEvent(member.guild, 'join', member);
 });
 

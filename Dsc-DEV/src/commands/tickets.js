@@ -26,6 +26,30 @@ async function isArtist(member) {
     return rows.length > 0;
 }
 
+// The server's first configured artist role (never a powerful one) that Astra is
+// allowed to hand out. Registering an artist gives it, un-registering takes it back.
+async function primaryArtistRole(guild) {
+    const { isPowerfulRole } = require('../permissions');
+    const { rows } = await db.query('SELECT role_id FROM guild_artist_roles WHERE guild_id = $1', [guild.id]);
+    return rows.map((r) => guild.roles.cache.get(r.role_id)).find((r) => r && r.editable && !r.managed && !isPowerfulRole(r)) || null;
+}
+async function grantArtistRole(guild, userId) {
+    try {
+        const role = await primaryArtistRole(guild);
+        const member = role && await guild.members.fetch(userId).catch(() => null);
+        if (member && !member.roles.cache.has(role.id)) await member.roles.add(role, 'Astra: registered artist');
+        return role;
+    } catch (e) { console.error('❌ Could not give the artist role:', e.message); return null; }
+}
+async function revokeArtistRole(guild, userId) {
+    try {
+        const role = await primaryArtistRole(guild);
+        const member = role && await guild.members.fetch(userId).catch(() => null);
+        if (member && member.roles.cache.has(role.id)) await member.roles.remove(role, 'Astra: no longer a registered artist');
+        return role;
+    } catch (e) { console.error('❌ Could not take the artist role:', e.message); return null; }
+}
+
 async function ensureArtistRow(guildId, userId) {
     await db.query(
         `INSERT INTO artists (guild_id, user_id) VALUES ($1, $2) ON CONFLICT (guild_id, user_id) DO NOTHING`,
@@ -267,6 +291,8 @@ async function closeTicketByChannelId(guild, channelId, closedByUser, options = 
 
 module.exports = {
     isArtist,
+    grantArtistRole,
+    revokeArtistRole,
     DEFAULTS: { tos: DEFAULT_TOS, wontdo: DEFAULT_WONTDO, askme: DEFAULT_ASKME, price: DEFAULT_PRICE },
     PRICING_CATEGORIES,
     findRealOpenTicket,
@@ -430,7 +456,8 @@ module.exports = {
                     [guildId, user.id]
                 );
 
-                let channelNote = ' They can run `/panel` to customize their ToS, won\'t-do list, and pricing.';
+                const artistRole = await grantArtistRole(interaction.guild, user.id);
+                let channelNote = ' They can run `/panel` to customize their ToS, won\'t-do list, and pricing.' + (artistRole ? ` I gave them ${artistRole.name}.` : '');
                 const setupChannel = await ensureArtistSetupChannel(interaction.guild, user.id).catch(err => {
                     console.error('❌ Error creating artist setup channel:', err);
                     return null;
@@ -450,6 +477,7 @@ module.exports = {
             try {
                 await db.query('DELETE FROM artists WHERE guild_id = $1 AND user_id = $2', [guildId, user.id]);
                 await db.query('DELETE FROM artist_pricing WHERE guild_id = $1 AND user_id = $2', [guildId, user.id]);
+                await revokeArtistRole(interaction.guild, user.id);
                 await logAction(interaction.guild, `🎨 ${interaction.user} removed ${user} as a registered artist.`);
                 return interaction.reply({ content: `✅ ${user} is no longer a registered artist.`, ephemeral: true });
             } catch (error) {

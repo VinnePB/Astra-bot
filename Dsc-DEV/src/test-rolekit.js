@@ -8,6 +8,7 @@ const queries = [];
 const fakeDb = { query: async (sql, p) => {
     queries.push(sql);
     if (/FROM guild_settings/.test(sql)) return { rows: store.settings[p[0]] ? [store.settings[p[0]]] : [] };
+    if (/INSERT INTO guild_settings \(guild_id, divider_style/.test(sql)) { store.settings[p[0]] = { ...(store.settings[p[0]] || {}), guild_id: p[0], divider_style: p[1], divider_pad: p[2], divider_everyone: p[3] }; return { rows: [] }; }
     if (/INSERT INTO guild_settings/.test(sql)) { const col = /\(guild_id, (\w+)\)/.exec(sql)[1]; store.settings[p[0]] = { ...(store.settings[p[0]] || {}), guild_id: p[0], [col]: p[1] }; return { rows: [] }; }
     if (/INSERT INTO guild_admin_roles/.test(sql)) { store.admins.push(p[1]); return { rows: [] }; }
     if (/FROM guild_divider_roles/.test(sql)) return { rows: store.explicit };
@@ -38,7 +39,7 @@ function makeGuild({ canManage = true } = {}) {
     const guild = { id: 'g1', ownerId: 'owner', roles: { cache: { has: (id) => roles.has(id), get: (id) => roles.get(id), find: (f) => [...roles.values()].find(f) },
         fetch: async () => {}, create: async (d) => { const r = { id: String(110000000000000000n + BigInt(++n)), name: d.name, position: 1, managed: false, editable: true,
             permissions: { _p: new Set((d.permissions || []).map(String)), has(f) { return this._p.has(String(f)); }, add(f) { const c = { ...this, _p: new Set(this._p) }; c._p.add(String(f)); return c; } },
-            setPermissions: async function (p) { this.permissions = p; }, setPosition: async function (x) { this.position = x; } }; roles.set(r.id, r); return r; } },
+            setPermissions: async function (p) { this.permissions = p; }, setName: async function (n) { this.name = n; }, setPosition: async function (x) { this.position = x; } }; roles.set(r.id, r); return r; } },
         members: { fetch: async () => new Map(), me: { permissions: { has: () => canManage }, roles: { highest: { position: 50 } } }, fetchMe: async () => guild.members.me } };
     return { guild, roles };
 }
@@ -92,7 +93,7 @@ function makeGuild({ canManage = true } = {}) {
     assert.strictEqual(added.name, '━━━━ LEVELS ━━━━');
     await rolekit.giveDivider(member, 'nonsense'); // ignored
     // --- sync: dividers follow the roles people hold (added AND removed), never touching other roles
-    const divs = Object.fromEntries(['access', 'levels', 'special'].map((k) => [k, store.settings.g1[rolekit.DIVIDERS[k].col]]));
+    const divs = Object.fromEntries(['staff', 'access', 'levels', 'special'].map((k) => [k, store.settings.g1[rolekit.DIVIDERS[k].col]]));
     assert.ok(divs.access && divs.levels && divs.special, 'all three dividers stored');
     store.levelRoles = ['lvl10']; store.shop = ['shop1'];
     const held = new Set([store.settings.g1.member_role_id, 'lvl10', 'unrelated']);
@@ -136,5 +137,41 @@ function makeGuild({ canManage = true } = {}) {
     assert.ok(Array.isArray(failed));
     const specialDivider = roles.get(divs.special);
     assert.ok(specialDivider.position > sneak.position || specialDivider.position === 49, 'SPECIAL sits above its group');
+    // --- look: line vs wide bar, labels survive a rename
+    const { styled, labelOf } = rolekit;
+    assert.strictEqual(styled('LEVELS', 'line', 14), '━━━━ LEVELS ━━━━');
+    const bar = styled('LEVELS', 'bar', 5);
+    assert.strictEqual(bar, '\u3164'.repeat(5) + 'LEVELS' + '\u3164'.repeat(5));
+    assert.ok(styled('X'.repeat(90), 'bar', 30).length <= 100, 'never longer than a role name may be');
+    assert.strictEqual(styled('A', 'bar', 999).length <= 100, true);
+    assert.strictEqual(labelOf('━━━━ MISC ━━━━', 'X'), 'MISC');
+    assert.strictEqual(labelOf(bar, 'X'), 'LEVELS');
+    assert.strictEqual(labelOf('━━━━', 'FALLBACK'), 'FALLBACK');
+
+    // --- restyle keeps a renamed label and switches look
+    const lv = roles.get(divs.levels); lv.name = '━━━━ MISC ━━━━'; lv.setName = async function (n) { this.name = n; };
+    store.settings.g1.divider_style = 'bar'; store.settings.g1.divider_pad = 3;
+    await rolekit.restyleDividers(guild);
+    assert.strictEqual(lv.name, '\u3164\u3164\u3164MISC\u3164\u3164\u3164', 'custom label kept, bar look applied');
+
+    // --- "give to every member" puts a divider on someone with no roles at all (a new joiner)
+    store.settings.g1.divider_everyone = 'staff,access';
+    const joinHeld = new Set();
+    const joiner = { user: { bot: false }, guild, roles: { cache: { has: (id) => joinHeld.has(id) }, add: async (r) => { joinHeld.add(r.id); }, remove: async (r) => { joinHeld.delete(r.id); } } };
+    await rolekit.syncMember(joiner);
+    assert.ok(joinHeld.has(divs.staff) && joinHeld.has(divs.access), 'everyone-dividers go on at join');
+    assert.ok(!joinHeld.has(divs.levels) && !joinHeld.has(divs.special), 'the others stay off');
+
+    // --- saving options validates
+    await rolekit.saveOptions('g1', { style: 'evil', pad: 999, everyone: ['staff', 'nonsense', 'levels'] });
+    assert.strictEqual(store.settings.g1.divider_style, 'line');
+    assert.strictEqual(store.settings.g1.divider_pad, 30);
+    assert.strictEqual(store.settings.g1.divider_everyone, 'staff,levels');
+
+    // --- re-check button: once per cooldown, never two sweeps at once
+    const r1b = await rolekit.resync(guild);
+    assert.ok(r1b.ok);
+    const r2b = await rolekit.resync(guild);
+    assert.strictEqual(r2b.ok, false, 'second press blocked');
     console.log('✅ rolekit OK');
 })().catch((e) => { console.error(e); process.exit(1); });

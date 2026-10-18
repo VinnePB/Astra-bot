@@ -4,10 +4,11 @@ const Module = require('module');
 
 const queries = [];
 let artistRows = [];
+let artistRoleRows = [];
 const conn = { query: async (sql, p) => { queries.push({ sql, p }); return { rows: [] }; }, release() { queries.push({ sql: 'RELEASE' }); } };
 const fakeDb = { query: async (sql, p) => {
     queries.push({ sql, p });
-    if (/FROM guild_artist_roles/.test(sql)) return { rows: [] };
+    if (/FROM guild_artist_roles/.test(sql)) return { rows: artistRoleRows };
     if (/FROM artists WHERE guild_id = \$1 AND user_id = \$2/.test(sql) && /SELECT 1/.test(sql)) return { rows: artistRows.filter((r) => r.guild_id === p[0] && r.user_id === p[1]) };
     return { rows: [] };
 }, pool: { connect: async () => conn, on() {} } };
@@ -17,7 +18,7 @@ const orig = Module._load;
 Module._load = function (req, ...a) {
     if (req === 'discord.js') return fakeDiscord;
     if (/(^|\/)database$/.test(req) || /(^|\/)\.\.\/database$/.test(req)) return fakeDb;
-    if (/(^|\/)\.\.\/(permissions|i18n)$/.test(req)) return { isAstraAdmin: async () => false, t: (l, k) => k };
+    if (/(^|\/)\.\.\/(permissions|i18n)$/.test(req)) return { isAstraAdmin: async () => false, isPowerfulRole: (r) => r.permissions.has('Administrator'), t: (l, k) => k };
     if (/\.\.\/commands\/config$|\.\/config$/.test(req)) return { logAction: async () => {}, getSettings: async () => null };
     return orig.call(this, req, ...a);
 };
@@ -71,5 +72,23 @@ const portal = require('./artistportal');
     assert.ok(queries.filter((q) => /artist_pricing/.test(q.sql)).every((q) => q.p[0] === GID && q.p[1] === UID));
     assert.ok(queries.some((q) => /DELETE FROM artist_pricing/.test(q.sql)), 'blank price removed');
     assert.ok(update.p.includes('Ko-fi'), 'custom link label kept');
+    // --- registering an artist gives the artist role; removing takes it back; powerful roles are never handed out
+    const tickets = require('./commands/tickets');
+    const perms = (bits) => ({ has: (f) => bits.includes(f) });
+    const mkRole = (id, powerful) => ({ id, editable: true, managed: false, permissions: perms(powerful ? ['Administrator'] : []) });
+    const ROLE = mkRole('500000000000000001'), BOSS = mkRole('500000000000000002', true);
+    const rolesById = new Map([[ROLE.id, ROLE], [BOSS.id, BOSS]]);
+    const held = new Set();
+    const g = { id: GID, roles: { cache: { get: (id) => rolesById.get(id) } },
+        members: { fetch: async () => ({ roles: { cache: { has: (id) => held.has(id) }, add: async (r) => { held.add(r.id); }, remove: async (r) => { held.delete(r.id); } } }) } };
+    artistRoleRows = [];
+    assert.strictEqual(await tickets.grantArtistRole(g, UID), null, 'no artist role configured: nothing happens');
+    artistRoleRows = [{ role_id: BOSS.id }];
+    assert.strictEqual(await tickets.grantArtistRole(g, UID), null, 'a role with admin powers is never handed out');
+    artistRoleRows = [{ role_id: BOSS.id }, { role_id: ROLE.id }];
+    assert.strictEqual((await tickets.grantArtistRole(g, UID)).id, ROLE.id, 'first safe artist role is used');
+    assert.ok(held.has(ROLE.id) && !held.has(BOSS.id));
+    await tickets.revokeArtistRole(g, UID);
+    assert.ok(!held.has(ROLE.id), 'removing the artist takes the role back');
     console.log('✅ artist portal OK');
 })().catch((e) => { console.error(e); process.exit(1); });

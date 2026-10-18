@@ -21,11 +21,32 @@ const MOD_ROLE_NAME = 'Moderator';
 const MOD_PERMS = ['BanMembers', 'KickMembers', 'ModerateMembers', 'ManageMessages'];
 
 const DIVIDERS = {
-    staff:   { col: 'divider_staff_role_id',   name: '━━━━ STAFF ━━━━' },
-    access:  { col: 'divider_access_role_id',  name: '━━━━ ACCESS ━━━━' },
-    levels:  { col: 'divider_levels_role_id',  name: '━━━━ LEVELS ━━━━' },
-    special: { col: 'divider_special_role_id', name: '━━━━ SPECIAL ━━━━' },
+    staff:   { col: 'divider_staff_role_id',   label: 'STAFF' },
+    access:  { col: 'divider_access_role_id',  label: 'ACCESS' },
+    levels:  { col: 'divider_levels_role_id',  label: 'LEVELS' },
+    special: { col: 'divider_special_role_id', label: 'SPECIAL' },
 };
+
+// Two looks for a divider role's name:
+//   line: ━━━━ LABEL ━━━━            bar: invisible padding around the label, which
+//   makes the role chip stretch into a wide bar on profiles. The label is whatever
+//   the role is currently called (rename it in Discord and Astra keeps your word).
+const FILL = '\u3164'; // Hangul filler: shows as blank, and Discord does not trim it
+const DEFAULT_PAD = 14;
+function labelOf(name, fallback) {
+    const l = String(name || '').replace(/^[━─\u3164\u2800\s]+|[━─\u3164\u2800\s]+$/g, '');
+    return l || fallback;
+}
+function styled(label, style, pad) {
+    const p = Math.max(0, Math.min(30, Number.isFinite(+pad) ? Math.trunc(+pad) : DEFAULT_PAD));
+    if (style === 'bar') {
+        let n = p;
+        while (n > 0 && n * 2 + label.length > 100) n--;
+        return `${FILL.repeat(n)}${label}${FILL.repeat(n)}`;
+    }
+    return `━━━━ ${label} ━━━━`.slice(0, 100);
+}
+const dividerName = (kind, settings) => styled(DIVIDERS[kind].label, settings?.divider_style, settings?.divider_pad ?? DEFAULT_PAD);
 
 // Everyday commands that need the Verified role once verification is set up.
 // /help, /about and /mydata stay open to everybody on purpose.
@@ -132,24 +153,24 @@ async function setupHierarchy(guild, { dividers = false } = {}) {
 
     // 4) cosmetic dividers
     if (dividers) {
-        for (const d of Object.values(DIVIDERS)) {
+        for (const [kind, d] of Object.entries(DIVIDERS)) {
             try {
                 const fresh = (await getSettings(guild.id)) || {};
                 let role = fresh[d.col] && guild.roles.cache.get(fresh[d.col]);
                 let created = false;
                 if (!role) {
-                    const made = await findOrCreate(guild, d.name, { permissions: [], hoist: false, mentionable: false }, 'Astra: divider role');
+                    const made = await findOrCreate(guild, dividerName(kind, fresh), { permissions: [], hoist: false, mentionable: false }, 'Astra: divider role');
                     role = made.role; created = made.created;
                     await setCol(guild.id, d.col, role.id);
                 }
                 note(created ? 'r_created' : 'r_reused', role);
-            } catch (e) { console.error('❌ rolekit divider:', e.message); lines.push({ k: 'r_error', name: d.name }); }
+            } catch (e) { console.error('❌ rolekit divider:', e.message); lines.push({ k: 'r_error', name: d.label }); }
         }
         for (const name of await arrangeDividers(guild)) lines.push({ k: 'r_place_fail', name });
     }
     if (dividers) {
         lines.push({ k: 'r_backfill' });
-        backfillDividers(guild).catch(() => {}); // runs in the background
+        startBackfill(guild); // runs in the background
     }
     return { ok: true, lines };
 }
@@ -193,7 +214,8 @@ async function loadGroups(guildId) {
     }
     const dividerIds = new Set(Object.values(DIVIDERS).map((d) => settings[d.col]).filter(Boolean));
     for (const g of Object.values(groups)) for (const id of dividerIds) g.delete(id); // a divider never heads a divider
-    return { settings, groups, explicit, dividerIds };
+    const everyone = new Set(String(settings.divider_everyone || '').split(',').filter((k) => DIVIDERS[k]));
+    return { settings, groups, explicit, dividerIds, everyone };
 }
 const loadSyncContext = loadGroups;
 
@@ -207,7 +229,7 @@ async function syncMember(member, ctx) {
             if (!id) continue;
             const role = member.guild.roles.cache.get(id);
             if (!role || !role.editable) continue;
-            const wanted = [...c.groups[kind]].some(has);
+            const wanted = c.everyone.has(kind) || [...c.groups[kind]].some(has);
             if (wanted && !has(id)) await member.roles.add(role, 'Astra: divider role');
             else if (!wanted && has(id)) await member.roles.remove(role, 'Astra: divider role');
         }
@@ -250,6 +272,51 @@ async function saveGroups(guild, selections) {
     } catch (e) { await conn.query('ROLLBACK').catch(() => {}); throw e; } finally { conn.release(); }
 }
 
+// Saves the look and the "give to every member" choices.
+async function saveOptions(guildId, { style, pad, everyone }) {
+    const st = style === 'bar' ? 'bar' : 'line';
+    const p = Math.max(0, Math.min(30, Number.isFinite(+pad) ? Math.trunc(+pad) : DEFAULT_PAD));
+    const kinds = [...new Set([].concat(everyone || []))].filter((k) => DIVIDERS[k]).join(',');
+    await db.query(
+        `INSERT INTO guild_settings (guild_id, divider_style, divider_pad, divider_everyone) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (guild_id) DO UPDATE SET divider_style = $2, divider_pad = $3, divider_everyone = $4`,
+        [guildId, st, p, kinds || null]
+    );
+}
+
+// Renames the divider roles to the chosen look, keeping each one's own label.
+async function restyleDividers(guild) {
+    const settings = (await getSettings(guild.id)) || {};
+    for (const [kind, d] of Object.entries(DIVIDERS)) {
+        const role = settings[d.col] && guild.roles.cache.get(settings[d.col]);
+        if (!role || !role.editable) continue;
+        const target = styled(labelOf(role.name, d.label), settings.divider_style, settings.divider_pad ?? DEFAULT_PAD);
+        if (role.name !== target) await role.setName(target, 'Astra: divider style').catch(() => {});
+    }
+}
+
+// Only one member sweep per server at a time.
+const sweeping = new Map();
+function startBackfill(guild) {
+    if (sweeping.get(guild.id)) return false;
+    sweeping.set(guild.id, true);
+    backfillDividers(guild).catch(() => {}).finally(() => sweeping.delete(guild.id));
+    return true;
+}
+
+// "Check everyone now" from the dashboard: restyle, re-place, then re-sync every
+// member in the background. Limited to once per cooldown per server.
+const lastResync = new Map();
+async function resync(guild, { cooldownMs = 5 * 60 * 1000 } = {}) {
+    if (sweeping.get(guild.id)) return { ok: false, reason: 'busy' };
+    if (Date.now() - (lastResync.get(guild.id) || 0) < cooldownMs) return { ok: false, reason: 'cooldown' };
+    lastResync.set(guild.id, Date.now());
+    await restyleDividers(guild);
+    const failed = await arrangeDividers(guild);
+    startBackfill(guild);
+    return { ok: true, failed };
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Everyone already in the server, gently (well under Discord's rate limits).
 async function backfillDividers(guild) {
@@ -268,4 +335,4 @@ async function backfillDividers(guild) {
     } catch (e) { console.error('❌ divider backfill failed:', e.message); return 0; }
 }
 
-module.exports = { syncMember, backfillDividers, loadGroups, loadSyncContext, arrangeDividers, saveGroups, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };
+module.exports = { syncMember, backfillDividers, startBackfill, resync, restyleDividers, saveOptions, labelOf, styled, loadGroups, loadSyncContext, arrangeDividers, saveGroups, setupHierarchy, giveDivider, memberMayUseCommands, MEMBER_COMMANDS, DIVIDERS, ADMIN_ROLE_NAME, MEMBER_ROLE_NAME, MOD_ROLE_NAME, MOD_PERMS, _test: { placeAbove } };
